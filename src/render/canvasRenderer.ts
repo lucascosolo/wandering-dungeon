@@ -15,7 +15,11 @@ const COLOR_PLAYER = '#00f0ff';
 const COLOR_ENEMY = '#ff0055';
 const COLOR_ITEM = '#ffd166';
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
+const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.04)';
+
+/** How many of the player's own turns a just-shifted tile keeps flashing for. */
+const SHIFT_FLASH_TURNS = 2;
 
 export interface Camera {
   offsetX: number;
@@ -113,7 +117,32 @@ export function renderFrame(
         ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
       }
 
+      // Room-slide / corridor-reconnect telegraph — a softer violet warning.
+      if (visible && tile.isTelegraphedShift) {
+        ctx.fillStyle = COLOR_TELEGRAPH_SHIFT;
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.strokeStyle = '#9d4edd';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+        ctx.setLineDash([]);
+      }
+
       ctx.globalAlpha = 1;
+    }
+  }
+
+  // Flash tiles the last shift actually touched, fading out over a couple turns
+  // so a change registers even if the player wasn't looking at that spot.
+  const turnsSinceShift = state.turnCount - state.lastShiftTurn;
+  if (turnsSinceShift >= 0 && turnsSinceShift < SHIFT_FLASH_TURNS) {
+    const flashAlpha = 0.5 * (1 - turnsSinceShift / SHIFT_FLASH_TURNS);
+    for (const { x, y } of state.lastShiftChanges) {
+      if (!floorMap.explored[y]?.[x]) continue;
+      const px = x * TILE_SIZE + offsetX;
+      const py = y * TILE_SIZE + offsetY;
+      ctx.fillStyle = `rgba(157, 78, 221, ${flashAlpha})`;
+      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
     }
   }
 

@@ -6,6 +6,8 @@ export interface ControlHandlers {
   toggleInventory: () => void;
   /** Tile coordinates of a tap inside the canvas, in map space. */
   tapTile: (x: number, y: number) => void;
+  /** 1-based hotbar slot index, from number keys 1-4. */
+  useHotbarSlot: (slot: number) => void;
 }
 
 const KEY_MOVES: Record<string, [number, number]> = {
@@ -47,6 +49,8 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
       handlers.toggleInventory();
     } else if (key === '>' || key === 'enter') {
       handlers.descend();
+    } else if (key >= '1' && key <= '4') {
+      handlers.useHotbarSlot(Number(key));
     }
   };
 

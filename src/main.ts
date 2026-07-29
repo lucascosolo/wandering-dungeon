@@ -4,7 +4,7 @@ import { GameState } from './core/state';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
-import { mountUI, renderInventory, renderLog, showEndModal, updateHud } from './ui/hud';
+import { mountUI, renderHotbar, renderInventory, renderLog, showEndModal, updateHud } from './ui/hud';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app container missing');
@@ -62,6 +62,7 @@ function act(action: GameAction): void {
 
   updateHud(ui, state);
   renderLog(ui, state);
+  renderHotbar(ui, state, useItem);
   if (!ui.inventorySheet.classList.contains('hidden')) {
     renderInventory(ui, state, useItem);
   }
@@ -97,6 +98,7 @@ function restart(): void {
   closeInventory();
   updateHud(ui, state);
   renderLog(ui, state);
+  renderHotbar(ui, state, useItem);
 }
 
 attachControls(ui.canvas, {
@@ -105,6 +107,10 @@ attachControls(ui.canvas, {
   ability: () => act({ type: 'ABILITY' }),
   descend: () => act({ type: 'DESCEND' }),
   toggleInventory,
+  useHotbarSlot: (slot) => {
+    const item = state.player.inventory[slot - 1];
+    if (item) useItem(item.id);
+  },
   tapTile: (px, py) => {
     const { offsetX, offsetY } = computeCamera(state, viewWidth, viewHeight);
     const tileX = Math.floor((px - offsetX) / TILE_SIZE);
@@ -140,4 +146,5 @@ function loop(now: number): void {
 resizeCanvas();
 updateHud(ui, state);
 renderLog(ui, state);
+renderHotbar(ui, state, useItem);
 requestAnimationFrame(loop);

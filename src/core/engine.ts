@@ -1,6 +1,6 @@
 import { Enemy, GameState, LogMessage, Position } from './state';
 import { SeededRNG } from './rng';
-import { applyTelegraphs, executeShift } from './shift/shiftSystem';
+import { applyTelegraphs, describePendingShift, executeShift } from './shift/shiftSystem';
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
@@ -61,7 +61,13 @@ function log(state: GameState, text: string, type: LogMessage['type'] = 'info'):
 
 function classify(text: string): LogMessage['type'] {
   const lower = text.toLowerCase();
-  if (lower.includes('shift') || lower.includes('corridor') || lower.includes('collapse')) {
+  if (
+    lower.includes('shift') ||
+    lower.includes('corridor') ||
+    lower.includes('collapse') ||
+    lower.includes('trembles') ||
+    lower.includes('rearranged')
+  ) {
     return 'shift';
   }
   if (lower.includes('hit') || lower.includes('strike') || lower.includes('damage')) {
@@ -73,9 +79,15 @@ function classify(text: string): LogMessage['type'] {
 /**
  * Damage the player, spending Fallout Shield HP first.
  */
-export function damagePlayer(state: GameState, amount: number, events: string[]): void {
+export function damagePlayer(
+  state: GameState,
+  amount: number,
+  events: string[],
+  source: string = 'the dungeon'
+): void {
   let remaining = amount;
   const { player } = state;
+  state.lastDamageSource = source;
 
   if (player.shieldHp > 0) {
     const absorbed = Math.min(player.shieldHp, remaining);
@@ -116,7 +128,7 @@ function attack(
     }
   } else {
     events.push(`${attackerName} strikes you.`);
-    damagePlayer(state, dealt, events);
+    damagePlayer(state, dealt, events, attackerName);
   }
 }
 
@@ -273,9 +285,10 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
     events.push(...executeShift(state, rng));
     state.shiftCountdown = state.nextShiftCountdownMax;
   } else if (state.shiftCountdown <= 2) {
+    const hadPlan = state.pendingShift !== null;
     applyTelegraphs(state, rng);
-    if (state.shiftCountdown === 2) {
-      events.push('Reality trembles. A shift is coming.');
+    if (state.shiftCountdown === 2 && !hadPlan && state.pendingShift) {
+      events.push(describePendingShift(state.pendingShift));
     }
   }
 }
@@ -338,7 +351,12 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     state.player.hp = 0;
     state.isGameOver = true;
     state.isVictory = false;
-    events.push('The dungeon claims you. Run over.');
+    const source = state.lastDamageSource ?? 'the dungeon';
+    events.push(
+      source === 'the dungeon' || source === 'the shift'
+        ? `You are consumed by ${source}. Run over.`
+        : `${source} finishes you off. Run over.`
+    );
   }
 
   computeFOV(state.floorMap, state.player.position);

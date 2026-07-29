@@ -1,4 +1,12 @@
-import { GameState, FloorMap, Position, PreShiftSnapshot, TileType } from '../state';
+import {
+  GameState,
+  FloorMap,
+  PendingShift,
+  Position,
+  PreShiftSnapshot,
+  ShiftType,
+  TileType,
+} from '../state';
 import { SeededRNG } from '../rng';
 import { hasValidPath, findPath } from '../map/pathfinding';
 
@@ -107,52 +115,108 @@ export function clearTelegraphs(map: FloorMap): void {
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       map.tiles[y][x].isTelegraphedCollapse = false;
+      map.tiles[y][x].isTelegraphedShift = false;
     }
   }
 }
 
+function groupCenter(map: FloorMap, id: string): Position {
+  const { bounds } = map.shiftGroups[id];
+  return {
+    x: Math.floor(bounds.x + bounds.width / 2),
+    y: Math.floor(bounds.y + bounds.height / 2),
+  };
+}
+
 /**
- * Calculate and apply telegraph overlays for upcoming shift.
- * Called when shiftCountdown reaches 2 or 1.
+ * Pick the group the shift should act on: the one the player is standing in if
+ * possible, otherwise the closest. A shift the player cannot see may as well
+ * not have happened, so the dungeon always rearranges itself under their nose.
  */
-export function applyTelegraphs(
-  state: GameState,
-  rng: SeededRNG
-): void {
+function pickGroupNearPlayer(map: FloorMap, ids: string[], playerPos: Position): string | null {
+  if (ids.length === 0) return null;
+
+  const standingIn = map.tiles[playerPos.y][playerPos.x].shiftGroupId;
+  if (standingIn && ids.includes(standingIn)) return standingIn;
+
+  let best = ids[0];
+  let bestDist = Infinity;
+  for (const id of ids) {
+    const c = groupCenter(map, id);
+    const dist = Math.abs(c.x - playerPos.x) + Math.abs(c.y - playerPos.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = id;
+    }
+  }
+  return best;
+}
+
+/**
+ * Roll the next shift up front so the telegraph can describe the real thing.
+ * Previously the type was re-rolled at telegraph time and again at execution,
+ * so the red warning tiles rarely matched what actually happened.
+ */
+export function planShift(state: GameState, rng: SeededRNG): PendingShift {
+  const map = state.floorMap;
+  const ids = Object.keys(map.shiftGroups);
+  const roomIds = ids.filter(id => map.shiftGroups[id].type === 'room');
+  const corridorIds = ids.filter(id => map.shiftGroups[id].type === 'corridor');
+
+  const roll = rng.randomInt(0, 2);
+  let type: ShiftType =
+    roll === 0 ? 'room_slide' : roll === 1 ? 'corridor_reconnect' : 'localized_collapse';
+
+  // Corridor reconnection needs at least two corridors to trade between.
+  if (type === 'corridor_reconnect' && corridorIds.length < 2) type = 'room_slide';
+  if (roomIds.length === 0) return { type: 'room_slide', targetGroupId: null };
+
+  const pool = type === 'corridor_reconnect' ? corridorIds : roomIds;
+  return { type, targetGroupId: pickGroupNearPlayer(map, pool, state.player.position) };
+}
+
+/** Human-readable warning for the shift that is about to land. */
+export function describePendingShift(shift: PendingShift): string {
+  switch (shift.type) {
+    case 'localized_collapse':
+      return 'Reality trembles. The edges of this chamber are about to fall away.';
+    case 'corridor_reconnect':
+      return 'Reality trembles. The passages nearby are about to rewire themselves.';
+    default:
+      return 'Reality trembles. The chamber marked in violet is about to slide.';
+  }
+}
+
+/**
+ * Mark the tiles the pending shift will disturb. Called when shiftCountdown
+ * reaches 2 or 1.
+ */
+export function applyTelegraphs(state: GameState, rng: SeededRNG): void {
   const map = state.floorMap;
   clearTelegraphs(map);
 
-  // Determine which shift groups will be affected
-  const shiftGroupIds = Object.keys(map.shiftGroups);
-  if (shiftGroupIds.length === 0) return;
+  state.pendingShift ??= planShift(state, rng);
+  const { type, targetGroupId } = state.pendingShift;
+  if (!targetGroupId || !map.shiftGroups[targetGroupId]) return;
 
-  // Select groups to shift (rooms only for room slide, or collapse targets)
-  const roomGroups = shiftGroupIds.filter(id => map.shiftGroups[id].type === 'room');
-  if (roomGroups.length === 0) return;
+  const { bounds } = map.shiftGroups[targetGroupId];
 
-  // Pick a shift type based on RNG: 0 = room slide, 1 = corridor reconnect, 2 = collapse
-  const shiftType = rng.randomInt(0, 2);
+  for (let y = bounds.y; y < bounds.y + bounds.height; y++) {
+    for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
+      if (!inBounds(map, { x, y })) continue;
+      if (map.tiles[y][x].shiftGroupId !== targetGroupId) continue;
 
-  if (shiftType === 2) {
-    // Localized collapse: mark edge tiles of a random room as telegraphed
-    const targetGroupId = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
-    const group = map.shiftGroups[targetGroupId];
-    const bounds = group.bounds;
+      const isBorder =
+        x === bounds.x || x === bounds.x + bounds.width - 1 ||
+        y === bounds.y || y === bounds.y + bounds.height - 1;
 
-    for (let y = bounds.y; y < bounds.y + bounds.height; y++) {
-      for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
-        if (inBounds(map, { x, y })) {
-          const isBorder = x === bounds.x || x === bounds.x + bounds.width - 1 ||
-                           y === bounds.y || y === bounds.y + bounds.height - 1;
-          if (isBorder) {
-            map.tiles[y][x].isTelegraphedCollapse = true;
-          }
-        }
+      if (type === 'localized_collapse') {
+        if (isBorder) map.tiles[y][x].isTelegraphedCollapse = true;
+      } else {
+        map.tiles[y][x].isTelegraphedShift = true;
       }
     }
   }
-  // Room slide and corridor reconnect telegraphs are shown as ghost outlines
-  // in the renderer — no tile-level flag needed for those.
 }
 
 /**
@@ -184,14 +248,16 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
     return events;
   }
 
-  // Pick shift type
-  const shiftType = rng.randomInt(0, 2);
+  // Execute the shift that was telegraphed, not a fresh roll.
+  const plan = state.pendingShift ?? planShift(state, rng);
+  state.pendingShift = null;
 
   // Save map state for rollback if shift is unsafe
   const savedTileTypes: TileType[][] = map.tiles.map(row =>
     row.map(tile => tile.type)
   );
 
+  const savedPlayerPos = { ...state.player.position };
   let shiftApplied = false;
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -202,19 +268,17 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
           map.tiles[y][x].type = savedTileTypes[y][x];
         }
       }
+      state.player.position = { ...savedPlayerPos };
+      events.length = 0;
     }
 
-    if (shiftType === 0) {
-      // Room Slide: shift a random room by a small offset
-      applyRoomSlide(map, roomGroups, rng);
-      events.push('Rooms grind and shift position!');
-    } else if (shiftType === 1) {
-      // Corridor Reconnection: swap two corridor connections
-      applyCorridorReconnect(map, rng);
-      events.push('Corridors twist and reconnect!');
+    if (plan.type === 'room_slide') {
+      applyRoomSlide(state, plan.targetGroupId ?? roomGroups[0], rng, events);
+    } else if (plan.type === 'corridor_reconnect') {
+      applyCorridorReconnect(map, plan.targetGroupId, rng);
+      events.push('Corridors twist and reconnect around you!');
     } else {
-      // Localized Collapse: border tiles of a room become chasms
-      applyLocalizedCollapse(map, roomGroups, rng, events);
+      applyLocalizedCollapse(map, plan.targetGroupId ?? roomGroups[0], events);
     }
 
     // Safety check: player must be on safe tile with path to exit
@@ -249,7 +313,23 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
         map.tiles[y][x].type = savedTileTypes[y][x];
       }
     }
+    state.player.position = { ...savedPlayerPos };
+    events.length = 0;
     events.push('Reality trembles but holds steady.');
+  }
+
+  // Record what actually moved so the renderer can flash it — without this the
+  // player has no way to tell a shift apart from nothing happening.
+  const changed: Position[] = [];
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (map.tiles[y][x].type !== savedTileTypes[y][x]) changed.push({ x, y });
+    }
+  }
+  state.lastShiftChanges = changed;
+  state.lastShiftTurn = state.turnCount;
+  if (shiftApplied && changed.length > 0) {
+    events.push(`${changed.length} tiles rearranged themselves.`);
   }
 
   // Apply fallout damage to entities on collapsed tiles
@@ -259,15 +339,17 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
 }
 
 /**
- * Apply a room slide shift: move tiles of a selected room by a small offset.
+ * Apply a room slide shift: move tiles of the target room by a small offset.
  */
 function applyRoomSlide(
-  map: FloorMap,
-  roomGroups: string[],
-  rng: SeededRNG
+  state: GameState,
+  targetId: string,
+  rng: SeededRNG,
+  events: string[]
 ): void {
-  const targetId = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
+  const map = state.floorMap;
   const group = map.shiftGroups[targetId];
+  events.push('Rooms grind and shift position!');
 
   // Pick a small offset (1-2 tiles in a cardinal direction)
   const directions: Position[] = [
@@ -362,19 +444,15 @@ function applyRoomSlide(
 }
 
 /**
- * Apply corridor reconnection: close one corridor and open another.
+ * Apply corridor reconnection: partially collapse the target corridor and
+ * carve a new one between two rooms.
  */
 function applyCorridorReconnect(
   map: FloorMap,
+  targetId: string | null,
   rng: SeededRNG
 ): void {
-  const corridorGroups = Object.keys(map.shiftGroups).filter(
-    id => map.shiftGroups[id].type === 'corridor'
-  );
-  if (corridorGroups.length < 2) return;
-
-  // Pick a random corridor to partially collapse
-  const targetId = corridorGroups[rng.randomInt(0, corridorGroups.length - 1)];
+  if (!targetId || !map.shiftGroups[targetId]) return;
   const group = map.shiftGroups[targetId];
   const bounds = group.bounds;
 
@@ -436,15 +514,13 @@ function applyCorridorReconnect(
 }
 
 /**
- * Apply localized collapse: border tiles of a random room become chasms.
+ * Apply localized collapse: border tiles of the target room become chasms.
  */
 function applyLocalizedCollapse(
   map: FloorMap,
-  roomGroups: string[],
-  rng: SeededRNG,
+  targetId: string,
   events: string[]
 ): void {
-  const targetId = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
   const group = map.shiftGroups[targetId];
   const bounds = group.bounds;
 
@@ -471,6 +547,7 @@ function applyLocalizedCollapse(
  * Base: 8% max HP. Vanguard passive reduces by 50% (to 4%).
  */
 function applyFalloutDamage(state: GameState, events: string[]): void {
+  state.lastDamageSource = 'the shift';
   const basePercent = 0.08;
   const reduction = state.player.classType === 'vanguard' ? 0.5 : 1.0;
   const damage = Math.max(1, Math.floor(state.player.maxHp * basePercent * reduction));

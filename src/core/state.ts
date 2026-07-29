@@ -11,7 +11,20 @@ export interface GridTile {
   type: TileType;
   shiftGroupId: string | null;
   isTelegraphedCollapse?: boolean;
+  /** Part of a room that is about to slide. Drawn as a warning outline. */
+  isTelegraphedShift?: boolean;
   hazard?: 'fire' | 'poison_gas' | null;
+}
+
+export type ShiftType = 'room_slide' | 'corridor_reconnect' | 'localized_collapse';
+
+/**
+ * A shift that has been rolled but not yet executed. Rolling it up front is what
+ * lets the telegraph tell the truth about what is coming.
+ */
+export interface PendingShift {
+  type: ShiftType;
+  targetGroupId: string | null;
 }
 
 export interface ShiftGroup {
@@ -119,6 +132,14 @@ export interface GameState {
   entities: Enemy[];
   floorMap: FloorMap;
   preShiftSnapshot: PreShiftSnapshot | null;
+  /** The shift that has been rolled and telegraphed, awaiting execution. */
+  pendingShift: PendingShift | null;
+  /** Tiles whose type changed in the last shift — the renderer flashes these. */
+  lastShiftChanges: Position[];
+  /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */
+  lastShiftTurn: number;
+  /** Who last hurt the player, so death can name a culprit. */
+  lastDamageSource: string | null;
   eventLog: LogMessage[];
   isGameOver: boolean;
   isVictory: boolean;

@@ -107,18 +107,19 @@ describe('Shift Engine', () => {
     if (floorTiles.length > 1) {
       state.player.position = floorTiles[1];
     }
-    const movedPlayerPos = { ...state.player.position };
 
-    // Apply a shift
+    // Apply a shift — the shift's own safety net may reposition the player
+    // onto a safe tile if their spot became unsafe. That's expected; what this
+    // test checks is that restoring the snapshot afterward doesn't move them again.
     executeShift(state, rng);
+    const postShiftPlayerPos = { ...state.player.position };
 
     // Now restore from our manually captured snapshot
     state.preShiftSnapshot = snapshot;
     restorePreShiftSnapshot(state);
 
-    // Player position should NOT be reverted (only geometry is restored)
-    expect(state.player.position.x).toBe(movedPlayerPos.x);
-    expect(state.player.position.y).toBe(movedPlayerPos.y);
+    expect(state.player.position.x).toBe(postShiftPlayerPos.x);
+    expect(state.player.position.y).toBe(postShiftPlayerPos.y);
   });
 
   it('clears telegraph overlays', () => {

@@ -9,6 +9,7 @@ export interface HudElements {
   hpLabel: HTMLElement;
   shieldFill: HTMLElement;
   logPanel: HTMLElement;
+  hotbar: HTMLElement;
   inventorySheet: HTMLElement;
   inventoryList: HTMLElement;
   modal: HTMLElement;
@@ -25,6 +26,8 @@ export function mountUI(root: HTMLElement): HudElements {
       <div class="hud-stat"><span class="hud-stat__label">Turn</span><span id="turn-label">0</span></div>
     </header>
 
+    <div class="legend">@ you &middot; E enemy &middot; * item &middot; + door &middot; &gt; stairs</div>
+
     <div class="vitals">
       <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
       <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
@@ -33,6 +36,8 @@ export function mountUI(root: HTMLElement): HudElements {
     <div class="game-viewport"><canvas id="game-canvas"></canvas></div>
 
     <div class="log-panel" id="log-panel"></div>
+
+    <div class="hotbar" id="hotbar"></div>
 
     <div class="thumb-action-bar">
       <button class="action-btn" id="btn-wait" type="button">Wait<small>space</small></button>
@@ -60,6 +65,7 @@ export function mountUI(root: HTMLElement): HudElements {
     hpLabel: byId('hp-label'),
     shieldFill: byId('shield-fill'),
     logPanel: byId('log-panel'),
+    hotbar: byId('hotbar'),
     inventorySheet: byId('inventory-sheet'),
     inventoryList: byId('inventory-list'),
     modal: byId('modal'),
@@ -92,12 +98,46 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
 }
 
+/** Only the last few lines show, older ones fading out — a HUD log, not a scrollback. */
+const LOG_VISIBLE_LINES = 4;
+
 export function renderLog(ui: HudElements, state: GameState): void {
-  const recent = state.eventLog.slice(-40);
+  const recent = state.eventLog.slice(-LOG_VISIBLE_LINES);
   ui.logPanel.innerHTML = recent
-    .map(m => `<div class="log-line log-line--${m.type}">${escapeHtml(m.text)}</div>`)
+    .map((m, i) => {
+      const age = recent.length - 1 - i;
+      return `<div class="log-line log-line--${m.type}" style="opacity:${1 - age * 0.22}">${escapeHtml(m.text)}</div>`;
+    })
     .join('');
-  ui.logPanel.scrollTop = ui.logPanel.scrollHeight;
+}
+
+/** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
+export const HOTBAR_SIZE = 4;
+
+/**
+ * Quick-use row for the first few inventory items, so using a Stasis Flask
+ * mid-fight doesn't require opening the full inventory sheet.
+ */
+export function renderHotbar(
+  ui: HudElements,
+  state: GameState,
+  onUse: (itemId: string) => void
+): void {
+  const slots = state.player.inventory.slice(0, HOTBAR_SIZE);
+
+  ui.hotbar.innerHTML = slots
+    .map(
+      (item, i) => `
+      <button class="hotbar-slot" data-item-id="${item.id}" type="button" title="${escapeHtml(item.description)}">
+        <span class="hotbar-slot__key">${i + 1}</span>
+        <span class="hotbar-slot__name">${escapeHtml(item.name)}</span>
+      </button>`
+    )
+    .join('');
+
+  ui.hotbar.querySelectorAll<HTMLButtonElement>('.hotbar-slot').forEach(btn => {
+    btn.addEventListener('click', () => onUse(btn.dataset.itemId!));
+  });
 }
 
 export function renderInventory(
@@ -129,10 +169,18 @@ export function renderInventory(
 
 export function showEndModal(ui: HudElements, state: GameState, onRestart: () => void): void {
   const won = state.isVictory;
+  const cause = state.lastDamageSource;
+  const causeLine =
+    !won && cause
+      ? cause === 'the dungeon' || cause === 'the shift'
+        ? `Consumed by ${cause}.`
+        : `Killed by a ${cause}.`
+      : '';
   ui.modal.classList.remove('hidden');
   ui.modal.innerHTML = `
     <div class="modal__card glass-panel">
       <h2 class="${won ? 'modal__title--win' : 'modal__title--lose'}">${won ? 'You Escaped' : 'You Fell'}</h2>
+      ${causeLine ? `<p class="modal__cause">${escapeHtml(causeLine)}</p>` : ''}
       <p class="modal__stats">Floor ${state.floorMap.level} &middot; ${state.turnCount} turns</p>
       <p class="modal__seed">seed: ${escapeHtml(state.seed)}</p>
       <button class="action-btn" id="btn-restart" type="button">New Run</button>

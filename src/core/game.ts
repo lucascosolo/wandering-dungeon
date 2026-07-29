@@ -148,6 +148,9 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.entities = enemies;
   state.player.position = { x: map.entrance.x, y: map.entrance.y };
   state.preShiftSnapshot = null;
+  state.pendingShift = null;
+  state.lastShiftChanges = [];
+  state.lastShiftTurn = -999;
   state.shiftCountdown = state.nextShiftCountdownMax;
 
   computeFOV(map, state.player.position);
@@ -187,6 +190,10 @@ export function createNewGame(seed: string): GameState {
     entities: [],
     floorMap: null as unknown as FloorMap,
     preShiftSnapshot: null,
+    pendingShift: null,
+    lastShiftChanges: [],
+    lastShiftTurn: -999,
+    lastDamageSource: null,
     eventLog: [],
     isGameOver: false,
     isVictory: false,

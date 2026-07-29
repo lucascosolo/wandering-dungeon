@@ -281,6 +281,15 @@ html, body {
   text-align: center;
 }
 
+/* Colour-code the two warning words to match the telegraph overlays on canvas. */
+.legend__warn--close {
+  color: #ff0055;
+}
+
+.legend__warn--open {
+  color: #c99bff;
+}
+
 .hotbar {
   display: flex;
   gap: 6px;

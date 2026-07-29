@@ -4,6 +4,8 @@ import {
   PendingShift,
   Position,
   PreShiftSnapshot,
+  ShiftGroupMove,
+  ShiftTileChange,
   ShiftType,
   TileType,
 } from '../state';
@@ -153,9 +155,136 @@ function pickGroupNearPlayer(map: FloorMap, ids: string[], playerPos: Position):
 }
 
 /**
- * Roll the next shift up front so the telegraph can describe the real thing.
- * Previously the type was re-rolled at telegraph time and again at execution,
- * so the red warning tiles rarely matched what actually happened.
+ * How many shifts in a row may leave the exit unreachable. The dungeon is
+ * allowed to seal the way out — that is the oscillation the mechanic is built
+ * on — but a second consecutive sealing shift is rejected at plan time, so the
+ * player is never locked away from the stairs for longer than one shift cycle.
+ */
+export const MAX_EXIT_BLOCKED_STREAK = 1;
+
+/** Attempts to find a shift that satisfies the safety rules before giving up. */
+const PLAN_ATTEMPTS = 6;
+
+/** Clone the geometry a shift can touch, so a shift can be rehearsed safely. */
+function cloneGeometry(map: FloorMap): FloorMap {
+  return {
+    ...map,
+    tiles: map.tiles.map(row => row.map(tile => ({ ...tile }))),
+    shiftGroups: Object.fromEntries(
+      Object.entries(map.shiftGroups).map(([id, g]) => [
+        id,
+        { ...g, bounds: { ...g.bounds }, currentOffset: { ...g.currentOffset } },
+      ])
+    ),
+  };
+}
+
+function diffGeometry(
+  before: FloorMap,
+  after: FloorMap
+): { changes: ShiftTileChange[]; groupMoves: Record<string, ShiftGroupMove> } {
+  const changes: ShiftTileChange[] = [];
+  for (let y = 0; y < before.height; y++) {
+    for (let x = 0; x < before.width; x++) {
+      const a = before.tiles[y][x];
+      const b = after.tiles[y][x];
+      if (a.type !== b.type || a.shiftGroupId !== b.shiftGroupId) {
+        changes.push({ x, y, to: b.type, shiftGroupId: b.shiftGroupId });
+      }
+    }
+  }
+
+  const groupMoves: Record<string, ShiftGroupMove> = {};
+  for (const [id, g] of Object.entries(after.shiftGroups)) {
+    const was = before.shiftGroups[id];
+    if (!was) continue;
+    if (
+      was.bounds.x !== g.bounds.x ||
+      was.bounds.y !== g.bounds.y ||
+      was.currentOffset.x !== g.currentOffset.x ||
+      was.currentOffset.y !== g.currentOffset.y
+    ) {
+      groupMoves[id] = { bounds: { ...g.bounds }, currentOffset: { ...g.currentOffset } };
+    }
+  }
+
+  return { changes, groupMoves };
+}
+
+/**
+ * The subset of a plan's changes that alters a tile's *type*, i.e. the ones a
+ * player could actually see happen. Changes that only re-tag a tile's shift
+ * group look identical on screen, so they are neither telegraphed nor flashed.
+ */
+function visibleChanges(map: FloorMap, changes: ShiftTileChange[]): ShiftTileChange[] {
+  return changes.filter(
+    c => inBounds(map, c) && map.tiles[c.y][c.x].type !== c.to
+  );
+}
+
+/** Groups ordered by how close they are to the player, nearest first. */
+function orderGroupsByDistance(map: FloorMap, ids: string[], playerPos: Position): string[] {
+  const first = pickGroupNearPlayer(map, ids, playerPos);
+  const rest = ids
+    .filter(id => id !== first)
+    .sort((a, b) => {
+      const ca = groupCenter(map, a);
+      const cb = groupCenter(map, b);
+      return (
+        Math.abs(ca.x - playerPos.x) + Math.abs(ca.y - playerPos.y) -
+        (Math.abs(cb.x - playerPos.x) + Math.abs(cb.y - playerPos.y))
+      );
+    });
+  return first ? [first, ...rest] : rest;
+}
+
+/**
+ * Dig an L-shaped floor corridor from `from` to `to`, so a sealed-off exit can
+ * always be reopened. This is the hard fail-safe behind MAX_EXIT_BLOCKED_STREAK:
+ * the dungeon may lock the stairs away for one shift cycle, never longer.
+ */
+function carveRescuePath(map: FloorMap, from: Position, to: Position): void {
+  const open = (x: number, y: number): void => {
+    if (!inBounds(map, { x, y })) return;
+    const tile = map.tiles[y][x];
+    if (isSafeTile(tile.type)) return;
+    tile.type = 'floor';
+    tile.shiftGroupId = 'corridor_rescue';
+  };
+
+  const stepX = from.x <= to.x ? 1 : -1;
+  for (let x = from.x; x !== to.x + stepX; x += stepX) open(x, from.y);
+
+  const stepY = from.y <= to.y ? 1 : -1;
+  for (let y = from.y; y !== to.y + stepY; y += stepY) open(to.x, y);
+}
+
+/** Where the player would stand once a rehearsed shift has landed. */
+function playerLandingSpot(map: FloorMap, pos: Position): Position | null {
+  if (isSafeTile(map.tiles[pos.y][pos.x].type)) return pos;
+  return findNearestSafeTile(map, pos);
+}
+
+const INERT_SHIFT: Omit<PendingShift, 'type'> = {
+  targetGroupId: null,
+  changes: [],
+  groupMoves: {},
+  blocksExit: false,
+};
+
+/**
+ * Roll the next shift and rehearse it on a throwaway copy of the map, so the
+ * plan carries the exact tile changes it will make.
+ *
+ * The telegraph and the execution both read those changes, which is the only
+ * way to guarantee they agree. Rolling only a *type* up front was not enough:
+ * `localized_collapse` was re-derived at execution, failed its safety check
+ * against the player's own room every time, and got skipped — so a warning of
+ * sixteen collapsing tiles reliably resolved to "reality holds steady".
+ *
+ * Safety rules applied here (a rejected plan is re-rolled):
+ * - the player must have somewhere safe to stand afterwards;
+ * - the exit may become unreachable, but not for two shifts in a row.
  */
 export function planShift(state: GameState, rng: SeededRNG): PendingShift {
   const map = state.floorMap;
@@ -163,70 +292,127 @@ export function planShift(state: GameState, rng: SeededRNG): PendingShift {
   const roomIds = ids.filter(id => map.shiftGroups[id].type === 'room');
   const corridorIds = ids.filter(id => map.shiftGroups[id].type === 'corridor');
 
+  if (roomIds.length === 0) return { type: 'room_slide', ...INERT_SHIFT };
+
+  const mustReopenExit = state.exitBlockedStreak >= MAX_EXIT_BLOCKED_STREAK;
+
   const roll = rng.randomInt(0, 2);
   let type: ShiftType =
     roll === 0 ? 'room_slide' : roll === 1 ? 'corridor_reconnect' : 'localized_collapse';
 
   // Corridor reconnection needs at least two corridors to trade between.
   if (type === 'corridor_reconnect' && corridorIds.length < 2) type = 'room_slide';
-  if (roomIds.length === 0) return { type: 'room_slide', targetGroupId: null };
 
+  // The type is rolled once and kept: retrying only the *target* keeps every
+  // shift type as likely as its roll. Re-rolling the type on each attempt let
+  // the safety rules quietly starve `localized_collapse` down to 3% of shifts.
   const pool = type === 'corridor_reconnect' ? corridorIds : roomIds;
-  return { type, targetGroupId: pickGroupNearPlayer(map, pool, state.player.position) };
+  const candidates = orderGroupsByDistance(map, pool, state.player.position).slice(
+    0,
+    PLAN_ATTEMPTS
+  );
+
+  for (const targetGroupId of candidates) {
+    const sim = cloneGeometry(map);
+    rehearseShift({ ...state, floorMap: sim }, type, targetGroupId, roomIds[0], rng);
+
+    const landing = playerLandingSpot(sim, state.player.position);
+    if (!landing) continue; // nowhere to stand — never acceptable
+
+    // Sealing the exit is a legitimate outcome, not a failure: the dungeon is
+    // meant to close the way out and reopen it a cycle later. But when it is
+    // already sealed, this shift owes the player a way back — so carve one.
+    // Merely rejecting sealing plans is not a fail-safe: it opens nothing, and
+    // the floor locks into a sealed state with every shift turning inert.
+    if (mustReopenExit && !hasValidPath(sim, landing, sim.exit)) {
+      carveRescuePath(sim, landing, sim.exit);
+    }
+
+    const { changes, groupMoves } = diffGeometry(map, sim);
+    if (changes.length === 0) continue;
+
+    const blocksExit = !hasValidPath(sim, landing, sim.exit);
+    return { type, targetGroupId, changes, groupMoves, blocksExit };
+  }
+
+  // No target worked. If the exit is currently sealed, the fail-safe still has
+  // to fire, so fall back to a shift that does nothing but dig the way out —
+  // telegraphed like any other, so the player watches the passage open.
+  if (mustReopenExit) {
+    const sim = cloneGeometry(map);
+    const landing = playerLandingSpot(sim, state.player.position) ?? state.player.position;
+    carveRescuePath(sim, landing, sim.exit);
+    const { changes, groupMoves } = diffGeometry(map, sim);
+    if (changes.length > 0) {
+      return { type: 'corridor_reconnect', targetGroupId: null, changes, groupMoves, blocksExit: false };
+    }
+  }
+
+  return { type, ...INERT_SHIFT };
+}
+
+/** Run one shift's geometry mutation. Used for both rehearsal and diffing. */
+function rehearseShift(
+  simState: GameState,
+  type: ShiftType,
+  targetGroupId: string | null,
+  fallbackRoomId: string,
+  rng: SeededRNG
+): void {
+  const throwaway: string[] = [];
+  if (type === 'room_slide') {
+    applyRoomSlide(simState, targetGroupId ?? fallbackRoomId, rng, throwaway);
+  } else if (type === 'corridor_reconnect') {
+    applyCorridorReconnect(simState.floorMap, targetGroupId, simState.player.position, rng);
+  } else {
+    applyLocalizedCollapse(simState.floorMap, targetGroupId ?? fallbackRoomId, throwaway);
+  }
 }
 
 /** Human-readable warning for the shift that is about to land. */
 export function describePendingShift(shift: PendingShift): string {
+  const sealing = shift.blocksExit ? ' The way out will be cut off.' : '';
+
   switch (shift.type) {
     case 'localized_collapse':
-      return 'Reality trembles. The edges of this chamber are about to fall away.';
+      return `Reality trembles. The tiles marked in red are about to fall away.${sealing}`;
     case 'corridor_reconnect':
-      return 'Reality trembles. The passages nearby are about to rewire themselves.';
+      return `Reality trembles. Passages will close where marked red, open where marked violet.${sealing}`;
     default:
-      return 'Reality trembles. The chamber marked in violet is about to slide.';
+      return `Reality trembles. A chamber is about to slide — red tiles close, violet tiles open.${sealing}`;
   }
 }
 
 /**
- * Mark the tiles the pending shift will disturb. Called when shiftCountdown
- * reaches 2 or 1.
+ * Mark exactly the tiles the pending shift will change. Called when
+ * shiftCountdown reaches 2 or 1.
+ *
+ * Red marks a tile that is about to become impassable or deadly; violet marks
+ * one that is about to open up. Both come straight off the rehearsed plan.
  */
 export function applyTelegraphs(state: GameState, rng: SeededRNG): void {
   const map = state.floorMap;
   clearTelegraphs(map);
 
   state.pendingShift ??= planShift(state, rng);
-  const { type, targetGroupId } = state.pendingShift;
-  if (!targetGroupId || !map.shiftGroups[targetGroupId]) return;
 
-  const { bounds } = map.shiftGroups[targetGroupId];
-
-  for (let y = bounds.y; y < bounds.y + bounds.height; y++) {
-    for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
-      if (!inBounds(map, { x, y })) continue;
-      if (map.tiles[y][x].shiftGroupId !== targetGroupId) continue;
-
-      const isBorder =
-        x === bounds.x || x === bounds.x + bounds.width - 1 ||
-        y === bounds.y || y === bounds.y + bounds.height - 1;
-
-      if (type === 'localized_collapse') {
-        if (isBorder) map.tiles[y][x].isTelegraphedCollapse = true;
-      } else {
-        map.tiles[y][x].isTelegraphedShift = true;
-      }
-    }
+  for (const change of visibleChanges(map, state.pendingShift.changes)) {
+    const tile = map.tiles[change.y][change.x];
+    if (isSafeTile(change.to)) tile.isTelegraphedShift = true;
+    else tile.isTelegraphedCollapse = true;
   }
 }
 
 /**
- * Execute a dungeon shift. This is the core shift resolution function.
+ * Execute a dungeon shift by replaying the plan that was already telegraphed.
  *
- * Safety guarantees:
- * - Player ends on a valid safe tile after shift.
- * - Player retains a valid path to the exit.
- * - If a shift would violate either, the shift is rerolled (up to 5 attempts),
- *   and if no safe shift is found, the shift is skipped.
+ * No geometry decisions are made here — `planShift` rehearsed the shift and
+ * recorded its exact tile changes, and this function applies them verbatim.
+ * That is what keeps the warning tiles and the outcome identical.
+ *
+ * Safety guarantees (enforced at plan time, see `planShift`):
+ * - the player always has a safe tile to stand on afterwards;
+ * - the exit may be sealed off, but never for two shifts in a row.
  *
  * Fallout damage: 8% max HP base (Vanguard reduces by 50% to 4%).
  */
@@ -237,99 +423,61 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
   // Capture geometry snapshot before shift (for Rewind Scroll)
   state.preShiftSnapshot = capturePreShiftSnapshot(map);
 
-  // Clear any telegraph overlays
-  clearTelegraphs(map);
-
-  const shiftGroupIds = Object.keys(map.shiftGroups);
-  const roomGroups = shiftGroupIds.filter(id => map.shiftGroups[id].type === 'room');
-
-  if (roomGroups.length === 0) {
-    events.push('The dungeon rumbles but nothing changes.');
-    return events;
-  }
-
-  // Execute the shift that was telegraphed, not a fresh roll.
   const plan = state.pendingShift ?? planShift(state, rng);
   state.pendingShift = null;
 
-  // Save map state for rollback if shift is unsafe
-  const savedTileTypes: TileType[][] = map.tiles.map(row =>
-    row.map(tile => tile.type)
-  );
+  // Tiles the player will actually see change — recorded before the changes are
+  // applied, since afterwards there is nothing left to compare against.
+  const changed: Position[] = visibleChanges(map, plan.changes).map(c => ({ x: c.x, y: c.y }));
 
-  const savedPlayerPos = { ...state.player.position };
-  let shiftApplied = false;
+  clearTelegraphs(map);
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    // Reset tiles to saved state if retrying
-    if (attempt > 0) {
-      for (let y = 0; y < map.height; y++) {
-        for (let x = 0; x < map.width; x++) {
-          map.tiles[y][x].type = savedTileTypes[y][x];
-        }
-      }
-      state.player.position = { ...savedPlayerPos };
-      events.length = 0;
+  if (plan.changes.length === 0) {
+    // Nothing was telegraphed either, so this reads as a quiet turn rather than
+    // a warning that came to nothing.
+    events.push('Reality trembles but holds steady.');
+  } else {
+    for (const change of plan.changes) {
+      if (!inBounds(map, change)) continue;
+      map.tiles[change.y][change.x].type = change.to;
+      map.tiles[change.y][change.x].shiftGroupId = change.shiftGroupId;
+    }
+    for (const [id, move] of Object.entries(plan.groupMoves)) {
+      const group = map.shiftGroups[id];
+      if (!group) continue;
+      group.bounds = { ...move.bounds };
+      group.currentOffset = { ...move.currentOffset };
     }
 
-    if (plan.type === 'room_slide') {
-      applyRoomSlide(state, plan.targetGroupId ?? roomGroups[0], rng, events);
-    } else if (plan.type === 'corridor_reconnect') {
-      applyCorridorReconnect(map, plan.targetGroupId, rng);
-      events.push('Corridors twist and reconnect around you!');
-    } else {
-      applyLocalizedCollapse(map, plan.targetGroupId ?? roomGroups[0], events);
-    }
+    events.push(SHIFT_FLAVOUR[plan.type]);
 
-    // Safety check: player must be on safe tile with path to exit
-    const playerPos = state.player.position;
-    const playerTile = map.tiles[playerPos.y][playerPos.x];
-    const playerOnSafeTile = isSafeTile(playerTile.type);
-    const pathExists = playerOnSafeTile && hasValidPath(map, playerPos, map.exit);
-
-    if (playerOnSafeTile && pathExists) {
-      shiftApplied = true;
-      break;
-    }
-
-    // If player is not safe, try emergency repositioning
-    if (!playerOnSafeTile) {
-      const safeTile = findNearestSafeTile(map, playerPos);
-      if (safeTile && hasValidPath(map, safeTile, map.exit)) {
+    // The player can be caught in the collapse: shunt them clear and bill them
+    // for it. planShift guaranteed such a tile exists.
+    if (!isSafeTile(map.tiles[state.player.position.y][state.player.position.x].type)) {
+      const safeTile = findNearestSafeTile(map, state.player.position);
+      if (safeTile) {
         state.player.position = safeTile;
         applyFalloutDamage(state, events);
-        shiftApplied = true;
-        break;
       }
     }
-
-    // This shift configuration is unsafe, retry with different RNG
   }
 
-  if (!shiftApplied) {
-    // Restore original tile state — skip the shift
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        map.tiles[y][x].type = savedTileTypes[y][x];
-      }
-    }
-    state.player.position = { ...savedPlayerPos };
-    events.length = 0;
-    events.push('Reality trembles but holds steady.');
-  }
-
-  // Record what actually moved so the renderer can flash it — without this the
-  // player has no way to tell a shift apart from nothing happening.
-  const changed: Position[] = [];
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      if (map.tiles[y][x].type !== savedTileTypes[y][x]) changed.push({ x, y });
-    }
-  }
   state.lastShiftChanges = changed;
   state.lastShiftTurn = state.turnCount;
-  if (shiftApplied && changed.length > 0) {
+  if (changed.length > 0) {
     events.push(`${changed.length} tiles rearranged themselves.`);
+  }
+
+  // The way out can close temporarily — say so, and count it so the next plan
+  // is forced to reopen it.
+  if (hasValidPath(map, state.player.position, map.exit)) {
+    if (state.exitBlockedStreak > 0) {
+      events.push('A path to the stairs opens up again.');
+    }
+    state.exitBlockedStreak = 0;
+  } else {
+    state.exitBlockedStreak++;
+    events.push('The way to the stairs is sealed. The next shift will have to open it.');
   }
 
   // Apply fallout damage to entities on collapsed tiles
@@ -338,8 +486,16 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
   return events;
 }
 
+const SHIFT_FLAVOUR: Record<ShiftType, string> = {
+  room_slide: 'Rooms grind and shift position!',
+  corridor_reconnect: 'Corridors twist and reconnect around you!',
+  localized_collapse: 'Part of a chamber collapses into the void!',
+};
+
 /**
  * Apply a room slide shift: move tiles of the target room by a small offset.
+ * Runs during rehearsal only — `events` is discarded; the log line comes from
+ * SHIFT_FLAVOUR once the plan is actually executed.
  */
 function applyRoomSlide(
   state: GameState,
@@ -349,7 +505,6 @@ function applyRoomSlide(
 ): void {
   const map = state.floorMap;
   const group = map.shiftGroups[targetId];
-  events.push('Rooms grind and shift position!');
 
   // Pick a small offset (1-2 tiles in a cardinal direction)
   const directions: Position[] = [
@@ -446,10 +601,15 @@ function applyRoomSlide(
 /**
  * Apply corridor reconnection: partially collapse the target corridor and
  * carve a new one between two rooms.
+ *
+ * The rooms are the two nearest the player rather than two picked at random
+ * from the whole floor — a rewiring the player cannot see reads as nothing
+ * having happened, and the telegraph and flash can only draw tiles on screen.
  */
 function applyCorridorReconnect(
   map: FloorMap,
   targetId: string | null,
+  playerPos: Position,
   rng: SeededRNG
 ): void {
   if (!targetId || !map.shiftGroups[targetId]) return;
@@ -474,19 +634,20 @@ function applyCorridorReconnect(
     }
   }
 
-  // Pick two random rooms and carve a new short corridor between them
-  const roomGroups = Object.keys(map.shiftGroups).filter(
-    id => map.shiftGroups[id].type === 'room'
-  );
+  // Carve a new corridor between the two rooms closest to the player.
+  const roomGroups = Object.keys(map.shiftGroups)
+    .filter(id => map.shiftGroups[id].type === 'room')
+    .sort((a, b) => {
+      const ca = groupCenter(map, a);
+      const cb = groupCenter(map, b);
+      const da = Math.abs(ca.x - playerPos.x) + Math.abs(ca.y - playerPos.y);
+      const db = Math.abs(cb.x - playerPos.x) + Math.abs(cb.y - playerPos.y);
+      return da - db;
+    });
   if (roomGroups.length < 2) return;
 
-  const r1Id = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
-  let r2Id = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
-  let safety = 0;
-  while (r2Id === r1Id && safety < 10) {
-    r2Id = roomGroups[rng.randomInt(0, roomGroups.length - 1)];
-    safety++;
-  }
+  const r1Id = roomGroups[0];
+  const r2Id = roomGroups[1];
 
   const r1 = map.shiftGroups[r1Id];
   const r2 = map.shiftGroups[r2Id];
@@ -515,6 +676,9 @@ function applyCorridorReconnect(
 
 /**
  * Apply localized collapse: border tiles of the target room become chasms.
+ * The stairs are never swallowed — losing the exit tile itself would make the
+ * floor unfinishable, which no fail-safe downstream could undo.
+ * Rehearsal-only, like the other apply* helpers; `events` is discarded.
  */
 function applyLocalizedCollapse(
   map: FloorMap,
@@ -524,21 +688,15 @@ function applyLocalizedCollapse(
   const group = map.shiftGroups[targetId];
   const bounds = group.bounds;
 
-  let collapsedCount = 0;
   for (let y = bounds.y; y < bounds.y + bounds.height; y++) {
     for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
       if (!inBounds(map, { x, y })) continue;
       const isBorder = x === bounds.x || x === bounds.x + bounds.width - 1 ||
                         y === bounds.y || y === bounds.y + bounds.height - 1;
-      if (isBorder && map.tiles[y][x].shiftGroupId === targetId) {
-        map.tiles[y][x].type = 'chasm';
-        collapsedCount++;
-      }
+      if (!isBorder || map.tiles[y][x].shiftGroupId !== targetId) continue;
+      if (map.tiles[y][x].type === 'stairs_down') continue;
+      map.tiles[y][x].type = 'chasm';
     }
-  }
-
-  if (collapsedCount > 0) {
-    events.push(`Part of a chamber collapses into the void! (${collapsedCount} tiles lost)`);
   }
 }
 

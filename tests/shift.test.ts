@@ -8,6 +8,7 @@ import {
   restorePreShiftSnapshot,
   clearTelegraphs,
   applyTelegraphs,
+  MAX_EXIT_BLOCKED_STREAK,
 } from '../src/core/shift/shiftSystem';
 
 describe('Shift Engine', () => {
@@ -23,19 +24,18 @@ describe('Shift Engine', () => {
     expect(state.preShiftSnapshot).toBeNull(); // Snapshot consumed
   });
 
-  it('executes a shift and maintains player safety + path to exit', () => {
+  it('executes a shift and always leaves the player somewhere safe', () => {
     const state = createMockGameState('shift-safety-test');
     const rng = new SeededRNG('shift-exec-rng');
 
     executeShift(state, rng);
 
-    // Player must be on a safe tile
+    // Player must be on a safe tile. Note that a path to the exit is NOT
+    // guaranteed by a single shift any more — the dungeon may seal the stairs
+    // for one shift cycle. That bound is covered by its own test below.
     const playerPos = state.player.position;
     const playerTile = state.floorMap.tiles[playerPos.y][playerPos.x];
     expect(['floor', 'door', 'stairs_down']).toContain(playerTile.type);
-
-    // Player must have path to exit
-    expect(hasValidPath(state.floorMap, playerPos, state.floorMap.exit)).toBe(true);
   });
 
   it('stores a preShiftSnapshot after executing a shift', () => {
@@ -120,6 +120,93 @@ describe('Shift Engine', () => {
 
     expect(state.player.position.x).toBe(postShiftPlayerPos.x);
     expect(state.player.position.y).toBe(postShiftPlayerPos.y);
+  });
+
+  /**
+   * The telegraph promising one thing and the shift doing another was a real
+   * shipped bug: every `localized_collapse` warned about 12-18 collapsing tiles
+   * and then changed nothing, because the outcome was re-derived at execution
+   * and failed its safety check. These tests pin the contract instead.
+   */
+  describe('telegraph fidelity', () => {
+    const SEEDS = ['tf-1', 'tf-2', 'tf-3', 'tf-4', 'tf-5', 'tf-6', 'tf-7', 'tf-8'];
+
+    const telegraphedTiles = (state: ReturnType<typeof createMockGameState>): string[] => {
+      const out: string[] = [];
+      const m = state.floorMap;
+      for (let y = 0; y < m.height; y++) {
+        for (let x = 0; x < m.width; x++) {
+          const t = m.tiles[y][x];
+          if (t.isTelegraphedCollapse || t.isTelegraphedShift) out.push(`${x},${y}`);
+        }
+      }
+      return out.sort();
+    };
+
+    it('warns about exactly the tiles the shift then changes', () => {
+      for (const seed of SEEDS) {
+        const state = createMockGameState(seed);
+        const rng = new SeededRNG(`${seed}-rng`);
+
+        for (let shift = 0; shift < 4; shift++) {
+          applyTelegraphs(state, rng);
+          const warned = telegraphedTiles(state);
+
+          executeShift(state, rng);
+          const changed = state.lastShiftChanges.map(c => `${c.x},${c.y}`).sort();
+
+          expect(changed, `seed ${seed}, shift ${shift}`).toEqual(warned);
+        }
+      }
+    });
+
+    it('lands the shift it telegraphed instead of holding steady', () => {
+      let landed = 0;
+      let total = 0;
+
+      for (const seed of SEEDS) {
+        const state = createMockGameState(seed);
+        const rng = new SeededRNG(`${seed}-rng`);
+
+        for (let shift = 0; shift < 4; shift++) {
+          applyTelegraphs(state, rng);
+          const warned = telegraphedTiles(state).length;
+          const events = executeShift(state, rng);
+
+          if (warned > 0) {
+            total++;
+            // A warning must never resolve to "nothing happened".
+            expect(events.join(' '), `seed ${seed}`).not.toContain('holds steady');
+            if (state.lastShiftChanges.length > 0) landed++;
+          }
+        }
+      }
+
+      expect(total).toBeGreaterThan(0);
+      expect(landed).toBe(total);
+    });
+
+    it('never seals the exit for two shifts in a row', () => {
+      for (const seed of SEEDS) {
+        const state = createMockGameState(seed);
+        const rng = new SeededRNG(`${seed}-rng`);
+
+        for (let shift = 0; shift < 8; shift++) {
+          executeShift(state, rng);
+
+          expect(
+            state.exitBlockedStreak,
+            `seed ${seed} exceeded the sealed-exit bound at shift ${shift}`
+          ).toBeLessThanOrEqual(MAX_EXIT_BLOCKED_STREAK);
+
+          if (state.exitBlockedStreak === 0) {
+            expect(
+              hasValidPath(state.floorMap, state.player.position, state.floorMap.exit)
+            ).toBe(true);
+          }
+        }
+      }
+    });
   });
 
   it('clears telegraph overlays', () => {

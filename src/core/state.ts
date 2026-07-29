@@ -18,13 +18,35 @@ export interface GridTile {
 
 export type ShiftType = 'room_slide' | 'corridor_reconnect' | 'localized_collapse';
 
+/** One tile mutation a shift will perform. */
+export interface ShiftTileChange {
+  x: number;
+  y: number;
+  to: TileType;
+  shiftGroupId: string | null;
+}
+
+/** Where a room lands after it slides. */
+export interface ShiftGroupMove {
+  bounds: { x: number; y: number; width: number; height: number };
+  currentOffset: Position;
+}
+
 /**
- * A shift that has been rolled but not yet executed. Rolling it up front is what
- * lets the telegraph tell the truth about what is coming.
+ * A shift that has been rolled *and fully simulated* but not yet executed.
+ *
+ * `changes` is the authoritative list of what the shift will do: the telegraph
+ * draws exactly these tiles and execution replays exactly these tiles, so the
+ * warning cannot disagree with the outcome. Re-deriving the outcome at execution
+ * time is what used to make the telegraph lie.
  */
 export interface PendingShift {
   type: ShiftType;
   targetGroupId: string | null;
+  changes: ShiftTileChange[];
+  groupMoves: Record<string, ShiftGroupMove>;
+  /** True when this shift leaves the exit unreachable — allowed, but not twice running. */
+  blocksExit: boolean;
 }
 
 export interface ShiftGroup {
@@ -138,6 +160,12 @@ export interface GameState {
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */
   lastShiftTurn: number;
+  /**
+   * How many shifts in a row have left the exit unreachable. The dungeon is
+   * allowed to seal the way out and reopen it later, but never twice running —
+   * see MAX_EXIT_BLOCKED_STREAK in shiftSystem.
+   */
+  exitBlockedStreak: number;
   /** Who last hurt the player, so death can name a culprit. */
   lastDamageSource: string | null;
   eventLog: LogMessage[];

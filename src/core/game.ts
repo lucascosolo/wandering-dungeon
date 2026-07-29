@@ -151,6 +151,7 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.pendingShift = null;
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
+  state.exitBlockedStreak = 0;
   state.shiftCountdown = state.nextShiftCountdownMax;
 
   computeFOV(map, state.player.position);
@@ -193,6 +194,7 @@ export function createNewGame(seed: string): GameState {
     pendingShift: null,
     lastShiftChanges: [],
     lastShiftTurn: -999,
+    exitBlockedStreak: 0,
     lastDamageSource: null,
     eventLog: [],
     isGameOver: false,

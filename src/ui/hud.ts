@@ -26,7 +26,11 @@ export function mountUI(root: HTMLElement): HudElements {
       <div class="hud-stat"><span class="hud-stat__label">Turn</span><span id="turn-label">0</span></div>
     </header>
 
-    <div class="legend">@ you &middot; E enemy &middot; * item &middot; + door &middot; &gt; stairs</div>
+    <div class="legend">
+      @ you &middot; E enemy &middot; * item &middot; + door &middot; &gt; stairs &middot;
+      <span class="legend__warn legend__warn--close">red</span> closing &middot;
+      <span class="legend__warn legend__warn--open">violet</span> opening
+    </div>
 
     <div class="vitals">
       <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>

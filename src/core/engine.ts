@@ -82,6 +82,13 @@ export function damagePlayer(state: GameState, amount: number, events: string[])
     player.shieldHp -= absorbed;
     remaining -= absorbed;
     events.push(`Fallout Shield absorbs ${absorbed} damage.`);
+
+    // A depleted shield is gone, not merely empty — otherwise its remaining
+    // duration would keep blocking the player from raising a new one.
+    if (player.shieldHp === 0) {
+      player.shieldTurnsRemaining = 0;
+      events.push('Fallout Shield shatters.');
+    }
   }
 
   if (remaining > 0) {
@@ -108,22 +115,24 @@ function attack(
       events.push(`${target.name} is destroyed.`);
     }
   } else {
+    events.push(`${attackerName} strikes you.`);
     damagePlayer(state, dealt, events);
   }
 }
 
-function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, events: string[]): void {
+/** Returns whether the action actually happened (a blocked bump is free). */
+function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, events: string[]): boolean {
   const target = { x: state.player.position.x + dx, y: state.player.position.y + dy };
   const occupant = enemyAt(state, target);
 
   if (occupant) {
     attack(state, rng, 'You', state.player.attackPower, occupant, events);
-    return;
+    return true;
   }
 
   if (!isWalkableAt(state, target)) {
     events.push('The way is blocked.');
-    return;
+    return false;
   }
 
   state.player.position = target;
@@ -142,22 +151,24 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   if (tile.type === 'stairs_down') {
     events.push('Stairs descend into the dark here. Take them to go deeper.');
   }
+
+  return true;
 }
 
 /**
  * Vanguard Fallout Shield: temporary damage absorption, stronger when a shift
  * is about to land (within 2 turns), per the class fantasy of bracing for impact.
  */
-function useAbility(state: GameState, events: string[]): void {
+function useAbility(state: GameState, events: string[]): boolean {
   const { player } = state;
 
   if (player.shieldTurnsRemaining > 0) {
     events.push('Fallout Shield is already active.');
-    return;
+    return false;
   }
   if (state.abilityCooldown > 0) {
     events.push(`Fallout Shield is recharging (${state.abilityCooldown} turns).`);
-    return;
+    return false;
   }
 
   const imminent = state.shiftCountdown <= 2;
@@ -171,26 +182,29 @@ function useAbility(state: GameState, events: string[]): void {
       ? `You brace against the coming shift. Fallout Shield absorbs ${player.shieldHp} damage.`
       : `Fallout Shield raised, absorbing ${player.shieldHp} damage.`
   );
+
+  return true;
 }
 
-function descend(state: GameState, rng: SeededRNG, events: string[]): void {
+function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
   const { player, floorMap } = state;
   const tile = floorMap.tiles[player.position.y][player.position.x];
 
   if (tile.type !== 'stairs_down') {
     events.push('There are no stairs here.');
-    return;
+    return false;
   }
 
   if (floorMap.level >= FINAL_FLOOR) {
     state.isVictory = true;
     state.isGameOver = true;
     events.push('You climb out of the shifting dark. You survived the Wandering Dungeon.');
-    return;
+    return true;
   }
 
   events.push(`You descend to floor ${floorMap.level + 1}.`);
   buildFloor(state, rng, floorMap.level + 1);
+  return true;
 }
 
 function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
@@ -279,23 +293,28 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
 
   const rng = SeededRNG.fromSerialized(state.rngState);
   let changedFloor = false;
+  // An action that could not happen at all costs the player nothing.
+  let spentTurn = true;
 
   switch (action.type) {
     case 'MOVE':
-      playerMove(state, rng, action.dx, action.dy, events);
+      spentTurn = playerMove(state, rng, action.dx, action.dy, events);
       break;
     case 'WAIT':
       events.push('You hold position.');
       break;
     case 'ABILITY':
-      useAbility(state, events);
+      spentTurn = useAbility(state, events);
       break;
-    case 'USE_ITEM':
+    case 'USE_ITEM': {
+      const hasItem = state.player.inventory.some(i => i.id === action.itemId);
       events.push(...useItem(state, action.itemId, rng));
+      spentTurn = hasItem;
       break;
+    }
     case 'DESCEND': {
       const before = state.floorMap.level;
-      descend(state, rng, events);
+      spentTurn = descend(state, rng, events);
       // A successful descent replaces the world; the old floor gets no response turn.
       changedFloor = state.floorMap.level !== before;
       break;
@@ -308,7 +327,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     }
   }
 
-  if (consumesTurn(action) && !state.isGameOver && !changedFloor) {
+  if (consumesTurn(action) && spentTurn && !state.isGameOver && !changedFloor) {
     state.entities = state.entities.filter(e => e.hp > 0);
     enemyTurns(state, rng, events);
     advanceClock(state, rng, events);

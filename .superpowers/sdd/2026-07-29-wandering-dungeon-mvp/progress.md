@@ -11,3 +11,15 @@ Task 8: complete (commit f5f3ebb) — HUD, controls, main.ts wiring. Playable en
 
 Task 6 (IndexedDB persistence): DEFERRED. Not required to play; picked up after
 the loop was verified playable.
+
+Post-MVP fix (commit e82520c) — shift telegraph fidelity. Browser playtest of
+08c6d48 showed its telegraph claim did not hold: 7/7 telegraphed collapses
+resolved to "reality holds steady". Shifts are now rehearsed on a copy of the
+geometry at plan time and replayed verbatim, so telegraph == outcome by
+construction (0 mismatches over 205 shifts / 10 seeds).
+
+Requirement change made here: a shift may leave the exit unreachable. The
+dungeon oscillates instead, bounded by MAX_EXIT_BLOCKED_STREAK (never sealed
+for more than one shift cycle, with a rescue carve as the hard fail-safe).
+The old "every shift keeps a path to the exit" invariant is gone — that
+requirement is what made collapses unschedulable in the first place.

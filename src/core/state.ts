@@ -83,6 +83,11 @@ export interface LogMessage {
   timestamp: number;
 }
 
+export interface ItemDrop {
+  item: Item;
+  position: Position;
+}
+
 export interface FloorMap {
   level: number;
   width: number;
@@ -93,6 +98,8 @@ export interface FloorMap {
   exit: Position;
   explored: boolean[][];
   visible: boolean[][];
+  /** Item pickups lying on the floor. Populated when the floor is built. */
+  drops?: ItemDrop[];
 }
 
 export interface GameState {
@@ -106,6 +113,8 @@ export interface GameState {
   nextShiftCountdownMax: number;
   isStasisActive: boolean;
   stasisTurnsRemaining: number;
+  /** Turns until the Vanguard's Fallout Shield can be raised again. */
+  abilityCooldown: number;
   player: Player;
   entities: Enemy[];
   floorMap: FloorMap;

@@ -67,6 +67,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     nextShiftCountdownMax: 8,
     isStasisActive: false,
     stasisTurnsRemaining: 0,
+    abilityCooldown: 0,
     player,
     entities: [],
     floorMap,

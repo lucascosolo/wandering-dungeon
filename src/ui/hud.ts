@@ -79,20 +79,20 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </div>
 
     <div class="vitals">
-      <div class="vitals__bars">
-        <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
-        <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
-      </div>
-      <button class="potion" id="potion-btn" type="button" title="Drink a Health Potion">
-        <span class="potion__glyph">!</span>
-        <span class="potion__count" id="potion-count">0</span>
-        <small class="potion__key">h</small>
-      </button>
+      <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
+      <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
     </div>
 
     <div class="game-viewport"><canvas id="game-canvas"></canvas></div>
 
     <div class="log-panel" id="log-panel"></div>
+
+    <button class="potion" id="potion-btn" type="button">
+      <span class="potion__glyph">!</span>
+      <span class="potion__name">Health Potions</span>
+      <span class="potion__count" id="potion-count">0</span>
+      <small class="potion__key">h</small>
+    </button>
 
     <div class="hotbar" id="hotbar"></div>
 

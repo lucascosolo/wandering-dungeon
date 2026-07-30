@@ -291,27 +291,37 @@ function carveRescuePath(map: FloorMap, from: Position, to: Position): void {
 export function syncDoors(map: FloorMap): void {
   const isCorridorGroup = (id: string | null): boolean => id !== null && id.startsWith('corridor');
 
-  const touchesCorridor = (x: number, y: number): boolean =>
-    CARDINAL_OFFSETS.some(o => {
-      const n = { x: x + o.x, y: y + o.y };
-      if (!inBounds(map, n)) return false;
-      const tile = map.tiles[n.y][n.x];
-      return isSafeTile(tile.type) && isCorridorGroup(tile.shiftGroupId);
-    });
+  const isRoomTile = (p: Position): boolean => {
+    if (!inBounds(map, p)) return false;
+    const tile = map.tiles[p.y][p.x];
+    return isSafeTile(tile.type) && tile.shiftGroupId !== null && !isCorridorGroup(tile.shiftGroupId);
+  };
+
+  const isOpen = (p: Position): boolean =>
+    inBounds(map, p) && isSafeTile(map.tiles[p.y][p.x].type);
+
+  /**
+   * A threshold is a corridor tile with a room on one side and the passage
+   * continuing on the opposite side — the pinch point a house plan draws the
+   * door in. Both halves matter: without the room test the glyph lands anywhere
+   * in the corridor, and without the opposite-side test a corridor running
+   * flush along a room's outer edge marks its entire length as one absurdly
+   * wide doorway.
+   */
+  const isThreshold = (x: number, y: number): boolean =>
+    CARDINAL_OFFSETS.some(
+      o => isRoomTile({ x: x + o.x, y: y + o.y }) && isOpen({ x: x - o.x, y: y - o.y })
+    );
 
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const tile = map.tiles[y][x];
       if (tile.type !== 'floor' && tile.type !== 'door') continue;
 
-      // A junction tile belongs to the room and abuts a corridor. Corridors are
-      // only ever carved through walls, so corridor adjacency already implies
-      // this tile sits on the room's perimeter.
-      const isJunction = !isCorridorGroup(tile.shiftGroupId) &&
-        tile.shiftGroupId !== null &&
-        touchesCorridor(x, y);
-
-      tile.type = isJunction ? 'door' : 'floor';
+      // The door belongs to the corridor, not the room. Marking the room's own
+      // edge tile — which is what this did originally — drew the glyph one
+      // square inside the room, short of the gap it was meant to fill.
+      tile.type = isCorridorGroup(tile.shiftGroupId) && isThreshold(x, y) ? 'door' : 'floor';
     }
   }
 }

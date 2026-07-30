@@ -1,5 +1,6 @@
 import { SeededRNG } from '../rng';
 import { FloorMap, GridTile, Position, ShiftGroup } from '../state';
+import { syncDoors } from '../shift/shiftSystem';
 
 interface Room {
   id: string;
@@ -171,43 +172,6 @@ export function generateFloor(
     };
   }
 
-  // Place doors at room-corridor junctions
-  for (const r of rooms) {
-    for (let ry = r.y; ry < r.y + r.height; ry++) {
-      for (let rx = r.x; rx < r.x + r.width; rx++) {
-        const isBorder =
-          rx === r.x ||
-          rx === r.x + r.width - 1 ||
-          ry === r.y ||
-          ry === r.y + r.height - 1;
-
-        if (isBorder && tiles[ry][rx].type === 'floor') {
-          const neighbors = [
-            { x: rx + 1, y: ry },
-            { x: rx - 1, y: ry },
-            { x: rx, y: ry + 1 },
-            { x: rx, y: ry - 1 },
-          ];
-
-          const adjacentToCorridor = neighbors.some((n) => {
-            if (n.x >= 0 && n.x < width && n.y >= 0 && n.y < height) {
-              const tile = tiles[n.y][n.x];
-              return (
-                tile.shiftGroupId !== null &&
-                tile.shiftGroupId.startsWith('corridor_')
-              );
-            }
-            return false;
-          });
-
-          if (adjacentToCorridor) {
-            tiles[ry][rx].type = 'door';
-          }
-        }
-      }
-    }
-  }
-
   // Set entrance at center of room 0
   const entrance: Position = { x: rooms[0].centerX, y: rooms[0].centerY };
   tiles[entrance.y][entrance.x].type = 'floor';
@@ -232,7 +196,7 @@ export function generateFloor(
   };
   tiles[exit.y][exit.x].type = 'stairs_down';
 
-  return {
+  const map: FloorMap = {
     level,
     width,
     height,
@@ -243,4 +207,12 @@ export function generateFloor(
     explored,
     visible,
   };
+
+  // Generation used to place doors with its own copy of this rule, which is a
+  // standing invitation for the two to disagree — and a disagreement would make
+  // the first shift churn doors across the whole floor rather than only where
+  // the geometry moved.
+  syncDoors(map);
+
+  return map;
 }

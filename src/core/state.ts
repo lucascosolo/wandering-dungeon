@@ -160,6 +160,8 @@ export interface GameState {
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */
   lastShiftTurn: number;
+  /** Which kind of shift last landed, so effects and logs can tell them apart. */
+  lastShiftType: ShiftType | null;
   /**
    * How many shifts in a row have left the exit unreachable. The dungeon is
    * allowed to seal the way out and reopen it later, but never twice running —

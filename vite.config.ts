@@ -1,9 +1,11 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
+import { runLogPlugin } from './vite/runLogPlugin';
 
 export default defineConfig({
   root: '.',
   publicDir: 'public',
+  plugins: [runLogPlugin()],
   build: {
     outDir: 'dist',
     target: 'esnext',

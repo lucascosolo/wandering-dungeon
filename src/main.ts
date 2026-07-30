@@ -5,6 +5,7 @@ import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { mountUI, renderHotbar, renderInventory, renderLog, showEndModal, updateHud } from './ui/hud';
+import { RunRecorder } from './telemetry/runLog';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app container missing');
@@ -16,6 +17,7 @@ if (!ctx) throw new Error('2D canvas context unavailable');
 const particles = new ParticleSystem();
 
 let state: GameState = createNewGame(readSeed());
+let recorder = new RunRecorder(state);
 let viewWidth = 0;
 let viewHeight = 0;
 
@@ -57,7 +59,9 @@ function reactToEvents(events: string[]): void {
 function act(action: GameAction): void {
   if (state.isGameOver) return;
 
+  recorder.beginTurn(state, action);
   const { events } = dispatchAction(state, action);
+  recorder.endTurn(state, events);
   reactToEvents(events);
 
   updateHud(ui, state);
@@ -92,7 +96,10 @@ function toggleInventory(): void {
 }
 
 function restart(): void {
+  // Close the old run's log before the state it describes is thrown away.
+  recorder.flush();
   state = createNewGame(Math.floor(Math.random() * 1e9).toString(36));
+  recorder = new RunRecorder(state);
   particles.clear();
   ui.modal.classList.add('hidden');
   closeInventory();
@@ -132,6 +139,13 @@ root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInven
 // The viewport is flex-sized, so its box is only known after layout — observe it
 // rather than measuring once at startup.
 new ResizeObserver(resizeCanvas).observe(ui.canvas.parentElement!);
+
+// An abandoned run is data too, so push it before the page goes away. pagehide
+// fires on mobile backgrounding where unload does not.
+window.addEventListener('pagehide', () => recorder.flush(true));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') recorder.flush(true);
+});
 
 let lastFrame = performance.now();
 function loop(now: number): void {

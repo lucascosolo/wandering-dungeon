@@ -8,8 +8,12 @@ import {
   restorePreShiftSnapshot,
   clearTelegraphs,
   applyTelegraphs,
+  syncDoors,
   MAX_EXIT_BLOCKED_STREAK,
 } from '../src/core/shift/shiftSystem';
+import { createNewGame } from '../src/core/game';
+import { dispatchAction } from '../src/core/engine';
+import { FloorMap } from '../src/core/state';
 
 describe('Shift Engine', () => {
   it('captures geometry snapshot and restores geometry without altering player HP', () => {
@@ -205,6 +209,72 @@ describe('Shift Engine', () => {
             ).toBe(true);
           }
         }
+      }
+    });
+  });
+
+  describe('door consistency', () => {
+    /**
+     * A door here marks where a corridor meets a room, not a gap in a wall —
+     * rooms are solid floor rectangles. So a door is valid exactly when it is a
+     * room tile touching a corridor tile.
+     */
+    function strandedDoors(map: FloorMap): { x: number; y: number }[] {
+      const isCorridor = (id: string | null): boolean => id !== null && id.startsWith('corridor');
+      const walkable = (x: number, y: number): boolean => {
+        if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
+        const t = map.tiles[y][x].type;
+        return t === 'floor' || t === 'door' || t === 'stairs_down';
+      };
+
+      const out: { x: number; y: number }[] = [];
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          if (map.tiles[y][x].type !== 'door') continue;
+          const touchesCorridor = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            return walkable(nx, ny) && isCorridor(map.tiles[ny][nx].shiftGroupId);
+          });
+          if (!touchesCorridor) out.push({ x, y });
+        }
+      }
+      return out;
+    }
+
+    it('agrees with the doors the floor generator places', () => {
+      // If syncDoors disagreed with generation, every shift would churn doors
+      // across the whole floor instead of only where the geometry moved.
+      for (const seed of ['door-a', 'door-b', 'door-c', 'door-d']) {
+        const state = createNewGame(seed);
+        const before = state.floorMap.tiles.map(row => row.map(t => t.type));
+
+        syncDoors(state.floorMap);
+
+        for (let y = 0; y < state.floorMap.height; y++) {
+          for (let x = 0; x < state.floorMap.width; x++) {
+            expect(
+              state.floorMap.tiles[y][x].type,
+              `seed ${seed} tile (${x}, ${y}) was reclassified`
+            ).toBe(before[y][x]);
+          }
+        }
+      }
+    });
+
+    it('leaves no door stranded away from a corridor after many shifts', () => {
+      for (const seed of ['door-1', 'door-2', 'door-3', 'door-4', 'door-5', 'door-6']) {
+        const state = createNewGame(seed);
+
+        for (let turn = 0; turn < 200 && !state.isGameOver; turn++) {
+          dispatchAction(state, { type: 'WAIT' });
+        }
+
+        const stranded = strandedDoors(state.floorMap);
+        expect(
+          stranded,
+          `seed ${seed} left ${stranded.length} stranded door(s), e.g. ${JSON.stringify(stranded[0])}`
+        ).toEqual([]);
       }
     });
   });

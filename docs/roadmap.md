@@ -52,6 +52,24 @@ the note there. Ground any tuning in `logs/<run-id>.json` (damage by source)
 rather than guessing; the knobs are `ENEMY_TABLE` in `src/core/game.ts` and the
 combat constants in `src/core/engine.ts`.
 
+## Monetization that stays out of the way
+
+**Reported 2026-07-30.** Wants a revenue path that does not turn the HUD into ad
+space — the screen is already tight enough that the potion row and the log had
+to fight for it. A donation screen is the leading candidate: one entry point
+from the title/settings, nothing on the play surface.
+
+Constraint worth keeping: the game is an offline PWA with no backend, so
+anything requiring a server or a store account is a much bigger change than it
+looks.
+
+## Settings screen with rebindable keys
+
+**Reported 2026-07-30.** Keys are currently hardcoded in `KEY_MOVES` and the
+`if/else` chain in `src/ui/controls.ts`. A settings screen would hold the
+bindings; `idb-keyval` is already installed and unused, so it is the obvious
+place to persist them.
+
 ## Deferred earlier
 
 - Weapon item types (companion to armor above).

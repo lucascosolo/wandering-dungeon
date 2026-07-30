@@ -259,6 +259,47 @@ function carveRescuePath(map: FloorMap, from: Position, to: Position): void {
   for (let y = from.y; y !== to.y + stepY; y += stepY) open(to.x, y);
 }
 
+/**
+ * Recompute which tiles are doors, so door glyphs stay a pure function of the
+ * geometry instead of a memory of where junctions used to be.
+ *
+ * Rooms here are solid floor rectangles with no wall border, so a door is not a
+ * gap in a wall — it is the tile where a corridor meets a room, which is exactly
+ * the rule the floor generator places doors by. Shifts slide rooms away from
+ * their corridors and collapse corridors out from under them, which used to
+ * strand `+` glyphs in open floor or bury them in rock, and left newly formed
+ * junctions unmarked. Re-deriving both directions fixes both.
+ *
+ * Only floor and door tiles are ever swapped; stairs and chasms are left alone.
+ */
+export function syncDoors(map: FloorMap): void {
+  const isCorridorGroup = (id: string | null): boolean => id !== null && id.startsWith('corridor');
+
+  const touchesCorridor = (x: number, y: number): boolean =>
+    CARDINAL_OFFSETS.some(o => {
+      const n = { x: x + o.x, y: y + o.y };
+      if (!inBounds(map, n)) return false;
+      const tile = map.tiles[n.y][n.x];
+      return isSafeTile(tile.type) && isCorridorGroup(tile.shiftGroupId);
+    });
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const tile = map.tiles[y][x];
+      if (tile.type !== 'floor' && tile.type !== 'door') continue;
+
+      // A junction tile belongs to the room and abuts a corridor. Corridors are
+      // only ever carved through walls, so corridor adjacency already implies
+      // this tile sits on the room's perimeter.
+      const isJunction = !isCorridorGroup(tile.shiftGroupId) &&
+        tile.shiftGroupId !== null &&
+        touchesCorridor(x, y);
+
+      tile.type = isJunction ? 'door' : 'floor';
+    }
+  }
+}
+
 /** Where the player would stand once a rehearsed shift has landed. */
 function playerLandingSpot(map: FloorMap, pos: Position): Position | null {
   if (isSafeTile(map.tiles[pos.y][pos.x].type)) return pos;
@@ -328,6 +369,10 @@ export function planShift(state: GameState, rng: SeededRNG): PendingShift {
       carveRescuePath(sim, landing, sim.exit);
     }
 
+    // Every wall this plan moved or dug through may have stranded a door, so the
+    // sim is made door-consistent before it is diffed — that way the cleanup is
+    // part of the plan and gets telegraphed rather than appearing out of nowhere.
+    syncDoors(sim);
     const { changes, groupMoves } = diffGeometry(map, sim);
     if (changes.length === 0) continue;
 
@@ -342,6 +387,7 @@ export function planShift(state: GameState, rng: SeededRNG): PendingShift {
     const sim = cloneGeometry(map);
     const landing = playerLandingSpot(sim, state.player.position) ?? state.player.position;
     carveRescuePath(sim, landing, sim.exit);
+    syncDoors(sim);
     const { changes, groupMoves } = diffGeometry(map, sim);
     if (changes.length > 0) {
       return { type: 'corridor_reconnect', targetGroupId: null, changes, groupMoves, blocksExit: false };

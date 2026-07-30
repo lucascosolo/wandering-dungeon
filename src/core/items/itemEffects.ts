@@ -1,6 +1,6 @@
-import { GameState, Item, ItemType } from '../state';
+import { GameState } from '../state';
 import { SeededRNG } from '../rng';
-import { executeShift, restorePreShiftSnapshot, capturePreShiftSnapshot } from '../shift/shiftSystem';
+import { executeShift, restorePreShiftSnapshot } from '../shift/shiftSystem';
 
 /**
  * Apply Stasis Flask: pause shift countdown for 6 turns.
@@ -21,34 +21,30 @@ export function applyHourglassShard(state: GameState): string[] {
 
 /**
  * Apply Haste Sigil: force the next shift immediately.
- * - Enemies on collapsing tiles take fallout and are staggered for 1 turn.
- * - Next shift countdown max is permanently reduced by 2 on this floor.
+ * - Enemies the shift displaces are staggered for 1 turn.
+ * - The shift interval shortens by 2 for the rest of the run, floored at 3.
  */
 export function applyHasteSigil(state: GameState, rng: SeededRNG): string[] {
-  const events: string[] = [];
-  events.push('You activate the Haste Sigil! Reality fractures immediately!');
+  const events: string[] = ['You activate the Haste Sigil! Reality fractures immediately!'];
 
-  // Execute the shift
-  const shiftEvents = executeShift(state, rng);
-  events.push(...shiftEvents);
+  // "Caught in the shift" means displaced by it. Checking for enemies left on
+  // chasm or telegraphed tiles afterwards found none and staggered nobody:
+  // executeShift clears the telegraph flags and its own fallout pass has already
+  // shunted every buried enemy back onto safe ground.
+  const before = new Map(state.entities.map(e => [e.id, `${e.position.x},${e.position.y}`]));
 
-  // Stagger enemies on collapsed tiles (chasm tiles)
+  events.push(...executeShift(state, rng));
+
   for (const entity of state.entities) {
     if (entity.hp <= 0) continue;
-    const tile = state.floorMap.tiles[entity.position.y][entity.position.x];
-    if (tile.type === 'chasm' || tile.isTelegraphedCollapse) {
-      entity.isStaggered = true;
-      entity.staggeredTurns = 1;
-      events.push(`${entity.name} is staggered by the forced shift!`);
-    }
+    if (before.get(entity.id) === `${entity.position.x},${entity.position.y}`) continue;
+    entity.staggeredTurns = 1;
+    events.push(`${entity.name} is staggered by the forced shift!`);
   }
 
-  // Instability cost: reduce next countdown max by 2
   state.nextShiftCountdownMax = Math.max(3, state.nextShiftCountdownMax - 2);
-  events.push(`Instability increases. Next shift will come ${2} turns sooner.`);
-
-  // Reset countdown to new max
   state.shiftCountdown = state.nextShiftCountdownMax;
+  events.push('Instability increases. Next shift will come 2 turns sooner.');
 
   return events;
 }

@@ -123,6 +123,7 @@ export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
       hp,
       maxHp: hp,
       attackPower: template.attackPower + (level - 1),
+      staggeredTurns: 0,
     });
   }
 

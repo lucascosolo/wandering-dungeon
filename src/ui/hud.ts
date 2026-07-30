@@ -1,4 +1,5 @@
-import { GameState } from '../core/state';
+import { EnemyType, GameState } from '../core/state';
+import { ENEMY_STYLES } from '../render/canvasRenderer';
 
 export interface HudElements {
   canvas: HTMLCanvasElement;
@@ -17,6 +18,19 @@ export interface HudElements {
   descendBtn: HTMLButtonElement;
 }
 
+/**
+ * The enemy key, built from the renderer's own glyph table so the legend cannot
+ * drift from what is actually drawn. Listed weakest to deadliest.
+ */
+function enemyLegend(): string {
+  return (Object.keys(ENEMY_STYLES) as EnemyType[])
+    .map(type => {
+      const { glyph, color, label } = ENEMY_STYLES[type];
+      return `<span style="color:${color}" title="${label}">${glyph}</span>`;
+    })
+    .join('');
+}
+
 /** Build the whole game shell once and hand back the nodes the loop updates. */
 export function mountUI(root: HTMLElement): HudElements {
   root.innerHTML = `
@@ -27,7 +41,9 @@ export function mountUI(root: HTMLElement): HudElements {
     </header>
 
     <div class="legend">
-      @ you &middot; E enemy &middot; * item &middot; + door &middot; &gt; stairs &middot;
+      @ you &middot; * item &middot; + door &middot; &gt; stairs &middot;
+      foes <span class="legend__foes">${enemyLegend()}</span>
+      <span class="legend__hint">weak&rarr;deadly</span> &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
       <span class="legend__warn legend__warn--open">violet</span> opening
     </div>

@@ -281,6 +281,17 @@ html, body {
   text-align: center;
 }
 
+/* The enemy key, colour-matched to the glyphs the renderer draws. */
+.legend__foes {
+  letter-spacing: 0.25em;
+  font-weight: 700;
+}
+
+.legend__hint {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
 /* Colour-code the two warning words to match the telegraph overlays on canvas. */
 .legend__warn--close {
   color: #ff0055;

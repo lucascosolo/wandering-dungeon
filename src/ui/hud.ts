@@ -31,8 +31,12 @@ function enemyLegend(): string {
     .join('');
 }
 
-/** Build the whole game shell once and hand back the nodes the loop updates. */
-export function mountUI(root: HTMLElement): HudElements {
+/**
+ * Build the whole game shell once and hand back the nodes the loop updates.
+ * `onUseItem` is bound once here, delegated from the hotbar and inventory
+ * containers, so redrawing their contents never has to rebind anything.
+ */
+export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void): HudElements {
   root.innerHTML = `
     <header class="hud-header">
       <div class="hud-stat"><span class="hud-stat__label">Floor</span><span id="floor-label">1</span></div>
@@ -75,6 +79,15 @@ export function mountUI(root: HTMLElement): HudElements {
   `;
 
   const byId = <T extends HTMLElement>(id: string): T => root.querySelector<T>(`#${id}`)!;
+
+  const delegateItemUse = (container: HTMLElement): void => {
+    container.addEventListener('click', e => {
+      const slot = (e.target as HTMLElement).closest<HTMLElement>('[data-item-id]');
+      if (slot?.dataset.itemId) onUseItem(slot.dataset.itemId);
+    });
+  };
+  delegateItemUse(byId('hotbar'));
+  delegateItemUse(byId('inventory-list'));
 
   return {
     canvas: byId<HTMLCanvasElement>('game-canvas'),
@@ -137,13 +150,15 @@ export const HOTBAR_SIZE = 4;
 /**
  * Quick-use row for the first few inventory items, so using a Stasis Flask
  * mid-fight doesn't require opening the full inventory sheet.
+ *
+ * Skips the rebuild when the slots are unchanged: this is called after every
+ * action, and most actions do not touch the inventory at all.
  */
-export function renderHotbar(
-  ui: HudElements,
-  state: GameState,
-  onUse: (itemId: string) => void
-): void {
+export function renderHotbar(ui: HudElements, state: GameState): void {
   const slots = state.player.inventory.slice(0, HOTBAR_SIZE);
+  const signature = slots.map(item => item.id).join('|');
+  if (ui.hotbar.dataset.slots === signature) return;
+  ui.hotbar.dataset.slots = signature;
 
   ui.hotbar.innerHTML = slots
     .map(
@@ -154,37 +169,23 @@ export function renderHotbar(
       </button>`
     )
     .join('');
-
-  ui.hotbar.querySelectorAll<HTMLButtonElement>('.hotbar-slot').forEach(btn => {
-    btn.addEventListener('click', () => onUse(btn.dataset.itemId!));
-  });
 }
 
-export function renderInventory(
-  ui: HudElements,
-  state: GameState,
-  onUse: (itemId: string) => void
-): void {
+export function renderInventory(ui: HudElements, state: GameState): void {
   const { inventory } = state.player;
 
-  if (inventory.length === 0) {
-    ui.inventoryList.innerHTML = '<p class="sheet__empty">Nothing but dust.</p>';
-    return;
-  }
-
-  ui.inventoryList.innerHTML = inventory
-    .map(
-      item => `
+  ui.inventoryList.innerHTML =
+    inventory.length === 0
+      ? '<p class="sheet__empty">Nothing but dust.</p>'
+      : inventory
+          .map(
+            item => `
       <button class="item-row" data-item-id="${item.id}" type="button">
         <span class="item-row__name">${escapeHtml(item.name)}</span>
         <span class="item-row__desc">${escapeHtml(item.description)}</span>
       </button>`
-    )
-    .join('');
-
-  ui.inventoryList.querySelectorAll<HTMLButtonElement>('.item-row').forEach(btn => {
-    btn.addEventListener('click', () => onUse(btn.dataset.itemId!));
-  });
+          )
+          .join('');
 }
 
 export function showEndModal(ui: HudElements, state: GameState, onRestart: () => void): void {

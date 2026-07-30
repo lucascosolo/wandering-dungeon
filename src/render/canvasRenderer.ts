@@ -57,6 +57,13 @@ export function computeCamera(state: GameState, width: number, height: number): 
   return { offsetX, offsetY };
 }
 
+const GLYPH_FONT = `bold ${Math.floor(TILE_SIZE * 0.62)}px ui-monospace, monospace`;
+
+/**
+ * Assumes `renderFrame` has already set the font and text alignment for this
+ * frame. Assigning `ctx.font` re-parses the string every time, and this runs
+ * once per visible glyph — on a weak device that adds up over a full frame.
+ */
 function drawGlyph(
   ctx: CanvasRenderingContext2D,
   glyph: string,
@@ -65,9 +72,6 @@ function drawGlyph(
   py: number
 ): void {
   ctx.fillStyle = color;
-  ctx.font = `bold ${Math.floor(TILE_SIZE * 0.62)}px ui-monospace, monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
   ctx.shadowColor = color;
   ctx.shadowBlur = 8;
   ctx.fillText(glyph, px + TILE_SIZE / 2, py + TILE_SIZE / 2 + 1);
@@ -90,6 +94,10 @@ export function renderFrame(
 
   ctx.fillStyle = '#0f0f15';
   ctx.fillRect(0, 0, width, height);
+
+  ctx.font = GLYPH_FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
   const firstX = Math.max(0, Math.floor(-offsetX / TILE_SIZE));
   const lastX = Math.min(floorMap.width - 1, Math.ceil((width - offsetX) / TILE_SIZE));
@@ -177,7 +185,7 @@ export function renderFrame(
 
     // Staggered enemies are dimmed rather than lowercased — the glyph's letter
     // now identifies the species, so case is no longer free to carry state.
-    ctx.globalAlpha = enemy.isStaggered ? 0.45 : 1;
+    ctx.globalAlpha = enemy.staggeredTurns > 0 ? 0.45 : 1;
     drawGlyph(ctx, style.glyph, style.color, px, py);
 
     // HP pip under the glyph.

@@ -33,6 +33,11 @@ export class ParticleSystem {
     }
   }
 
+  /** Whether anything is still animating, i.e. whether a redraw is warranted. */
+  get active(): boolean {
+    return this.particles.length > 0;
+  }
+
   /** Advance the simulation. `dt` is in frames-at-60fps units. */
   update(dt: number): void {
     for (const p of this.particles) {

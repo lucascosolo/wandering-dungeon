@@ -8,12 +8,14 @@ function heuristic(a: Position, b: Position): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-export function findPath(
-  map: FloorMap,
-  start: Position,
-  end: Position,
-  _ignoreEntities = false
-): Position[] | null {
+const CARDINAL_STEPS: [number, number][] = [
+  [0, -1],
+  [0, 1],
+  [-1, 0],
+  [1, 0],
+];
+
+export function findPath(map: FloorMap, start: Position, end: Position): Position[] | null {
   const { width, height, tiles } = map;
 
   if (
@@ -49,13 +51,6 @@ export function findPath(
   const openSet: Position[] = [{ x: start.x, y: start.y }];
   const openSetKeys = new Set<string>([`${start.x},${start.y}`]);
 
-  const neighbors = [
-    { x: 0, y: -1 },
-    { x: 0, y: 1 },
-    { x: -1, y: 0 },
-    { x: 1, y: 0 },
-  ];
-
   while (openSet.length > 0) {
     // Find node in openSet with lowest fScore
     let currentIdx = 0;
@@ -89,9 +84,9 @@ export function findPath(
 
     const currentG = gScore[current.y][current.x];
 
-    for (const offset of neighbors) {
-      const nx = current.x + offset.x;
-      const ny = current.y + offset.y;
+    for (const [dx, dy] of CARDINAL_STEPS) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
 
       if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
         if (isWalkable(tiles[ny][nx].type)) {
@@ -115,10 +110,42 @@ export function findPath(
   return null;
 }
 
-export function hasValidPath(
-  map: FloorMap,
-  start: Position,
-  end: Position
-): boolean {
-  return findPath(map, start, end) !== null;
+/**
+ * Reachability only. This is a flood fill rather than `findPath(...) !== null`
+ * because the shift planner asks it several times per shift, and reconstructing
+ * a route needs three full-map score grids that the answer then throws away.
+ */
+export function hasValidPath(map: FloorMap, start: Position, end: Position): boolean {
+  const { width, height, tiles } = map;
+
+  const inside = (p: Position): boolean =>
+    p.x >= 0 && p.x < width && p.y >= 0 && p.y < height;
+  if (!inside(start) || !inside(end)) return false;
+  if (!isWalkable(tiles[start.y][start.x].type)) return false;
+  if (!isWalkable(tiles[end.y][end.x].type)) return false;
+
+  const seen = new Uint8Array(width * height);
+  const queue = [start.y * width + start.x];
+  const goal = end.y * width + end.x;
+  seen[queue[0]] = 1;
+
+  for (let head = 0; head < queue.length; head++) {
+    const index = queue[head];
+    if (index === goal) return true;
+
+    const x = index % width;
+    const y = (index - x) / width;
+
+    for (const [dx, dy] of CARDINAL_STEPS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      const next = ny * width + nx;
+      if (seen[next] || !isWalkable(tiles[ny][nx].type)) continue;
+      seen[next] = 1;
+      queue.push(next);
+    }
+  }
+
+  return false;
 }

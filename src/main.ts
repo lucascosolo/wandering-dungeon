@@ -10,7 +10,7 @@ import { RunRecorder } from './telemetry/runLog';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app container missing');
 
-const ui = mountUI(root);
+const ui = mountUI(root, useItem);
 const ctx = ui.canvas.getContext('2d');
 if (!ctx) throw new Error('2D canvas context unavailable');
 
@@ -20,6 +20,14 @@ let state: GameState = createNewGame(readSeed());
 let recorder = new RunRecorder(state);
 let viewWidth = 0;
 let viewHeight = 0;
+
+/**
+ * The board only changes when the player acts, so the render loop repaints on
+ * demand rather than every frame — it draws once per dirty mark, then keeps
+ * drawing only while particles are still moving. A turn-based game holding a
+ * phone's GPU at 60fps to redraw an identical grid is pure battery cost.
+ */
+let dirty = true;
 
 /** Seed comes from ?seed= so a run can be shared or replayed exactly. */
 function readSeed(): string {
@@ -41,17 +49,25 @@ function resizeCanvas(): void {
   ui.canvas.style.width = `${viewWidth}px`;
   ui.canvas.style.height = `${viewHeight}px`;
   ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+  dirty = true;
 }
 
-/** Turn engine events into screen feedback. */
-function reactToEvents(events: string[]): void {
+/**
+ * Turn engine events into screen feedback. `struck` is the tile the player's own
+ * blow landed on, so a hit sparks on the thing being hit — every burst used to
+ * spawn under the player, which read as taking damage rather than dealing it.
+ */
+function reactToEvents(events: string[], struck: { x: number; y: number } | null): void {
+  const { x, y } = state.player.position;
+
   for (const text of events) {
     if (text.startsWith('You hit')) {
-      particles.burst(state.player.position.x, state.player.position.y, '#00f0ff', 8);
-    } else if (text.includes('damage') && !text.startsWith('You hit')) {
-      particles.burst(state.player.position.x, state.player.position.y, '#ff0055', 10);
+      const at = struck ?? { x, y };
+      particles.burst(at.x, at.y, '#00f0ff', 8);
+    } else if (text.includes('damage')) {
+      particles.burst(x, y, '#ff0055', 10);
     } else if (text.toLowerCase().includes('shift')) {
-      particles.burst(state.player.position.x, state.player.position.y, '#9d4edd', 16);
+      particles.burst(x, y, '#9d4edd', 16);
     }
   }
 }
@@ -59,16 +75,27 @@ function reactToEvents(events: string[]): void {
 function act(action: GameAction): void {
   if (state.isGameOver) return;
 
+  const from = { ...state.player.position };
+
   recorder.beginTurn(state, action);
   const { events } = dispatchAction(state, action);
   recorder.endTurn(state, events);
-  reactToEvents(events);
+
+  // A MOVE that left the player standing still was a melee swing into that tile.
+  const struck =
+    action.type === 'MOVE' &&
+    state.player.position.x === from.x &&
+    state.player.position.y === from.y
+      ? { x: from.x + action.dx, y: from.y + action.dy }
+      : null;
+  reactToEvents(events, struck);
+  dirty = true;
 
   updateHud(ui, state);
   renderLog(ui, state);
-  renderHotbar(ui, state, useItem);
+  renderHotbar(ui, state);
   if (!ui.inventorySheet.classList.contains('hidden')) {
-    renderInventory(ui, state, useItem);
+    renderInventory(ui, state);
   }
 
   if (state.isGameOver) {
@@ -82,7 +109,7 @@ function useItem(itemId: string): void {
 }
 
 function openInventory(): void {
-  renderInventory(ui, state, useItem);
+  renderInventory(ui, state);
   ui.inventorySheet.classList.remove('hidden');
 }
 
@@ -101,11 +128,12 @@ function restart(): void {
   state = createNewGame(Math.floor(Math.random() * 1e9).toString(36));
   recorder = new RunRecorder(state);
   particles.clear();
+  dirty = true;
   ui.modal.classList.add('hidden');
   closeInventory();
   updateHud(ui, state);
   renderLog(ui, state);
-  renderHotbar(ui, state, useItem);
+  renderHotbar(ui, state);
 }
 
 attachControls(ui.canvas, {
@@ -148,17 +176,26 @@ document.addEventListener('visibilitychange', () => {
 });
 
 let lastFrame = performance.now();
+
 function loop(now: number): void {
   const dt = Math.min(3, (now - lastFrame) / 16.67);
   lastFrame = now;
 
-  particles.update(dt);
-  renderFrame(ctx!, state, viewWidth, viewHeight, particles);
+  if (particles.active) {
+    particles.update(dt);
+    dirty = true;
+  }
+
+  if (dirty) {
+    renderFrame(ctx!, state, viewWidth, viewHeight, particles);
+    dirty = false;
+  }
+
   requestAnimationFrame(loop);
 }
 
 resizeCanvas();
 updateHud(ui, state);
 renderLog(ui, state);
-renderHotbar(ui, state, useItem);
+renderHotbar(ui, state);
 requestAnimationFrame(loop);

@@ -1,6 +1,7 @@
 import { createNewGame } from './core/game';
 import { dispatchAction, GameAction } from './core/engine';
-import { GameState } from './core/state';
+import { FloorMap, GameState, Position } from './core/state';
+import { findPath } from './core/map/pathfinding';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
@@ -83,6 +84,8 @@ function reactToEvents(events: string[], struck: { x: number; y: number } | null
 
 function act(action: GameAction): void {
   if (state.isGameOver) return;
+  // Any action the player takes themselves abandons the walk they were on.
+  if (!isTravelStep) stopTravel();
 
   const from = { ...state.player.position };
 
@@ -117,6 +120,76 @@ function useItem(itemId: string): void {
   act({ type: 'USE_ITEM', itemId });
 }
 
+/**
+ * Tap-to-travel. One engine turn per tick rather than the whole route at once,
+ * so the walk is legible and the dungeon still gets to shift underneath it.
+ */
+const TRAVEL_STEP_MS = 90;
+let travelPath: Position[] = [];
+let travelTimer: number | null = null;
+/** Set only while travel drives the engine, so `act` can tell a step of the
+ *  current walk apart from the player interrupting it. */
+let isTravelStep = false;
+
+function stopTravel(): void {
+  travelPath = [];
+  if (travelTimer !== null) {
+    clearInterval(travelTimer);
+    travelTimer = null;
+  }
+}
+
+function enemyInSight(): boolean {
+  return state.entities.some(
+    e => e.hp > 0 && state.floorMap.visible[e.position.y][e.position.x]
+  );
+}
+
+function stepTravel(): void {
+  const next = travelPath.shift();
+  if (!next) {
+    stopTravel();
+    return;
+  }
+
+  const from = { ...state.player.position };
+  const hpBefore = state.player.hp;
+
+  isTravelStep = true;
+  act({ type: 'MOVE', dx: next.x - from.x, dy: next.y - from.y });
+  isTravelStep = false;
+
+  const moved = state.player.position.x !== from.x || state.player.position.y !== from.y;
+  // A step that went nowhere means the way closed — a shift, or something now
+  // standing in it. Either way the planned route is stale.
+  if (!moved || state.isGameOver || state.player.hp < hpBefore || enemyInSight()) stopTravel();
+}
+
+/**
+ * The map as the player knows it. Routing over the true geometry would let a
+ * single tap solve corridors they have never seen.
+ */
+function exploredMap(): FloorMap {
+  const { floorMap } = state;
+  return {
+    ...floorMap,
+    tiles: floorMap.tiles.map((row, y) =>
+      row.map((tile, x) => (floorMap.explored[y][x] ? tile : { ...tile, type: 'wall' }))
+    ),
+  };
+}
+
+function travelTo(target: Position): void {
+  stopTravel();
+
+  const path = findPath(exploredMap(), state.player.position, target);
+  if (!path || path.length < 2) return;
+
+  travelPath = path.slice(1);
+  stepTravel();
+  if (travelPath.length > 0) travelTimer = window.setInterval(stepTravel, TRAVEL_STEP_MS);
+}
+
 function usePotion(): void {
   if (state.player.hp >= state.player.maxHp) return;
   const potion = healthPotions(state)[0];
@@ -140,6 +213,7 @@ function toggleInventory(): void {
 function restart(): void {
   // Close the old run's log before the state it describes is thrown away.
   recorder.flush();
+  stopTravel();
   state = createNewGame(Math.floor(Math.random() * 1e9).toString(36));
   recorder = new RunRecorder(state);
   particles.clear();
@@ -169,8 +243,10 @@ attachControls(ui.canvas, {
     const dx = tileX - state.player.position.x;
     const dy = tileY - state.player.position.y;
 
-    // Only act on cardinally adjacent tiles — matches the melee/move rules.
+    // Adjacent is a single MOVE so it also swings at whatever is standing there;
+    // anything further is a walk along the shortest known route.
     if (Math.abs(dx) + Math.abs(dy) === 1) act({ type: 'MOVE', dx, dy });
+    else travelTo({ x: tileX, y: tileY });
   },
 });
 

@@ -69,6 +69,7 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
   };
 
   const onTouchEnd = (e: TouchEvent) => {
+    lastTouchAt = performance.now();
     const touch = e.changedTouches[0];
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
@@ -85,7 +86,13 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
     emitTap(touch.clientX, touch.clientY);
   };
 
-  const onClick = (e: MouseEvent) => emitTap(e.clientX, e.clientY);
+  // A touch also emits a synthetic click, which would tap the same tile twice —
+  // harmless for a move, but a double swing at whatever is standing there.
+  let lastTouchAt = 0;
+  const onClick = (e: MouseEvent) => {
+    if (performance.now() - lastTouchAt < 700) return;
+    emitTap(e.clientX, e.clientY);
+  };
 
   function emitTap(clientX: number, clientY: number): void {
     const rect = canvas.getBoundingClientRect();

@@ -1,4 +1,4 @@
-import { GameState, TileType } from '../core/state';
+import { EnemyType, GameState, TileType } from '../core/state';
 import { ParticleSystem } from './particles';
 
 export const TILE_SIZE = 30;
@@ -12,8 +12,22 @@ const TILE_COLORS: Record<TileType, string> = {
 };
 
 const COLOR_PLAYER = '#00f0ff';
-const COLOR_ENEMY = '#ff0055';
 const COLOR_ITEM = '#ffd166';
+
+/**
+ * A glyph and colour per enemy kind, so a threat can be read at a glance instead
+ * of every enemy being an anonymous red `E`. The colours run cool-to-hot with
+ * threat level, and deliberately avoid the hues that already carry meaning:
+ * cyan is the player, gold is loot, mint is the stairs, and violet is a door or
+ * an opening telegraph.
+ */
+export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; label: string }> = {
+  crawler: { glyph: 'c', color: '#8a8f98', label: 'Crawler' },
+  sentinel: { glyph: 'S', color: '#6fa8dc', label: 'Sentinel' },
+  fracture_beast: { glyph: 'F', color: '#ff9f43', label: 'Fracture Beast' },
+  warp_stalker: { glyph: 'W', color: '#ff5ecb', label: 'Warp Stalker' },
+  collapse_behemoth: { glyph: 'B', color: '#ff2d2d', label: 'Collapse Behemoth' },
+};
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.04)';
@@ -159,14 +173,20 @@ export function renderFrame(
 
     const px = x * TILE_SIZE + offsetX;
     const py = y * TILE_SIZE + offsetY;
-    drawGlyph(ctx, enemy.isStaggered ? 'e' : 'E', COLOR_ENEMY, px, py);
+    const style = ENEMY_STYLES[enemy.enemyType];
+
+    // Staggered enemies are dimmed rather than lowercased — the glyph's letter
+    // now identifies the species, so case is no longer free to carry state.
+    ctx.globalAlpha = enemy.isStaggered ? 0.45 : 1;
+    drawGlyph(ctx, style.glyph, style.color, px, py);
 
     // HP pip under the glyph.
     const ratio = enemy.hp / enemy.maxHp;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(px + 4, py + TILE_SIZE - 5, TILE_SIZE - 8, 3);
-    ctx.fillStyle = COLOR_ENEMY;
+    ctx.fillStyle = style.color;
     ctx.fillRect(px + 4, py + TILE_SIZE - 5, (TILE_SIZE - 8) * ratio, 3);
+    ctx.globalAlpha = 1;
   }
 
   const ppx = state.player.position.x * TILE_SIZE + offsetX;

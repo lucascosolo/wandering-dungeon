@@ -464,6 +464,7 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
 
   state.lastShiftChanges = changed;
   state.lastShiftTurn = state.turnCount;
+  state.lastShiftType = plan.changes.length > 0 ? plan.type : null;
   if (changed.length > 0) {
     events.push(`${changed.length} tiles rearranged themselves.`);
   }

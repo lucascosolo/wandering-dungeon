@@ -12,6 +12,7 @@ import {
   renderHotbar,
   renderInventory,
   renderLog,
+  showArmorOffer,
   showEndModal,
   updateHud,
 } from './ui/hud';
@@ -110,9 +111,18 @@ function act(action: GameAction): void {
     renderInventory(ui, state);
   }
 
+  if (state.pendingArmorOffer) {
+    showArmorOffer(ui, state, resolveArmorOffer);
+  }
+
   if (state.isGameOver) {
     showEndModal(ui, state, restart);
   }
+}
+
+function resolveArmorOffer(equip: boolean): void {
+  ui.armorModal.classList.add('hidden');
+  act({ type: equip ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
 }
 
 function useItem(itemId: string): void {
@@ -162,7 +172,15 @@ function stepTravel(): void {
   const moved = state.player.position.x !== from.x || state.player.position.y !== from.y;
   // A step that went nowhere means the way closed — a shift, or something now
   // standing in it. Either way the planned route is stale.
-  if (!moved || state.isGameOver || state.player.hp < hpBefore || enemyInSight()) stopTravel();
+  if (
+    !moved ||
+    state.isGameOver ||
+    state.pendingArmorOffer ||
+    state.player.hp < hpBefore ||
+    enemyInSight()
+  ) {
+    stopTravel();
+  }
 }
 
 /**
@@ -219,6 +237,7 @@ function restart(): void {
   particles.clear();
   dirty = true;
   ui.modal.classList.add('hidden');
+  ui.armorModal.classList.add('hidden');
   closeInventory();
   updateHud(ui, state);
   renderLog(ui, state);

@@ -15,9 +15,20 @@ export function damagePlayer(
   events: string[],
   source: string = 'the dungeon'
 ): void {
-  let remaining = amount;
   const { player } = state;
   state.lastDamageSource = source;
+
+  // Armor soaks before the shield so a worn plate is worth something even when
+  // the shield is down, but never to zero — no armor makes the player immune.
+  let remaining = amount;
+  const defense = player.armor?.defense ?? 0;
+  if (defense > 0) {
+    const soaked = Math.min(defense, remaining - 1);
+    if (soaked > 0) {
+      remaining -= soaked;
+      events.push(`${player.armor!.name} turns aside ${soaked} damage.`);
+    }
+  }
 
   if (player.shieldHp > 0) {
     const absorbed = Math.min(player.shieldHp, remaining);

@@ -18,6 +18,8 @@ export type GameAction =
   | { type: 'USE_ITEM'; itemId: string }
   | { type: 'ABILITY' }
   | { type: 'DESCEND' }
+  | { type: 'EQUIP_ARMOR' }
+  | { type: 'DECLINE_ARMOR' }
   | { type: 'INSPECT_TILE'; x: number; y: number };
 
 export interface DispatchResult {
@@ -34,9 +36,17 @@ const SHIELD_DURATION = 3;
 const ABILITY_COOLDOWN = 6;
 const ENEMY_AGGRO_RADIUS = 8;
 
-/** Actions that advance the world clock. Everything else is free. */
+/**
+ * Actions that advance the world clock. Everything else is free — answering the
+ * armor prompt in particular must not, or the dungeon would get a turn for a
+ * question it asked the player.
+ */
 function consumesTurn(action: GameAction): boolean {
-  return action.type !== 'INSPECT_TILE';
+  return (
+    action.type !== 'INSPECT_TILE' &&
+    action.type !== 'EQUIP_ARMOR' &&
+    action.type !== 'DECLINE_ARMOR'
+  );
 }
 
 function isWalkableAt(state: GameState, pos: Position): boolean {
@@ -133,9 +143,21 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   if (drops) {
     const index = drops.findIndex(d => d.position.x === target.x && d.position.y === target.y);
     if (index !== -1) {
-      const [drop] = drops.splice(index, 1);
-      state.player.inventory.push(drop.item);
-      events.push(`You pick up a ${drop.item.name}.`);
+      const drop = drops[index];
+      if (drop.item.category === 'armor' && state.player.armor) {
+        // Leave it on the floor and ask. The swap is destructive — the piece
+        // being replaced falls here — so it is not something to do silently.
+        state.pendingArmorOffer = drop.item;
+        events.push(`A ${drop.item.name} lies here.`);
+      } else if (drop.item.category === 'armor') {
+        drops.splice(index, 1);
+        state.player.armor = drop.item;
+        events.push(`You strap on the ${drop.item.name}.`);
+      } else {
+        drops.splice(index, 1);
+        state.player.inventory.push(drop.item);
+        events.push(`You pick up a ${drop.item.name}.`);
+      }
     }
   }
 
@@ -145,6 +167,27 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   }
 
   return true;
+}
+
+/** Swap the worn armor for the piece underfoot, dropping the old one in its place. */
+function equipOfferedArmor(state: GameState, events: string[]): void {
+  const offered = state.pendingArmorOffer;
+  state.pendingArmorOffer = null;
+  if (!offered) return;
+
+  const { player, floorMap } = state;
+  const drops = floorMap.drops ?? [];
+  const index = drops.findIndex(d => d.item.id === offered.id);
+  // The floor can shift out from under an open prompt, taking the piece with it.
+  if (index === -1) return;
+
+  drops.splice(index, 1);
+  const previous = player.armor;
+  player.armor = offered;
+  if (previous) {
+    drops.push({ item: previous, position: { ...player.position } });
+  }
+  events.push(`You swap into the ${offered.name}.`);
 }
 
 /**
@@ -339,6 +382,12 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
       changedFloor = state.floorMap.level !== before;
       break;
     }
+    case 'EQUIP_ARMOR':
+      equipOfferedArmor(state, events);
+      break;
+    case 'DECLINE_ARMOR':
+      state.pendingArmorOffer = null;
+      break;
     case 'INSPECT_TILE': {
       const { x, y } = action;
       const inBounds = x >= 0 && x < state.floorMap.width && y >= 0 && y < state.floorMap.height;

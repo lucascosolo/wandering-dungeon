@@ -1,4 +1,15 @@
-import { Enemy, EnemyType, GameState, Item, ItemDrop, ItemType, Player, Position, FloorMap } from './state';
+import {
+  ArmorType,
+  Enemy,
+  EnemyType,
+  GameState,
+  Item,
+  ItemDrop,
+  ItemType,
+  Player,
+  Position,
+  FloorMap,
+} from './state';
 import { SeededRNG } from './rng';
 import { generateFloor } from './map/generator';
 import { computeFOV } from './map/fow';
@@ -50,7 +61,43 @@ const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
     description: 'Restores 30 HP.',
     category: 'consumable',
   },
+  padded_vest: {
+    type: 'padded_vest',
+    name: 'Padded Vest',
+    description: 'Soaks 2 damage from every hit.',
+    category: 'armor',
+    defense: 2,
+  },
+  scrap_plating: {
+    type: 'scrap_plating',
+    name: 'Scrap Plating',
+    description: 'Soaks 4 damage from every hit.',
+    category: 'armor',
+    defense: 4,
+  },
+  warden_carapace: {
+    type: 'warden_carapace',
+    name: 'Warden Carapace',
+    description: 'Soaks 7 damage from every hit.',
+    category: 'armor',
+    defense: 7,
+  },
 };
+
+/**
+ * One piece of armor per floor, the best tier the floor has unlocked. Armor is
+ * the run's main damage curve, so it is placed deliberately rather than rolled
+ * out of the loot pool where a bad streak could leave the player bare.
+ */
+const ARMOR_TIERS: { type: ArmorType; minLevel: number }[] = [
+  { type: 'padded_vest', minLevel: 1 },
+  { type: 'scrap_plating', minLevel: 2 },
+  { type: 'warden_carapace', minLevel: 4 },
+];
+
+function armorForLevel(level: number): ArmorType {
+  return ARMOR_TIERS.filter(t => t.minLevel <= level).slice(-1)[0].type;
+}
 
 const LOOT_POOL: ItemType[] = [
   'health_potion',
@@ -136,6 +183,14 @@ export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
     drops.push({ item: createItem(type, `drop_${level}_${i}`), position });
   }
 
+  const armorPosition = take();
+  if (armorPosition) {
+    drops.push({
+      item: createItem(armorForLevel(level), `armor_${level}`),
+      position: armorPosition,
+    });
+  }
+
   return { enemies, drops };
 }
 
@@ -150,6 +205,7 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.player.position = { x: map.entrance.x, y: map.entrance.y };
   state.preShiftSnapshot = null;
   state.pendingShift = null;
+  state.pendingArmorOffer = null;
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
   state.lastShiftType = null;
@@ -173,6 +229,7 @@ export function createNewGame(seed: string): GameState {
     attackPower: 12,
     shieldHp: 0,
     shieldTurnsRemaining: 0,
+    armor: null,
     inventory: [
       createItem('health_potion', 'start_potion'),
       createItem('stasis_flask', 'start_stasis'),
@@ -194,6 +251,7 @@ export function createNewGame(seed: string): GameState {
     floorMap: null as unknown as FloorMap,
     preShiftSnapshot: null,
     pendingShift: null,
+    pendingArmorOffer: null,
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastShiftType: null,

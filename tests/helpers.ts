@@ -20,6 +20,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     attackPower: 10,
     shieldHp: 0,
     shieldTurnsRemaining: 0,
+    armor: null,
     inventory: [
       {
         id: 'stasis_1',
@@ -73,6 +74,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     floorMap,
     preShiftSnapshot: null,
     pendingShift: null,
+    pendingArmorOffer: null,
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastShiftType: null,

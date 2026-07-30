@@ -35,6 +35,9 @@ export interface HudElements {
   shieldFill: HTMLElement;
   potionBtn: HTMLButtonElement;
   potionCount: HTMLElement;
+  armorChip: HTMLElement;
+  armorName: HTMLElement;
+  armorModal: HTMLElement;
   logPanel: HTMLElement;
   hotbar: HTMLElement;
   inventorySheet: HTMLElement;
@@ -71,7 +74,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </header>
 
     <div class="legend">
-      @ you &middot; * item &middot; + door &middot; &gt; stairs &middot;
+      @ you &middot; * item &middot; [ armor &middot; + door &middot; &gt; stairs &middot;
       foes <span class="legend__foes">${enemyLegend()}</span>
       <span class="legend__hint">weak&rarr;deadly</span> &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
@@ -87,12 +90,19 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
 
     <div class="log-panel" id="log-panel"></div>
 
-    <button class="potion" id="potion-btn" type="button">
-      <span class="potion__glyph">!</span>
-      <span class="potion__name">Health Potions</span>
-      <span class="potion__count" id="potion-count">0</span>
-      <small class="potion__key">h</small>
-    </button>
+    <div class="quick-row">
+      <button class="potion" id="potion-btn" type="button">
+        <span class="potion__glyph">!</span>
+        <span class="potion__name">Health Potions</span>
+        <span class="potion__count" id="potion-count">0</span>
+        <small class="potion__key">h</small>
+      </button>
+
+      <div class="armor-chip" id="armor-chip">
+        <span class="armor-chip__glyph">[</span>
+        <span class="armor-chip__name" id="armor-name">Unarmoured</span>
+      </div>
+    </div>
 
     <div class="hotbar" id="hotbar"></div>
 
@@ -108,6 +118,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <div class="sheet__list" id="inventory-list"></div>
     </div>
 
+    <div class="modal hidden" id="armor-modal"></div>
     <div class="modal hidden" id="modal"></div>
   `;
 
@@ -132,6 +143,9 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     shieldFill: byId('shield-fill'),
     potionBtn: byId<HTMLButtonElement>('potion-btn'),
     potionCount: byId('potion-count'),
+    armorChip: byId('armor-chip'),
+    armorName: byId('armor-name'),
+    armorModal: byId('armor-modal'),
     logPanel: byId('log-panel'),
     hotbar: byId('hotbar'),
     inventorySheet: byId('inventory-sheet'),
@@ -166,6 +180,10 @@ export function updateHud(ui: HudElements, state: GameState): void {
   // Stays visible at zero so the option is known before it is needed, and
   // disabled at full HP so a scarce potion cannot be poured away for nothing.
   ui.potionBtn.disabled = potions === 0 || player.hp >= player.maxHp;
+
+  const { armor } = player;
+  ui.armorName.textContent = armor ? `${armor.name} −${armor.defense}` : 'Unarmoured';
+  ui.armorChip.classList.toggle('armor-chip--empty', !armor);
 
   const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
   ui.descendBtn.disabled = !onStairs;
@@ -224,6 +242,45 @@ export function renderInventory(ui: HudElements, state: GameState): void {
       </button>`
           )
           .join('');
+}
+
+/**
+ * The swap prompt. Worn and offered are shown side by side because the only
+ * thing the player needs to decide is which number is bigger.
+ */
+export function showArmorOffer(
+  ui: HudElements,
+  state: GameState,
+  onDecide: (equip: boolean) => void
+): void {
+  const offered = state.pendingArmorOffer!;
+  const worn = state.player.armor;
+
+  ui.armorModal.classList.remove('hidden');
+  ui.armorModal.innerHTML = `
+    <div class="modal__card glass-panel">
+      <h2>Replace Armor?</h2>
+      <div class="armor-compare">
+        <div class="armor-compare__side">
+          <span class="armor-compare__label">Worn</span>
+          <span class="armor-compare__name">${escapeHtml(worn ? worn.name : 'Nothing')}</span>
+          <span class="armor-compare__value">${worn?.defense ?? 0}</span>
+        </div>
+        <div class="armor-compare__side armor-compare__side--new">
+          <span class="armor-compare__label">Found</span>
+          <span class="armor-compare__name">${escapeHtml(offered.name)}</span>
+          <span class="armor-compare__value">${offered.defense}</span>
+        </div>
+      </div>
+      <p class="modal__stats">damage soaked per hit &middot; the old piece drops at your feet</p>
+      <div class="armor-compare__actions">
+        <button class="action-btn" id="btn-armor-decline" type="button">Keep Mine</button>
+        <button class="action-btn action-btn--warning" id="btn-armor-equip" type="button">Wear It</button>
+      </div>
+    </div>
+  `;
+  ui.armorModal.querySelector('#btn-armor-equip')!.addEventListener('click', () => onDecide(true));
+  ui.armorModal.querySelector('#btn-armor-decline')!.addEventListener('click', () => onDecide(false));
 }
 
 export function showEndModal(ui: HudElements, state: GameState, onRestart: () => void): void {

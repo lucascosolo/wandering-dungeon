@@ -4,7 +4,16 @@ import { GameState } from './core/state';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
-import { mountUI, renderHotbar, renderInventory, renderLog, showEndModal, updateHud } from './ui/hud';
+import {
+  healthPotions,
+  hotbarItems,
+  mountUI,
+  renderHotbar,
+  renderInventory,
+  renderLog,
+  showEndModal,
+  updateHud,
+} from './ui/hud';
 import { RunRecorder } from './telemetry/runLog';
 
 const root = document.getElementById('app');
@@ -108,6 +117,12 @@ function useItem(itemId: string): void {
   act({ type: 'USE_ITEM', itemId });
 }
 
+function usePotion(): void {
+  if (state.player.hp >= state.player.maxHp) return;
+  const potion = healthPotions(state)[0];
+  if (potion) useItem(potion.id);
+}
+
 function openInventory(): void {
   renderInventory(ui, state);
   ui.inventorySheet.classList.remove('hidden');
@@ -142,8 +157,9 @@ attachControls(ui.canvas, {
   ability: () => act({ type: 'ABILITY' }),
   descend: () => act({ type: 'DESCEND' }),
   toggleInventory,
+  usePotion,
   useHotbarSlot: (slot) => {
-    const item = state.player.inventory[slot - 1];
+    const item = hotbarItems(state)[slot - 1];
     if (item) useItem(item.id);
   },
   tapTile: (px, py) => {
@@ -162,6 +178,7 @@ root.querySelector('#btn-wait')!.addEventListener('click', () => act({ type: 'WA
 root.querySelector('#btn-ability')!.addEventListener('click', () => act({ type: 'ABILITY' }));
 root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
 root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
+ui.potionBtn.addEventListener('click', usePotion);
 root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
 
 // The viewport is flex-sized, so its box is only known after layout — observe it

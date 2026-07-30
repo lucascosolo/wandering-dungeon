@@ -218,9 +218,64 @@ html, body {
 
 .vitals {
   display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 4px;
+}
+
+.vitals__bars {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 8px 16px 4px;
+}
+
+/* Sits with the HP bar rather than the hotbar: healing is a vitals decision,
+   and it needs to be reachable without reading four item names first. */
+.potion {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  /* Taller than the bars it sits beside: this is a thumb target during a
+     fight, not a readout. */
+  min-height: 32px;
+  padding: 3px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 0, 85, 0.5);
+  background: rgba(255, 0, 85, 0.14);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+.potion:hover:not(:disabled) { background: rgba(255, 0, 85, 0.26); }
+.potion:active:not(:disabled) { transform: translateY(1px); }
+
+.potion:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.potion__glyph {
+  color: #ff6b8a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.potion__count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.potion__key {
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
 }
 
 .bar {

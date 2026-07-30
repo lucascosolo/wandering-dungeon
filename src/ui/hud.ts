@@ -1,5 +1,29 @@
-import { EnemyType, GameState } from '../core/state';
+import { EnemyType, GameState, Item } from '../core/state';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
+
+/** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
+export const HOTBAR_SIZE = 4;
+
+/**
+ * Healing is too important to hunt for among situational items, so potions get
+ * their own always-visible readout and key and are kept out of the hotbar —
+ * which also leaves all four slots for the items a player actually has to
+ * choose between.
+ */
+export function healthPotions(state: GameState): Item[] {
+  return state.player.inventory.filter(item => item.type === 'health_potion');
+}
+
+/**
+ * The hotbar's contents. Both the display and the number-key handler read this,
+ * because two separate derivations of "what is in slot N" would drift the
+ * moment one of them learned about a filter the other did not.
+ */
+export function hotbarItems(state: GameState): Item[] {
+  return state.player.inventory
+    .filter(item => item.type !== 'health_potion')
+    .slice(0, HOTBAR_SIZE);
+}
 
 export interface HudElements {
   canvas: HTMLCanvasElement;
@@ -9,6 +33,8 @@ export interface HudElements {
   hpFill: HTMLElement;
   hpLabel: HTMLElement;
   shieldFill: HTMLElement;
+  potionBtn: HTMLButtonElement;
+  potionCount: HTMLElement;
   logPanel: HTMLElement;
   hotbar: HTMLElement;
   inventorySheet: HTMLElement;
@@ -53,8 +79,15 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </div>
 
     <div class="vitals">
-      <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
-      <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
+      <div class="vitals__bars">
+        <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
+        <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
+      </div>
+      <button class="potion" id="potion-btn" type="button" title="Drink a Health Potion">
+        <span class="potion__glyph">!</span>
+        <span class="potion__count" id="potion-count">0</span>
+        <small class="potion__key">h</small>
+      </button>
     </div>
 
     <div class="game-viewport"><canvas id="game-canvas"></canvas></div>
@@ -97,6 +130,8 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     hpFill: byId('hp-fill'),
     hpLabel: byId('hp-label'),
     shieldFill: byId('shield-fill'),
+    potionBtn: byId<HTMLButtonElement>('potion-btn'),
+    potionCount: byId('potion-count'),
     logPanel: byId('log-panel'),
     hotbar: byId('hotbar'),
     inventorySheet: byId('inventory-sheet'),
@@ -126,6 +161,12 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.hpLabel.textContent = `${player.hp} / ${player.maxHp}`;
   ui.shieldFill.style.width = `${Math.min(100, (player.shieldHp / player.maxHp) * 100)}%`;
 
+  const potions = healthPotions(state).length;
+  ui.potionCount.textContent = String(potions);
+  // Stays visible at zero so the option is known before it is needed, and
+  // disabled at full HP so a scarce potion cannot be poured away for nothing.
+  ui.potionBtn.disabled = potions === 0 || player.hp >= player.maxHp;
+
   const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
   ui.descendBtn.disabled = !onStairs;
   ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
@@ -144,18 +185,15 @@ export function renderLog(ui: HudElements, state: GameState): void {
     .join('');
 }
 
-/** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
-export const HOTBAR_SIZE = 4;
-
 /**
- * Quick-use row for the first few inventory items, so using a Stasis Flask
+ * Quick-use row for the first few situational items, so using a Stasis Flask
  * mid-fight doesn't require opening the full inventory sheet.
  *
  * Skips the rebuild when the slots are unchanged: this is called after every
  * action, and most actions do not touch the inventory at all.
  */
 export function renderHotbar(ui: HudElements, state: GameState): void {
-  const slots = state.player.inventory.slice(0, HOTBAR_SIZE);
+  const slots = hotbarItems(state);
   const signature = slots.map(item => item.id).join('|');
   if (ui.hotbar.dataset.slots === signature) return;
   ui.hotbar.dataset.slots = signature;

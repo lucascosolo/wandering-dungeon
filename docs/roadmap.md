@@ -3,21 +3,6 @@
 Requested work not yet scheduled into a commit. Each entry is a candidate for
 its own scoped change — take them one at a time, not as a batch.
 
-## Health potions need a fixed, always-available slot
-
-**Reported 2026-07-30.** Healing is too important to hunt for in a shifting
-hotbar. Two options, decide before building:
-
-- **A.** Reserve slot 1 for health potions whenever one is carried, and let
-  other items fill 2-4 around it.
-- **B.** Give potions a dedicated key and their own HUD element, separate from
-  the hotbar entirely, showing the count carried.
-
-B is probably better — it also frees all four hotbar slots for situational
-items, and a count readout is more useful mid-fight than a slot label.
-Touches `HOTBAR_SIZE` / `renderHotbar` in `src/ui/hud.ts` and the
-`useHotbarSlot` binding in `src/ui/controls.ts`.
-
 ## Armor as an equipment slot with a comparison prompt
 
 **Reported 2026-07-30.** Armor gets its own UI rather than living in the

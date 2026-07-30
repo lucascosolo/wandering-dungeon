@@ -4,6 +4,8 @@ export interface ControlHandlers {
   ability: () => void;
   descend: () => void;
   toggleInventory: () => void;
+  /** Drink a Health Potion, bound to its own key rather than a hotbar slot. */
+  usePotion: () => void;
   /** Tile coordinates of a tap inside the canvas, in map space. */
   tapTile: (x: number, y: number) => void;
   /** 1-based hotbar slot index, from number keys 1-4. */
@@ -27,7 +29,8 @@ const SWIPE_THRESHOLD = 24;
  * Wire keyboard and touch input. Returns a teardown function.
  *
  * Touch: swipe in a cardinal direction to move, tap to act on a tile.
- * Desktop: WASD/arrows to move, space to wait, q for the shield, i for items.
+ * Desktop: WASD/arrows to move, space to wait, q for the shield, h to drink a
+ * potion, i for items.
  */
 export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandlers): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
@@ -47,6 +50,8 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
       handlers.ability();
     } else if (key === 'i') {
       handlers.toggleInventory();
+    } else if (key === 'h') {
+      handlers.usePotion();
     } else if (key === '>' || key === 'enter') {
       handlers.descend();
     } else if (key >= '1' && key <= '4') {

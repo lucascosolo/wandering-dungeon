@@ -215,9 +215,10 @@ describe('Shift Engine', () => {
 
   describe('door consistency', () => {
     /**
-     * A door here marks where a corridor meets a room, not a gap in a wall —
-     * rooms are solid floor rectangles. So a door is valid exactly when it is a
-     * room tile touching a corridor tile.
+     * A door sits in the threshold: the corridor tile at the mouth of the
+     * passage, where a house plan would draw it. Rooms are solid floor
+     * rectangles with no wall border, so this is not a gap-in-a-wall check —
+     * a door is valid exactly when it is a corridor tile touching a room tile.
      */
     function strandedDoors(map: FloorMap): { x: number; y: number }[] {
       const isCorridor = (id: string | null): boolean => id !== null && id.startsWith('corridor');
@@ -230,21 +231,30 @@ describe('Shift Engine', () => {
       const out: { x: number; y: number }[] = [];
       for (let y = 0; y < map.height; y++) {
         for (let x = 0; x < map.width; x++) {
-          if (map.tiles[y][x].type !== 'door') continue;
-          const touchesCorridor = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => {
+          const door = map.tiles[y][x];
+          if (door.type !== 'door') continue;
+          if (!isCorridor(door.shiftGroupId)) {
+            out.push({ x, y });
+            continue;
+          }
+          const touchesRoom = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => {
             const nx = x + dx;
             const ny = y + dy;
-            return walkable(nx, ny) && isCorridor(map.tiles[ny][nx].shiftGroupId);
+            if (!walkable(nx, ny)) return false;
+            const id = map.tiles[ny][nx].shiftGroupId;
+            return id !== null && !isCorridor(id);
           });
-          if (!touchesCorridor) out.push({ x, y });
+          if (!touchesRoom) out.push({ x, y });
         }
       }
       return out;
     }
 
-    it('agrees with the doors the floor generator places', () => {
-      // If syncDoors disagreed with generation, every shift would churn doors
-      // across the whole floor instead of only where the geometry moved.
+    it('is idempotent on a freshly generated floor', () => {
+      // Generation calls syncDoors itself, so this guards against a rule that
+      // oscillates rather than settles — if a second pass moved doors, every
+      // shift would churn them across the whole floor instead of only where
+      // the geometry moved.
       for (const seed of ['door-a', 'door-b', 'door-c', 'door-d']) {
         const state = createNewGame(seed);
         const before = state.floorMap.tiles.map(row => row.map(t => t.type));
@@ -257,6 +267,31 @@ describe('Shift Engine', () => {
               state.floorMap.tiles[y][x].type,
               `seed ${seed} tile (${x}, ${y}) was reclassified`
             ).toBe(before[y][x]);
+          }
+        }
+      }
+    });
+
+    it('keeps doorways narrow rather than paving a room edge with them', () => {
+      // A corridor running flush along a room's outer edge touches it the whole
+      // way, which marked every tile of it as one absurdly wide doorway. Runs of
+      // two are legitimate — two rooms joined by a short corridor put a
+      // threshold at each end — so only three in a line indicates the bug.
+      for (const seed of ['door-a', 'door-b', 'door-c', 'door-d', 'door-e']) {
+        const map = createNewGame(seed).floorMap;
+        const isDoor = (x: number, y: number): boolean =>
+          x >= 0 && x < map.width && y >= 0 && y < map.height && map.tiles[y][x].type === 'door';
+
+        for (let y = 0; y < map.height; y++) {
+          for (let x = 0; x < map.width; x++) {
+            expect(
+              isDoor(x, y) && isDoor(x + 1, y) && isDoor(x + 2, y),
+              `seed ${seed} has a horizontal door run at (${x}, ${y})`
+            ).toBe(false);
+            expect(
+              isDoor(x, y) && isDoor(x, y + 1) && isDoor(x, y + 2),
+              `seed ${seed} has a vertical door run at (${x}, ${y})`
+            ).toBe(false);
           }
         }
       }

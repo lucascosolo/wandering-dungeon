@@ -3,22 +3,6 @@
 Requested work not yet scheduled into a commit. Each entry is a candidate for
 its own scoped change — take them one at a time, not as a batch.
 
-## Doorway placement sits one tile inside the room
-
-**Reported 2026-07-30.** Doors should read like a doorway on a house plan —
-in the threshold itself. Right now the `+` sticks one tile out from the gap.
-
-`syncDoors()` in `src/core/shift/shiftSystem.ts` marks a *room-group* floor
-tile that is cardinally adjacent to a *corridor-group* floor tile. Since rooms
-are solid rectangles with no wall border, that rule lands the glyph on the
-room's outermost tile rather than on the corridor tile that actually pierces
-the room's edge. Likely fix: mark the corridor-side tile instead, or the tile
-whose perpendicular neighbours are both wall (the true pinch point).
-
-Guard: `tests/shift.test.ts` "door consistency". Whatever rule replaces the
-current one has to survive re-derivation on every shift, since doors are not
-placed once and left alone.
-
 ## Health potions need a fixed, always-available slot
 
 **Reported 2026-07-30.** Healing is too important to hunt for in a shifting

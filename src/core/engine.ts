@@ -1,6 +1,12 @@
 import { Enemy, GameState, LogMessage, Position } from './state';
 import { SeededRNG } from './rng';
-import { applyTelegraphs, describePendingShift, executeShift } from './shift/shiftSystem';
+import { damagePlayer } from './damage';
+import {
+  applyTelegraphs,
+  clearTelegraphs,
+  describePendingShift,
+  executeShift,
+} from './shift/shiftSystem';
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
@@ -61,6 +67,11 @@ function log(state: GameState, text: string, type: LogMessage['type'] = 'info'):
 
 function classify(text: string): LogMessage['type'] {
   const lower = text.toLowerCase();
+  // Checked before the shift branch: losing or regaining the way out is the most
+  // consequential thing a shift can do, so it gets the warning colour, not violet.
+  if (lower.includes('sealed') || lower.includes('opens up again')) {
+    return 'warning';
+  }
   if (
     lower.includes('shift') ||
     lower.includes('corridor') ||
@@ -76,38 +87,7 @@ function classify(text: string): LogMessage['type'] {
   return 'info';
 }
 
-/**
- * Damage the player, spending Fallout Shield HP first.
- */
-export function damagePlayer(
-  state: GameState,
-  amount: number,
-  events: string[],
-  source: string = 'the dungeon'
-): void {
-  let remaining = amount;
-  const { player } = state;
-  state.lastDamageSource = source;
-
-  if (player.shieldHp > 0) {
-    const absorbed = Math.min(player.shieldHp, remaining);
-    player.shieldHp -= absorbed;
-    remaining -= absorbed;
-    events.push(`Fallout Shield absorbs ${absorbed} damage.`);
-
-    // A depleted shield is gone, not merely empty — otherwise its remaining
-    // duration would keep blocking the player from raising a new one.
-    if (player.shieldHp === 0) {
-      player.shieldTurnsRemaining = 0;
-      events.push('Fallout Shield shatters.');
-    }
-  }
-
-  if (remaining > 0) {
-    player.hp = Math.max(0, player.hp - remaining);
-    events.push(`You take ${remaining} damage.`);
-  }
-}
+export { damagePlayer };
 
 function attack(
   state: GameState,
@@ -223,11 +203,8 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
   for (const enemy of state.entities) {
     if (enemy.hp <= 0) continue;
 
-    if (enemy.staggeredTurns && enemy.staggeredTurns > 0) {
+    if (enemy.staggeredTurns > 0) {
       enemy.staggeredTurns--;
-      if (enemy.staggeredTurns === 0) {
-        enemy.isStaggered = false;
-      }
       continue;
     }
 
@@ -290,7 +267,37 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
     if (state.shiftCountdown === 2 && !hadPlan && state.pendingShift) {
       events.push(describePendingShift(state.pendingShift));
     }
+  } else if (state.pendingShift) {
+    // An Hourglass Shard can push the countdown back out of telegraph range,
+    // which used to leave the warning tiles painted on the map for turns after
+    // the threat had been postponed. Drop the plan so it is re-rehearsed against
+    // whatever the geometry looks like when the countdown comes back around.
+    state.pendingShift = null;
+    clearTelegraphs(state.floorMap);
   }
+}
+
+/**
+ * `SeededRNG.fromSerialized` rebuilds a generator by replaying every call it has
+ * ever made, so reconstructing one per action costs more the longer the run gets.
+ * Holding the live generator per state object keeps that cost flat while leaving
+ * `rngState` the single source of truth: if it ever disagrees with the cached
+ * generator (a rewind, a test reaching in), the replay path still runs.
+ */
+const liveRng = new WeakMap<GameState, SeededRNG>();
+
+function rngFor(state: GameState): SeededRNG {
+  const cached = liveRng.get(state);
+  if (
+    cached &&
+    cached.getSeed() === state.rngState.seed &&
+    cached.getCallCount() === state.rngState.callCount
+  ) {
+    return cached;
+  }
+  const fresh = SeededRNG.fromSerialized(state.rngState);
+  liveRng.set(state, fresh);
+  return fresh;
 }
 
 /**
@@ -304,7 +311,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     return { state, events };
   }
 
-  const rng = SeededRNG.fromSerialized(state.rngState);
+  const rng = rngFor(state);
   let changedFloor = false;
   // An action that could not happen at all costs the player nothing.
   let spentTurn = true;

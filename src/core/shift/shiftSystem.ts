@@ -1,4 +1,5 @@
 import {
+  Enemy,
   GameState,
   FloorMap,
   PendingShift,
@@ -10,7 +11,8 @@ import {
   TileType,
 } from '../state';
 import { SeededRNG } from '../rng';
-import { hasValidPath, findPath } from '../map/pathfinding';
+import { damagePlayer } from '../damage';
+import { hasValidPath } from '../map/pathfinding';
 
 const CARDINAL_OFFSETS: Position[] = [
   { x: 0, y: -1 },
@@ -21,22 +23,21 @@ const CARDINAL_OFFSETS: Position[] = [
 
 /**
  * Capture a geometry snapshot of the current floor map for Rewind Scroll.
- * Stores only tile types and shift group positions — not HP, entities, or items.
+ * Stores tile types and where each shift group sits — not HP, entities, or items.
  */
 export function capturePreShiftSnapshot(map: FloorMap): PreShiftSnapshot {
-  const tiles: TileType[][] = map.tiles.map(row =>
-    row.map(tile => tile.type)
-  );
-
-  const shiftGroupPositions: Record<string, Position> = {};
+  const shiftGroupPlacements: Record<string, ShiftGroupMove> = {};
   for (const [id, group] of Object.entries(map.shiftGroups)) {
-    shiftGroupPositions[id] = { x: group.currentOffset.x, y: group.currentOffset.y };
+    shiftGroupPlacements[id] = {
+      bounds: { ...group.bounds },
+      currentOffset: { ...group.currentOffset },
+    };
   }
 
   return {
     floorIndex: map.level,
-    tiles,
-    shiftGroupPositions,
+    tiles: map.tiles.map(row => row.map(tile => tile.type)),
+    shiftGroupPlacements,
   };
 }
 
@@ -51,21 +52,25 @@ export function restorePreShiftSnapshot(state: GameState): void {
 
   const map = state.floorMap;
 
-  // Restore tile types from snapshot
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       map.tiles[y][x].type = snapshot.tiles[y][x];
     }
   }
 
-  // Restore shift group offsets
-  for (const [id, offset] of Object.entries(snapshot.shiftGroupPositions)) {
-    if (map.shiftGroups[id]) {
-      map.shiftGroups[id].currentOffset = { x: offset.x, y: offset.y };
-    }
+  for (const [id, placement] of Object.entries(snapshot.shiftGroupPlacements)) {
+    const group = map.shiftGroups[id];
+    if (!group) continue;
+    group.bounds = { ...placement.bounds };
+    group.currentOffset = { ...placement.currentOffset };
   }
 
-  // Clear the consumed snapshot
+  // A rewind rewrites the geometry a pending plan was rehearsed against, so its
+  // recorded tile changes — and the warnings drawn from them — no longer describe
+  // anything real. Dropping the plan makes the next telegraph re-rehearse.
+  state.pendingShift = null;
+  clearTelegraphs(map);
+
   state.preShiftSnapshot = null;
 }
 
@@ -84,17 +89,28 @@ function isSafeTile(type: TileType): boolean {
 }
 
 /**
- * Find the nearest safe tile to a given position using BFS.
+ * Nearest safe tile to `pos`, by BFS. `isTaken` rejects tiles that are safe but
+ * already occupied, so a shift that shunts things out of a collapse cannot stack
+ * two enemies on one tile or drop one on top of the player.
+ *
+ * Falls back to a merely-safe tile if every reachable one is taken — being
+ * inside another entity beats being inside the void.
  */
-function findNearestSafeTile(map: FloorMap, pos: Position): Position | null {
-  const visited = new Set<string>();
+function findNearestSafeTile(
+  map: FloorMap,
+  pos: Position,
+  isTaken?: (p: Position) => boolean
+): Position | null {
+  const visited = new Set<string>([`${pos.x},${pos.y}`]);
   const queue: Position[] = [pos];
-  visited.add(`${pos.x},${pos.y}`);
+  let fallback: Position | null = null;
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
+  // Index cursor rather than shift(): shift() is O(n) and this walks the map.
+  for (let head = 0; head < queue.length; head++) {
+    const current = queue[head];
     if (isSafeTile(map.tiles[current.y][current.x].type)) {
-      return current;
+      if (!isTaken || !isTaken(current)) return current;
+      fallback ??= current;
     }
 
     for (const offset of CARDINAL_OFFSETS) {
@@ -107,7 +123,7 @@ function findNearestSafeTile(map: FloorMap, pos: Position): Position | null {
     }
   }
 
-  return null;
+  return fallback;
 }
 
 /**
@@ -397,7 +413,11 @@ export function planShift(state: GameState, rng: SeededRNG): PendingShift {
   return { type, ...INERT_SHIFT };
 }
 
-/** Run one shift's geometry mutation. Used for both rehearsal and diffing. */
+/**
+ * Run one shift's geometry mutation on a throwaway map. These are the only
+ * callers of the apply* helpers — nothing mutates the live map through them, so
+ * they emit no log lines; the flavour text comes from SHIFT_FLAVOUR at execution.
+ */
 function rehearseShift(
   simState: GameState,
   type: ShiftType,
@@ -405,13 +425,12 @@ function rehearseShift(
   fallbackRoomId: string,
   rng: SeededRNG
 ): void {
-  const throwaway: string[] = [];
   if (type === 'room_slide') {
-    applyRoomSlide(simState, targetGroupId ?? fallbackRoomId, rng, throwaway);
+    applyRoomSlide(simState.floorMap, targetGroupId ?? fallbackRoomId, rng);
   } else if (type === 'corridor_reconnect') {
     applyCorridorReconnect(simState.floorMap, targetGroupId, simState.player.position, rng);
   } else {
-    applyLocalizedCollapse(simState.floorMap, targetGroupId ?? fallbackRoomId, throwaway);
+    applyLocalizedCollapse(simState.floorMap, targetGroupId ?? fallbackRoomId);
   }
 }
 
@@ -500,7 +519,9 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
     // The player can be caught in the collapse: shunt them clear and bill them
     // for it. planShift guaranteed such a tile exists.
     if (!isSafeTile(map.tiles[state.player.position.y][state.player.position.x].type)) {
-      const safeTile = findNearestSafeTile(map, state.player.position);
+      const safeTile = findNearestSafeTile(map, state.player.position, p =>
+        state.entities.some(e => e.hp > 0 && e.position.x === p.x && e.position.y === p.y)
+      );
       if (safeTile) {
         state.player.position = safeTile;
         applyFalloutDamage(state, events);
@@ -539,18 +560,8 @@ const SHIFT_FLAVOUR: Record<ShiftType, string> = {
   localized_collapse: 'Part of a chamber collapses into the void!',
 };
 
-/**
- * Apply a room slide shift: move tiles of the target room by a small offset.
- * Runs during rehearsal only — `events` is discarded; the log line comes from
- * SHIFT_FLAVOUR once the plan is actually executed.
- */
-function applyRoomSlide(
-  state: GameState,
-  targetId: string,
-  rng: SeededRNG,
-  events: string[]
-): void {
-  const map = state.floorMap;
+/** Move the target room's tiles by a small cardinal offset and rewire it. */
+function applyRoomSlide(map: FloorMap, targetId: string, rng: SeededRNG): void {
   const group = map.shiftGroups[targetId];
 
   // Pick a small offset (1-2 tiles in a cardinal direction)
@@ -725,13 +736,8 @@ function applyCorridorReconnect(
  * Apply localized collapse: border tiles of the target room become chasms.
  * The stairs are never swallowed — losing the exit tile itself would make the
  * floor unfinishable, which no fail-safe downstream could undo.
- * Rehearsal-only, like the other apply* helpers; `events` is discarded.
  */
-function applyLocalizedCollapse(
-  map: FloorMap,
-  targetId: string,
-  events: string[]
-): void {
+function applyLocalizedCollapse(map: FloorMap, targetId: string): void {
   const group = map.shiftGroups[targetId];
   const bounds = group.bounds;
 
@@ -747,51 +753,48 @@ function applyLocalizedCollapse(
   }
 }
 
-/**
- * Apply fallout damage to the player.
- * Base: 8% max HP. Vanguard passive reduces by 50% (to 4%).
- */
-function applyFalloutDamage(state: GameState, events: string[]): void {
-  state.lastDamageSource = 'the shift';
-  const basePercent = 0.08;
-  const reduction = state.player.classType === 'vanguard' ? 0.5 : 1.0;
-  const damage = Math.max(1, Math.floor(state.player.maxHp * basePercent * reduction));
+/** Fraction of max HP a shift costs anything it catches. */
+const FALLOUT_FRACTION = 0.08;
 
-  // Damage goes to shield first
-  if (state.player.shieldHp > 0) {
-    const absorbed = Math.min(state.player.shieldHp, damage);
-    state.player.shieldHp -= absorbed;
-    const remaining = damage - absorbed;
-    if (remaining > 0) {
-      state.player.hp = Math.max(0, state.player.hp - remaining);
-    }
-    events.push(`Shift fallout deals ${damage} damage (${absorbed} absorbed by shield).`);
-  } else {
-    state.player.hp = Math.max(0, state.player.hp - damage);
-    events.push(`Shift fallout deals ${damage} damage!`);
-  }
+/** The Vanguard braces for impact, so fallout hits them at half strength. */
+function applyFalloutDamage(state: GameState, events: string[]): void {
+  const reduction = state.player.classType === 'vanguard' ? 0.5 : 1;
+  const damage = Math.max(1, Math.floor(state.player.maxHp * FALLOUT_FRACTION * reduction));
+  events.push('The collapse catches you.');
+  damagePlayer(state, damage, events, 'the shift');
 }
 
 /**
- * Check entities standing on collapsed tiles and apply fallout damage + stagger.
+ * Shunt every enemy the shift buried out of the geometry and bill them for it.
+ *
+ * The check is "not a safe tile", not "is a chasm": a room slide turns the tiles
+ * it vacates into wall, and an enemy left inside one could never path out again —
+ * it just sat there, embedded, attacking anything that walked past.
  */
 function applyEntityFallout(state: GameState, events: string[]): void {
+  const occupied = (p: Position, self: Enemy): boolean =>
+    (state.player.position.x === p.x && state.player.position.y === p.y) ||
+    state.entities.some(
+      e => e !== self && e.hp > 0 && e.position.x === p.x && e.position.y === p.y
+    );
+
   for (const entity of state.entities) {
     if (entity.hp <= 0) continue;
     const tile = state.floorMap.tiles[entity.position.y][entity.position.x];
-    if (tile.type === 'chasm') {
-      // Move entity to nearest safe tile
-      const safeTile = findNearestSafeTile(state.floorMap, entity.position);
-      if (safeTile) {
-        entity.position = safeTile;
-        const damage = Math.max(1, Math.floor(entity.maxHp * 0.08));
-        entity.hp = Math.max(0, entity.hp - damage);
-        events.push(`${entity.name} takes ${damage} shift fallout damage!`);
-      } else {
-        // No safe tile — entity falls into the void
-        entity.hp = 0;
-        events.push(`${entity.name} falls into the void!`);
-      }
+    if (isSafeTile(tile.type)) continue;
+
+    const safeTile = findNearestSafeTile(state.floorMap, entity.position, p =>
+      occupied(p, entity)
+    );
+    if (!safeTile) {
+      entity.hp = 0;
+      events.push(`${entity.name} falls into the void!`);
+      continue;
     }
+
+    entity.position = safeTile;
+    const damage = Math.max(1, Math.floor(entity.maxHp * FALLOUT_FRACTION));
+    entity.hp = Math.max(0, entity.hp - damage);
+    events.push(`${entity.name} takes ${damage} shift fallout damage!`);
   }
 }

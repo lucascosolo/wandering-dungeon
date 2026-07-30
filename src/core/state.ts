@@ -13,7 +13,6 @@ export interface GridTile {
   isTelegraphedCollapse?: boolean;
   /** Part of a room that is about to slide. Drawn as a warning outline. */
   isTelegraphedShift?: boolean;
-  hazard?: 'fire' | 'poison_gas' | null;
 }
 
 export type ShiftType = 'room_slide' | 'corridor_reconnect' | 'localized_collapse';
@@ -64,7 +63,12 @@ export interface ShiftGroup {
 export interface PreShiftSnapshot {
   floorIndex: number;
   tiles: TileType[][];
-  shiftGroupPositions: Record<string, Position>;
+  /**
+   * Bounds as well as offsets: restoring only the offset used to leave a slid
+   * room's tiles back at their old spot while its bounds still described the new
+   * one, so the next shift targeted an empty rectangle.
+   */
+  shiftGroupPlacements: Record<string, ShiftGroupMove>;
 }
 
 export type ItemType =
@@ -89,8 +93,6 @@ export interface Entity {
   hp: number;
   maxHp: number;
   attackPower: number;
-  isStaggered?: boolean;
-  staggeredTurns?: number;
 }
 
 export interface Player extends Entity {
@@ -109,6 +111,9 @@ export type EnemyType =
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;
+  /** Turns this enemy will skip. Non-zero is what "staggered" means — there is
+   * deliberately no separate boolean to fall out of sync with it. */
+  staggeredTurns: number;
 }
 
 export interface LogMessage {

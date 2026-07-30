@@ -1,4 +1,4 @@
-import { GameState, Player, FloorMap, GridTile, Enemy } from '../src/core/state';
+import { GameState, Player, Enemy } from '../src/core/state';
 import { SeededRNG } from '../src/core/rng';
 import { generateFloor } from '../src/core/map/generator';
 
@@ -99,5 +99,6 @@ export function createMockEnemy(
     maxHp: 30,
     attackPower: 5,
     enemyType: type,
+    staggeredTurns: 0,
   };
 }

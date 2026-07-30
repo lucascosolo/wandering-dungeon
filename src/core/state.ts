@@ -76,14 +76,19 @@ export type ItemType =
   | 'hourglass_shard'
   | 'haste_sigil'
   | 'rewind_scroll'
-  | 'health_potion';
+  | 'health_potion'
+  | ArmorType;
+
+export type ArmorType = 'padded_vest' | 'scrap_plating' | 'warden_carapace';
 
 export interface Item {
   id: string;
   type: ItemType;
   name: string;
   description: string;
-  category: 'stabilization' | 'destabilization' | 'consumable';
+  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor';
+  /** Flat damage soaked per hit. Armor only — see damagePlayer. */
+  defense?: number;
 }
 
 export interface Entity {
@@ -99,6 +104,8 @@ export interface Player extends Entity {
   classType: 'vanguard';
   shieldHp: number;
   shieldTurnsRemaining: number;
+  /** Worn armor. Kept out of `inventory` so it can never be "used" as a consumable. */
+  armor: Item | null;
   inventory: Item[];
 }
 
@@ -161,6 +168,12 @@ export interface GameState {
   preShiftSnapshot: PreShiftSnapshot | null;
   /** The shift that has been rolled and telegraphed, awaiting execution. */
   pendingShift: PendingShift | null;
+  /**
+   * Armor the player is standing on while already wearing some. The piece stays
+   * on the floor until EQUIP_ARMOR resolves the offer, so a declined swap needs
+   * no put-back path and re-stepping on the tile simply asks again.
+   */
+  pendingArmorOffer: Item | null;
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */

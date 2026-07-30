@@ -13,6 +13,7 @@ const TILE_COLORS: Record<TileType, string> = {
 
 const COLOR_PLAYER = '#00f0ff';
 const COLOR_ITEM = '#ffd166';
+const COLOR_ARMOR = '#8fd9c0';
 
 /**
  * A glyph and colour per enemy kind, so a threat can be read at a glance instead
@@ -171,7 +172,14 @@ export function renderFrame(
   for (const drop of floorMap.drops ?? []) {
     const { x, y } = drop.position;
     if (!floorMap.visible[y][x]) continue;
-    drawGlyph(ctx, '*', COLOR_ITEM, x * TILE_SIZE + offsetX, y * TILE_SIZE + offsetY);
+    const isArmor = drop.item.category === 'armor';
+    drawGlyph(
+      ctx,
+      isArmor ? '[' : '*',
+      isArmor ? COLOR_ARMOR : COLOR_ITEM,
+      x * TILE_SIZE + offsetX,
+      y * TILE_SIZE + offsetY
+    );
   }
 
   for (const enemy of state.entities) {

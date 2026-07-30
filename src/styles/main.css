@@ -227,17 +227,25 @@ html, body {
   padding: 8px 16px 4px;
 }
 
-/* Its own row directly above the quick-use slots: healing reads as the first,
-   most important of the usable items rather than as another vitals gauge.
-   Shaped like a hotbar slot, only red — it is one more usable item, and a
+/* Potion and worn armor share one row directly above the quick-use slots:
+   healing and protection read as status you act on, not as vitals gauges, and
+   pairing them costs no extra vertical band on a phone. */
+.quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 6px;
+}
+
+/* Shaped like a hotbar slot, only red — it is one more usable item, and a
    full-width bar made it look like a gauge again on a desktop-width screen.
-   align-self keeps it from stretching as a flex child of the app column. */
+   align-self keeps it from stretching to the row's height. */
 .potion {
   align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 16px 6px;
+  margin: 0;
   padding: 4px 10px;
   border-radius: 8px;
   border: 1px solid rgba(255, 0, 85, 0.5);
@@ -291,6 +299,82 @@ html, body {
   font-size: 0.65rem;
   color: var(--text-dim);
 }
+
+.armor-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(143, 217, 192, 0.45);
+  background: rgba(143, 217, 192, 0.12);
+  color: var(--text-main);
+  font-size: 0.72rem;
+}
+
+.armor-chip--empty {
+  border-color: var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+}
+
+.armor-chip__glyph {
+  color: #8fd9c0;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.armor-chip--empty .armor-chip__glyph { color: var(--text-dim); }
+
+.armor-chip__name { font-weight: 600; }
+
+.armor-compare {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.armor-compare__side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.armor-compare__side--new {
+  border-color: rgba(143, 217, 192, 0.5);
+  background: rgba(143, 217, 192, 0.12);
+}
+
+.armor-compare__label {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.armor-compare__name { font-size: 0.8rem; }
+
+.armor-compare__value {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.armor-compare__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.armor-compare__actions .action-btn { flex: 1; height: 44px; }
 
 .bar {
   position: relative;

@@ -62,7 +62,11 @@ html, body {
   position: relative;
   overflow: hidden;
   padding-top: var(--safe-area-top);
-  padding-bottom: var(--safe-area-bottom);
+  /* The thumb bar floats over the bottom of this column, so the column has to
+     stop short of it. Reserving the space here rather than as padding on
+     whichever element happens to be last means adding a row below the log — the
+     potion button, the hotbar — no longer pushes that row underneath the bar. */
+  padding-bottom: calc(var(--safe-area-bottom) + var(--thumb-bar-height) + 24px);
   padding-left: var(--safe-area-left);
   padding-right: var(--safe-area-right);
 }
@@ -224,13 +228,15 @@ html, body {
 }
 
 /* Its own row directly above the quick-use slots: healing reads as the first,
-   most important of the usable items rather than as another vitals gauge. */
+   most important of the usable items rather than as another vitals gauge.
+   Shaped like a hotbar slot, only red — it is one more usable item, and a
+   full-width bar made it look like a gauge again on a desktop-width screen.
+   align-self keeps it from stretching as a flex child of the app column. */
 .potion {
+  align-self: flex-start;
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: calc(100% - 32px);
-  min-height: 36px;
+  gap: 6px;
   margin: 0 16px 6px;
   padding: 4px 10px;
   border-radius: 8px;
@@ -262,8 +268,6 @@ html, body {
 }
 
 .potion__name {
-  flex: 1;
-  min-width: 0;
   font-weight: 600;
 }
 
@@ -324,10 +328,16 @@ html, body {
   touch-action: none;
 }
 
+/* Bottom-anchored: the newest line is the one worth reading, so overflow has to
+   eat the oldest line off the top. Anchoring at the top instead clipped the
+   newest message the moment a long one wrapped to two rows. */
 .log-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   height: 92px;
   overflow: hidden;
-  padding: 8px 16px calc(var(--thumb-bar-height) + 24px);
+  padding: 8px 16px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   line-height: 1.5;

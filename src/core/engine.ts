@@ -345,6 +345,15 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
 
   if (
     state.shiftCountdown === 4 &&
+    regionForFloor(state.floorMap.level).index === 2 &&
+    currentTile.shiftGroupId?.startsWith('corridor')
+  ) {
+    events.push('Ash pours through the passage and sears your lungs.');
+    damagePlayer(state, 2, events, "the Warrens' ash");
+  }
+
+  if (
+    state.shiftCountdown === 4 &&
     regionForFloor(state.floorMap.level).index === 0 &&
     currentTile.type === 'door'
   ) {

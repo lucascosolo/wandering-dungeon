@@ -30,6 +30,8 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   collapse_behemoth: { glyph: 'B', color: '#ff2d2d', label: 'Collapse Behemoth' },
   hinge_warden: { glyph: 'H', color: '#c9a66b', label: 'Hinge Warden' },
   seam_skitter: { glyph: 's', color: '#e07a5f', label: 'Seam Skitter' },
+  fracture_leech: { glyph: 'L', color: '#b56576', label: 'Fracture Leech' },
+  riftbound: { glyph: 'R', color: '#7b68ee', label: 'Riftbound' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';

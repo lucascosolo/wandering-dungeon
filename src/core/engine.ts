@@ -257,17 +257,22 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.enemyType === 'fracture_leech' && !state.pendingShift) continue;
     if (enemy.enemyType === 'hinge_warden' && state.pendingShift) continue;
 
-    const aggroRadius =
-      enemy.enemyType === 'seam_skitter'
-        ? state.pendingShift
-          ? 10
-          : 6
-        : ENEMY_AGGRO_RADIUS;
+    let target = state.player.position;
+    let aggroRadius = ENEMY_AGGRO_RADIUS;
+    if (enemy.enemyType === 'riftbound') {
+      target = state.floorMap.exit;
+      aggroRadius = Infinity;
+    } else if (enemy.enemyType === 'seam_skitter') {
+      aggroRadius = state.pendingShift ? 10 : 6;
+    } else if (enemy.enemyType === 'fracture_leech') {
+      aggroRadius = 12;
+    }
     if (dist > aggroRadius) continue;
 
-    const path = findPath(state.floorMap, enemy.position, state.player.position);
+    const path = findPath(state.floorMap, enemy.position, target);
     if (!path || path.length < 2) continue;
 
     const step = path[1];

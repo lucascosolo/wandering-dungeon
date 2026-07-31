@@ -36,6 +36,22 @@ function pendingShift() {
   };
 }
 
+function enemyWithExitPath(state: ReturnType<typeof createMockGameState>) {
+  const { player, floorMap } = state;
+  for (let y = 0; y < floorMap.height; y++) {
+    for (let x = 0; x < floorMap.width; x++) {
+      const position = { x, y };
+      const tile = floorMap.tiles[y][x].type;
+      const path = findPath(floorMap, position, floorMap.exit);
+      const distanceToPlayer = Math.abs(x - player.position.x) + Math.abs(y - player.position.y);
+      if ((tile === 'floor' || tile === 'door') && distanceToPlayer > 1 && path && path.length > 1) {
+        return position;
+      }
+    }
+  }
+  throw new Error('no walkable tile with a route to the exit');
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -179,6 +195,43 @@ describe('Turn Engine & Items', () => {
       Math.abs(enemy.position.x - state.player.position.x) +
       Math.abs(enemy.position.y - state.player.position.y);
     expect(afterDistance).toBeLessThan(beforeDistance);
+  });
+
+  it('keeps a Fracture Leech dormant until a shift is telegraphed', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'fracture_leech');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('lets a Fracture Leech pursue during a shift telegraph', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'fracture_leech');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+  });
+
+  it('draws a Riftbound toward the exit route', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyWithExitPath(state), 'riftbound');
+    const before = { ...enemy.position };
+    const beforePathLength = findPath(state.floorMap, before, state.floorMap.exit)?.length;
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+    expect(findPath(state.floorMap, enemy.position, state.floorMap.exit)?.length).toBeLessThan(beforePathLength!);
   });
 });
 

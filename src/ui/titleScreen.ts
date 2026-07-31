@@ -7,6 +7,7 @@ import {
   RunLength,
   RUN_LENGTHS,
 } from '../core/runConfig';
+import { showSettingsScreen } from './settingsScreen';
 
 export interface TitleScreenHandlers {
   onNewGame: (config: RunConfig) => void;
@@ -50,14 +51,19 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
             Continue
             <small>no run in progress</small>
           </button>
-          <button class="title-btn" id="btn-settings" type="button" disabled>
+          <button class="title-btn" id="btn-settings" type="button">
             Settings
-            <small>not yet</small>
+            <small>controls</small>
           </button>
         </div>
       </div>
     `;
     screen.querySelector('#btn-new-game')!.addEventListener('click', renderSetup);
+    // Settings stacks on top rather than replacing the menu, so backing out of it
+    // needs no state — this screen is still underneath, untouched.
+    screen.querySelector('#btn-settings')!.addEventListener('click', () =>
+      showSettingsScreen(() => {})
+    );
   }
 
   function renderSetup(): void {

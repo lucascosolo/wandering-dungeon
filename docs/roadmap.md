@@ -45,16 +45,15 @@ multiplier in `damagePlayer` (gentle 0.7 / standard 1.0 / brutal 1.3), because a
 picker whose choice did nothing would have been a lie. 3c still owns applying
 difficulty to the region curves once 3b exists.
 
-### 1c. Settings screen with rebindable keys
+### ~~1c. Settings screen with rebindable keys~~ — shipped
 
-Keys are hardcoded in `KEY_MOVES` and the `if/else` chain in
-`src/ui/controls.ts`. A settings screen holds the bindings, persisted via
-`idb-keyval`.
+`src/ui/keybinds.ts` + `src/ui/settingsScreen.ts`. All 13 actions rebind, two
+slots each so the arrows/WASD pairing survives. `controls.ts` reads the table per
+keypress, and `idb-keyval` is no longer unused — the first persisted thing in the
+game, which de-risks 2a.
 
-Done when: every movement and action key is rebindable and survives a reload.
-
-Depends on 1a. Files: `src/ui/controls.ts`, `src/ui/` (settings screen).
-Scope: M.
+Reachable from the title screen only. An in-run settings entry needs a pause
+screen that does not exist yet; file it with 2b if it starts to bite.
 
 ### 2a. Persist and restore a run
 

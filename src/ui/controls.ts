@@ -1,3 +1,5 @@
+import { actionForKey, currentKeybinds, MOVE_DELTAS } from './keybinds';
+
 export interface ControlHandlers {
   move: (dx: number, dy: number) => void;
   wait: () => void;
@@ -12,50 +14,46 @@ export interface ControlHandlers {
   useHotbarSlot: (slot: number) => void;
 }
 
-const KEY_MOVES: Record<string, [number, number]> = {
-  arrowup: [0, -1],
-  w: [0, -1],
-  arrowdown: [0, 1],
-  s: [0, 1],
-  arrowleft: [-1, 0],
-  a: [-1, 0],
-  arrowright: [1, 0],
-  d: [1, 0],
-};
-
 const SWIPE_THRESHOLD = 24;
 
 /**
  * Wire keyboard and touch input. Returns a teardown function.
  *
  * Touch: swipe in a cardinal direction to move, tap to act on a tile.
- * Desktop: WASD/arrows to move, space to wait, q for the shield, h to drink a
- * potion, i for items.
+ * Desktop keys come from `currentKeybinds()`, read per keypress so a rebind in
+ * the settings screen applies without re-attaching anything.
  */
 export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandlers): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
-    const key = e.key.toLowerCase();
+    const action = actionForKey(currentKeybinds(), e.key.toLowerCase());
+    if (!action) return;
 
-    const move = KEY_MOVES[key];
+    const move = MOVE_DELTAS[action];
     if (move) {
       e.preventDefault();
       handlers.move(move[0], move[1]);
       return;
     }
 
-    if (key === ' ' || key === '.') {
-      e.preventDefault();
-      handlers.wait();
-    } else if (key === 'q') {
-      handlers.ability();
-    } else if (key === 'i') {
-      handlers.toggleInventory();
-    } else if (key === 'h') {
-      handlers.usePotion();
-    } else if (key === '>' || key === 'enter') {
-      handlers.descend();
-    } else if (key >= '1' && key <= '4') {
-      handlers.useHotbarSlot(Number(key));
+    switch (action) {
+      case 'wait':
+        e.preventDefault();
+        handlers.wait();
+        break;
+      case 'ability':
+        handlers.ability();
+        break;
+      case 'inventory':
+        handlers.toggleInventory();
+        break;
+      case 'potion':
+        handlers.usePotion();
+        break;
+      case 'descend':
+        handlers.descend();
+        break;
+      default:
+        handlers.useHotbarSlot(Number(action.slice(-1)));
     }
   };
 

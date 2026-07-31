@@ -788,3 +788,63 @@ html, body {
   text-align: center;
   color: var(--text-muted);
 }
+
+.settings__inner {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.settings__hint {
+  margin: 0 0 14px;
+  font-size: 0.68rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.keybinds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.keybind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.keybind__label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.keybind__keys {
+  display: flex;
+  gap: 4px;
+}
+
+.key-btn {
+  min-width: 46px;
+  height: 32px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.key-btn--empty { color: var(--text-dim); }
+
+.key-btn--capturing {
+  background: var(--accent-cyan-glow);
+  border-color: var(--border-glow);
+  color: var(--accent-cyan);
+}

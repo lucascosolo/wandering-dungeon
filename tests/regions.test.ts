@@ -8,6 +8,7 @@ import {
   regionCount,
   regionForFloor,
   regionIndexForFloor,
+  runProgress,
 } from '../src/core/regions';
 
 describe('Regions', () => {
@@ -52,6 +53,61 @@ describe('Regions', () => {
   it('has a region for the longest run and no more', () => {
     expect(REGIONS.length).toBe(regionCount(RUN_LENGTHS.extreme.floors));
     REGIONS.forEach((region, i) => expect(region.index).toBe(i));
+  });
+
+  it('holds enemy stats flat within a region and steps between them', () => {
+    for (let floor = 2; floor <= 25; floor++) {
+      const prev = regionForFloor(floor - 1);
+      const here = regionForFloor(floor);
+      const changed =
+        here.enemyCount !== prev.enemyCount ||
+        here.hpMultiplier !== prev.hpMultiplier ||
+        here.attackBonus !== prev.attackBonus;
+
+      expect(changed, `floor ${floor} changed stats mid-region`).toBe(
+        here.index !== prev.index
+      );
+    }
+  });
+
+  it('never lets a stat run away with the floor number', () => {
+    // The old curves were linear in level with no ceiling: a 114 HP Crawler and
+    // 28 enemies on floor 25, against a player whose power is flat all run.
+    const last = REGIONS[REGIONS.length - 1];
+    expect(last.enemyCount).toBeLessThanOrEqual(8);
+    expect(last.hpMultiplier).toBeLessThanOrEqual(2);
+    expect(last.attackBonus).toBeLessThanOrEqual(4);
+
+    REGIONS.forEach((region, i) => {
+      if (i === 0) return;
+      const prev = REGIONS[i - 1];
+      expect(region.enemyCount).toBeGreaterThanOrEqual(prev.enemyCount);
+      expect(region.hpMultiplier).toBeGreaterThanOrEqual(prev.hpMultiplier);
+      expect(region.attackBonus).toBeGreaterThanOrEqual(prev.attackBonus);
+    });
+  });
+
+  it('paces the roster from 0 in the first region to 1 in the last, any length', () => {
+    for (const { floors } of Object.values(RUN_LENGTHS)) {
+      expect(runProgress(1, floors)).toBe(0);
+      expect(runProgress(floors, floors)).toBe(1);
+
+      // Monotonic, so nothing already unlocked can vanish later in the run.
+      let previous = -1;
+      for (let floor = 1; floor <= floors; floor++) {
+        const progress = runProgress(floor, floors);
+        expect(progress).toBeGreaterThanOrEqual(previous);
+        previous = progress;
+      }
+    }
+  });
+
+  it('paces species progression across floors, even in a short run', () => {
+    expect(runProgress(1, 10)).toBe(0);
+    expect(runProgress(5, 10)).toBe(4 / 9);
+    expect(runProgress(6, 10)).toBe(5 / 9);
+    expect(runProgress(10, 10)).toBe(1);
+    expect(runProgress(6, 10)).toBeLessThan(0.8);
   });
 
   it('clamps past the last region rather than falling off the table', () => {

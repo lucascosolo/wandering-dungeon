@@ -25,13 +25,15 @@ export interface Region {
   enemyPool: readonly EnemyType[];
 }
 
-const CURRENT_ENEMY_POOL: readonly EnemyType[] = [
+const LEGACY_ENEMY_POOL: readonly EnemyType[] = [
   'crawler',
   'sentinel',
   'fracture_beast',
   'warp_stalker',
   'collapse_behemoth',
 ];
+
+const SHIFTING_HALLS_POOL: readonly EnemyType[] = ['hinge_warden', 'seam_skitter'];
 
 /**
  * Five names because the longest run is 25 floors. Shorter runs use the first
@@ -45,7 +47,7 @@ export const REGIONS: Region[] = [
     enemyCount: 4,
     hpMultiplier: 1,
     attackBonus: 0,
-    enemyPool: CURRENT_ENEMY_POOL,
+    enemyPool: SHIFTING_HALLS_POOL,
   },
   {
     index: 1,
@@ -53,7 +55,7 @@ export const REGIONS: Region[] = [
     enemyCount: 5,
     hpMultiplier: 1.15,
     attackBonus: 1,
-    enemyPool: CURRENT_ENEMY_POOL,
+    enemyPool: LEGACY_ENEMY_POOL,
   },
   {
     index: 2,
@@ -61,7 +63,7 @@ export const REGIONS: Region[] = [
     enemyCount: 6,
     hpMultiplier: 1.3,
     attackBonus: 2,
-    enemyPool: CURRENT_ENEMY_POOL,
+    enemyPool: LEGACY_ENEMY_POOL,
   },
   {
     index: 3,
@@ -69,7 +71,7 @@ export const REGIONS: Region[] = [
     enemyCount: 7,
     hpMultiplier: 1.45,
     attackBonus: 3,
-    enemyPool: CURRENT_ENEMY_POOL,
+    enemyPool: LEGACY_ENEMY_POOL,
   },
   {
     index: 4,
@@ -77,7 +79,7 @@ export const REGIONS: Region[] = [
     enemyCount: 8,
     hpMultiplier: 1.6,
     attackBonus: 4,
-    enemyPool: CURRENT_ENEMY_POOL,
+    enemyPool: LEGACY_ENEMY_POOL,
   },
 ];
 

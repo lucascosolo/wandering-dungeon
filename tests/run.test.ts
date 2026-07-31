@@ -101,6 +101,18 @@ describe('Full run', () => {
     }
   });
 
+  it('spawns only Shifting Halls species deterministically on floor 1', () => {
+    const config = createRunConfig('extreme', 'brutal');
+    const a = createNewGame('region-one-roster', config);
+    const b = createNewGame('region-one-roster', config);
+    const allowed = new Set(['hinge_warden', 'seam_skitter']);
+
+    expect(a.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
+    expect(a.entities.map(enemy => [enemy.enemyType, enemy.position, enemy.hp, enemy.attackPower])).toEqual(
+      b.entities.map(enemy => [enemy.enemyType, enemy.position, enemy.hp, enemy.attackPower])
+    );
+  });
+
   it('gets a player-like bot well past the first region on a long run', () => {
     // A depth regression net, not a win condition: the bot never retreats and
     // never uses the shift items, so it dies deeper than a rush and shallower

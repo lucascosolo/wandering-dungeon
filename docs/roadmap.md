@@ -144,6 +144,11 @@ Depends on 3a, 3b. Files: `src/core/game.ts`, `src/core/regions.ts`,
 
 A region-specific environmental threat beyond the three existing shift types.
 
+First slice shipped: Shifting Halls doors now inflict mild, telegraphed hinge
+stress once per shift cycle, with armor, shield, difficulty, logs, and an amber
+door treatment all using existing paths. The remaining four regional hazards
+stay intentionally unfired until this contribution is playtested.
+
 Done when: each region contributes one hazard, and hazard damage routes through
 `damagePlayer` like every other source.
 

@@ -11,6 +11,7 @@ import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
 import { buildFloor } from './game';
+import { regionForFloor } from './regions';
 
 export type GameAction =
   | { type: 'MOVE'; dx: number; dy: number }
@@ -330,6 +331,15 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
   }
 
   state.shiftCountdown--;
+
+  if (
+    state.shiftCountdown === 4 &&
+    regionForFloor(state.floorMap.level).index === 0 &&
+    state.floorMap.tiles[state.player.position.y][state.player.position.x].type === 'door'
+  ) {
+    events.push('A stressed hinge tears at your footing.');
+    damagePlayer(state, 2, events, "the Halls' hinge");
+  }
 
   if (state.shiftCountdown <= 0) {
     events.push(...executeShift(state, rng));

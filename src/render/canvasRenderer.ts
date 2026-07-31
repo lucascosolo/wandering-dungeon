@@ -1,4 +1,5 @@
 import { EnemyType, GameState, TileType } from '../core/state';
+import { regionForFloor } from '../core/regions';
 import { ParticleSystem } from './particles';
 
 export const TILE_SIZE = 30;
@@ -41,6 +42,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
+const COLOR_HINGE = 'rgba(255, 183, 77, 0.65)';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.04)';
 
 /** How many of the player's own turns a just-shifted tile keeps flashing for. */
@@ -102,6 +104,7 @@ export function renderFrame(
 ): void {
   const { floorMap } = state;
   const { offsetX, offsetY } = computeCamera(state, width, height);
+  const hasHingeStress = regionForFloor(floorMap.level).index === 0;
 
   ctx.fillStyle = '#0f0f15';
   ctx.fillRect(0, 0, width, height);
@@ -139,6 +142,11 @@ export function renderFrame(
         drawGlyph(ctx, '>', '#5ef2c4', px, py);
       } else if (tile.type === 'door') {
         drawGlyph(ctx, '+', '#c99bff', px, py);
+        if (hasHingeStress) {
+          ctx.strokeStyle = COLOR_HINGE;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+        }
       }
 
       // Collapse telegraph — only meaningful where the player can see it.

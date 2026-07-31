@@ -35,6 +35,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   rift_regent: { glyph: 'M', color: '#9d4edd', label: 'Rift Regent' },
   cinder_gatekeeper: { glyph: 'C', color: '#e09f3e', label: 'Cinder Gatekeeper' },
   prism_refractor: { glyph: 'P', color: '#b8c0ff', label: 'Prism Refractor' },
+  null_testament: { glyph: 'T', color: '#c77dff', label: 'Null Testament' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
@@ -207,7 +208,7 @@ export function renderFrame(
     const style = ENEMY_STYLES[enemy.enemyType];
 
     if (enemy.bossTarget) {
-      ctx.strokeStyle = '#ff4d6d';
+      ctx.strokeStyle = enemy.enemyType === 'null_testament' ? '#80ded9' : '#ff4d6d';
       ctx.lineWidth = 2;
       ctx.strokeRect(
         enemy.bossTarget.x * TILE_SIZE + offsetX + 2,

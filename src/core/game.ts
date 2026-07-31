@@ -45,6 +45,7 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   rift_regent: { hp: 125, attackPower: 11, minProgress: 0 },
   cinder_gatekeeper: { hp: 135, attackPower: 12, minProgress: 0 },
   prism_refractor: { hp: 145, attackPower: 13, minProgress: 0 },
+  null_testament: { hp: 75, attackPower: 14, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -184,7 +185,9 @@ export function populateFloor(
           ? 'cinder_gatekeeper'
           : level === 20
             ? 'prism_refractor'
-          : null;
+            : level === 25
+              ? 'null_testament'
+            : null;
   const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );
@@ -210,6 +213,8 @@ export function populateFloor(
             ? 'Cinder Gatekeeper'
             : bossType === 'prism_refractor'
               ? 'Prism Refractor'
+              : bossType === 'null_testament'
+                ? 'Null Testament'
           : enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       enemyType,
       isBoss: bossType !== null,

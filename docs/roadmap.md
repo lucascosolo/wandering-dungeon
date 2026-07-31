@@ -186,15 +186,17 @@ invariants remain intact on the corridor-free layout.
 Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 `tests/shift.test.ts`. Scope: M.
 
-### 5b. Boss entities — in progress
+### ~~5b. Boss entities~~ — shipped
 
-The first four boss slices are shipped: floor 5 spawns the Hinge Sovereign, a
+All five regional bosses are shipped: floor 5 spawns the Hinge Sovereign, a
 distinct arena entity whose ranged signature attack synchronizes with a pending
 shift, and floor 10 spawns the Rift Regent, which marks a tile for a delayed,
 dodgeable rift strike. Floor 15 adds the Cinder Gatekeeper, whose stasis-driven
 ash interdict controls the exit radius, and floor 20's Prism Refractor marks a
-visible tile from the authoritative pending shift for a dodgeable glass fault.
-The final regional boss still needs its own entity and behaviour.
+visible tile from the authoritative pending shift for a dodgeable glass fault,
+and floor 25 closes with the Null Testament, which marks a nearby refuge from
+the Unmaking. Every boss uses a distinct telegraphed behaviour and remains
+beatable with normal movement, combat, and defensive items.
 
 Done when: each region's boss is beatable and does something no normal enemy
 does.

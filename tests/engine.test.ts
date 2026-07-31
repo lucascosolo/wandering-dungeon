@@ -786,6 +786,33 @@ describe('Run configuration', () => {
     expect(state.entities[0].bossCooldown).toBe(4);
   });
 
+  it('gives the Null Testament a dodgeable refuge against the Unmaking', () => {
+    const state = createNewGame('null-testament', createRunConfig('extreme', 'brutal'));
+    buildFloor(state, new SeededRNG('null-testament-rng'), 25);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    state.pendingShift = pendingShift();
+    state.shiftCountdown = 2;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.entities[0].bossTarget).toBeDefined();
+    const refuge = state.entities[0].bossTarget!;
+    state.player.position = refuge;
+    state.entities[0].position = { x: state.player.position.x + 5, y: state.player.position.y };
+    state.shiftCountdown = 10;
+    const shelteredHp = state.player.hp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBe(shelteredHp);
+
+    state.entities[0].bossCooldown = 0;
+    state.entities[0].bossTarget = { x: state.player.position.x, y: state.player.position.y + 1 };
+    state.player.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    const exposedHp = state.player.hp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBeLessThan(exposedHp);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);

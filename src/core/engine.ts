@@ -332,6 +332,38 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.enemyType === 'null_testament' && enemy.bossTarget) {
+      const sheltered =
+        enemy.bossTarget.x === state.player.position.x &&
+        enemy.bossTarget.y === state.player.position.y;
+      if (sheltered) {
+        events.push(`${enemy.name} watches as you shelter in the marked refuge.`);
+      } else {
+        damagePlayer(state, 7, events, enemy.name);
+        events.push(`${enemy.name} erases everything beyond the marked refuge.`);
+      }
+      enemy.bossTarget = undefined;
+      enemy.bossCooldown = 4;
+      continue;
+    }
+
+    if (enemy.enemyType === 'null_testament' && enemy.bossCooldown === 0 && state.pendingShift && state.shiftCountdown === 2) {
+      const refuge = ([
+        { x: state.player.position.x + 1, y: state.player.position.y },
+        { x: state.player.position.x - 1, y: state.player.position.y },
+        { x: state.player.position.x, y: state.player.position.y + 1 },
+        { x: state.player.position.x, y: state.player.position.y - 1 },
+      ] as Position[]).find(position =>
+        isWalkableAt(state, position) &&
+        !(position.x === enemy.position.x && position.y === enemy.position.y)
+      );
+      if (refuge) {
+        enemy.bossTarget = refuge;
+        events.push(`${enemy.name} reveals a refuge from the coming unmaking.`);
+        continue;
+      }
+    }
+
     if (enemy.enemyType === 'prism_refractor' && enemy.bossCooldown === 0 && state.pendingShift && state.shiftCountdown === 2) {
       const candidates = state.pendingShift.changes
         .filter(change =>

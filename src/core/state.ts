@@ -130,7 +130,8 @@ export type EnemyType =
   | 'hinge_sovereign'
   | 'rift_regent'
   | 'cinder_gatekeeper'
-  | 'prism_refractor';
+  | 'prism_refractor'
+  | 'null_testament';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

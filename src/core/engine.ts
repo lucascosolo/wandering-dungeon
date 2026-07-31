@@ -262,13 +262,18 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
 
     let target = state.player.position;
     let aggroRadius = ENEMY_AGGRO_RADIUS;
-    if (enemy.enemyType === 'riftbound') {
+    if (enemy.enemyType === 'ashlock' && state.pendingShift?.blocksExit) {
+      target = state.floorMap.exit;
+      aggroRadius = Infinity;
+    } else if (enemy.enemyType === 'riftbound') {
       target = state.floorMap.exit;
       aggroRadius = Infinity;
     } else if (enemy.enemyType === 'seam_skitter') {
       aggroRadius = state.pendingShift ? 10 : 6;
     } else if (enemy.enemyType === 'fracture_leech') {
       aggroRadius = 12;
+    } else if (enemy.enemyType === 'stasis_scorcher') {
+      aggroRadius = state.isStasisActive ? 9 : 5;
     }
     if (dist > aggroRadius) continue;
 

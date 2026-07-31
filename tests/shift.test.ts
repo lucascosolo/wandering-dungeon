@@ -43,6 +43,30 @@ describe('Shift Engine', () => {
     expect(['floor', 'door', 'stairs_down']).toContain(playerTile.type);
   });
 
+  it('sprays shards when a Glass Expanse shift changes an adjacent tile', () => {
+    const state = createMockGameState('glass-shard-test');
+    state.floorMap.level = 16;
+    const { x, y } = state.player.position;
+    const adjacent = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]
+      .map(([px, py]) => ({ x: px, y: py }))
+      .find(pos => state.floorMap.tiles[pos.y]?.[pos.x]?.type === 'floor');
+    if (!adjacent) throw new Error('player has no adjacent floor tile');
+
+    state.pendingShift = {
+      type: 'localized_collapse',
+      targetGroupId: null,
+      changes: [{ x: adjacent.x, y: adjacent.y, to: 'chasm', shiftGroupId: null }],
+      groupMoves: {},
+      blocksExit: false,
+    };
+
+    const events = executeShift(state, new SeededRNG('glass-shard-rng'));
+
+    expect(state.player.hp).toBe(98);
+    expect(state.lastDamageSource).toBe('the Glass Expanse shards');
+    expect(events.some(event => event.includes('Shards burst'))).toBe(true);
+  });
+
   it('stores a preShiftSnapshot after executing a shift', () => {
     const state = createMockGameState('snapshot-test');
     const rng = new SeededRNG('snapshot-rng');

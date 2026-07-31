@@ -13,6 +13,7 @@ import {
 import { SeededRNG } from '../rng';
 import { damagePlayer } from '../damage';
 import { hasValidPath } from '../map/pathfinding';
+import { regionForFloor } from '../regions';
 
 const CARDINAL_OFFSETS: Position[] = [
   { x: 0, y: -1 },
@@ -576,6 +577,15 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
   state.lastShiftChanges = changed;
   state.lastShiftTurn = state.turnCount;
   state.lastShiftType = plan.changes.length > 0 ? plan.type : null;
+  if (
+    regionForFloor(map.level).index === 3 &&
+    changed.some(change =>
+      Math.abs(change.x - state.player.position.x) + Math.abs(change.y - state.player.position.y) === 1
+    )
+  ) {
+    events.push('Shards burst from the rearranged glass beside you.');
+    damagePlayer(state, 2, events, 'the Glass Expanse shards');
+  }
   if (changed.length > 0) {
     events.push(`${changed.length} tiles rearranged themselves.`);
   }

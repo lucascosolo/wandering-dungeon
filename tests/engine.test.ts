@@ -699,6 +699,21 @@ describe('Run configuration', () => {
     expect(state.isGameOver).toBe(false);
   });
 
+  it('gives the Hinge Sovereign a shift-synchronized signature attack', () => {
+    const state = createNewGame('hinge-sovereign', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('hinge-sovereign-rng'), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    state.pendingShift = pendingShift();
+    state.shiftCountdown = 2;
+    const hp = state.player.hp;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBeLessThan(hp);
+    expect(state.entities[0].bossCooldown).toBe(3);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);

@@ -254,12 +254,30 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.isBoss && (enemy.bossCooldown ?? 0) > 0) {
+      enemy.bossCooldown = (enemy.bossCooldown ?? 1) - 1;
+    }
+
     const dist =
       Math.abs(enemy.position.x - state.player.position.x) +
       Math.abs(enemy.position.y - state.player.position.y);
 
     if (dist === 1) {
       attack(state, rng, enemy.name, enemy.attackPower, null, events);
+      continue;
+    }
+
+    if (
+      enemy.enemyType === 'hinge_sovereign' &&
+      enemy.bossCooldown === 0 &&
+      state.pendingShift &&
+      state.shiftCountdown <= 2 &&
+      dist <= 8
+    ) {
+      const damage = enemy.attackPower + rng.randomInt(1, 3);
+      damagePlayer(state, damage, events, enemy.name);
+      events.push(`${enemy.name} snaps the shifting halls toward you.`);
+      enemy.bossCooldown = 3;
       continue;
     }
 

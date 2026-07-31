@@ -1,75 +1,296 @@
 # Roadmap
 
-Requested work not yet scheduled into a commit. Each entry is a candidate for
-its own scoped change — take them one at a time, not as a batch.
+Requested work not yet scheduled into a commit. Take one task at a time, not a
+batch. Every task ships green on `npx tsc --noEmit`, `npm test`, and
+`npm run build`; that bar is assumed below rather than repeated per task.
 
-## Armor as an equipment slot with a comparison prompt
+Tasks are ordered by dependency. Phase 1 is load-bearing — Phase 2 content is
+priced against decisions made there, so building it out of order means tuning
+twice.
 
-**Reported 2026-07-30.** Armor gets its own UI rather than living in the
-inventory. First piece picked up equips automatically; picking up a second
-opens a comparison popup asking whether to swap.
+---
 
-Needs an `Item` kind that is equipment rather than consumable, a slot on
-`Player`, a damage-reduction hook in `damagePlayer` (`src/core/damage.ts` — now
-the single path player HP loss flows through, so this is one edit, not two),
-and a modal. Pairs naturally with the deferred weapon types.
+# Epic: Run structure
 
-Also carries the difficulty entry below: the user expects armor to be most of
-that fix, so tune after it lands rather than before, or the two changes will
-fight each other.
+Runs are 5 floors of the same activity at higher numbers. This turns them into
+2–5 regions of 5 floors, each region closing on a boss, with length and
+difficulty chosen at the title screen.
+
+Two findings from the current code drive the ordering:
+
+- **Scaling does not survive a longer run.** It is linear in `level` with no
+  ceiling: `enemyCount = 3 + level` puts 28 enemies on floor 25, `hp + (level-1)*4`
+  gives a Crawler 114 HP against the player's `attackPower: 12`, and
+  `attackPower + (level-1)` has a Behemoth hitting for 39. Longer runs are
+  blocked on replacing this.
+- **Save/resume is cheap.** `GameState` is plain data and already carries
+  `rngState: rng.serialize()` (`src/core/game.ts`). Persistence is close to
+  `JSON.stringify` into the installed-and-unused `idb-keyval`.
+
+## Phase 1 — Frame
+
+### 1a. Title screen shell
+
+Boot to a menu instead of straight into a run: New Game, Continue, Settings.
+Continue is disabled until 2a lands.
+
+Done when: the game starts at a menu, New Game reaches a playable run, and
+`main.ts` no longer builds a run on load.
+
+Files: `src/main.ts`, `src/ui/` (new screen module), `src/styles/main.css`.
+Scope: M.
+
+### 1b. Run configuration
+
+New Game picks length (10/15/20/25) and difficulty. 25 is locked to hard.
+`FINAL_FLOOR` (`src/core/engine.ts:31`) becomes a per-run value on `GameState`;
+the hardcoded "Reach floor 5" opening log line reads from it.
+
+Difficulty is a chosen multiplier, not a rebalance — current numbers become the
+middle tier and an easier tier goes below them, so nothing existing gets nerfed.
+
+Done when: a chosen length ends the run on that floor, difficulty is stored on
+the run, and no floor count is hardcoded outside the config.
+
+Depends on 1a. Files: `src/core/state.ts`, `src/core/game.ts`,
+`src/core/engine.ts`, `src/ui/`. Scope: M.
+
+### 1c. Settings screen with rebindable keys
+
+Keys are hardcoded in `KEY_MOVES` and the `if/else` chain in
+`src/ui/controls.ts`. A settings screen holds the bindings, persisted via
+`idb-keyval`.
+
+Done when: every movement and action key is rebindable and survives a reload.
+
+Depends on 1a. Files: `src/ui/controls.ts`, `src/ui/` (settings screen).
+Scope: M.
+
+### 2a. Persist and restore a run
+
+Autosave `GameState` after each turn; restore it on load. `rngState` must
+round-trip or a resumed run diverges from its seed.
+
+Done when: a run reloads mid-floor with identical state, and a test asserts
+round-trip equality including RNG continuity.
+
+Files: `src/core/state.ts`, new persistence module, `src/main.ts`,
+`tests/`. Scope: M.
+
+### 2b. Continue wiring
+
+Enable Continue when a save exists; clear the save on death or victory so a
+finished run cannot be resumed.
+
+Done when: Continue resumes the last unfinished run and is disabled after one
+ends.
+
+Depends on 1a, 2a. Files: `src/main.ts`, `src/ui/`. Scope: S.
+
+### Checkpoint — Frame is navigable
+A run can be configured, started, quit, resumed, and finished at any of the four
+lengths. Scaling is still wrong; that is 3a–3c.
+
+### 3a. Region model
+
+Map floor number to a region index and a region descriptor table. No behaviour
+change yet — this is the seam everything in Phase 2 hangs off.
+
+Done when: a pure function maps floor → region for all four run lengths, unit
+tested at every boundary.
+
+Files: `src/core/regions.ts` (new), `src/core/state.ts`. Scope: S.
+
+### 3b. Region-based enemy scaling
+
+Replace linear-in-level HP, attack, and count with per-region curves that step
+at region boundaries and stay flat within one.
+
+Done when: no stat grows unbounded with floor number, floor 25 is survivable in
+`tests/run.test.ts`, and the 114-HP-Crawler case is gone.
+
+Depends on 3a. Files: `src/core/game.ts`, `tests/run.test.ts`. Scope: M.
+
+### 3c. Difficulty multipliers
+
+Apply the 1b difficulty tier on top of region curves at a single choke point.
+
+Done when: each tier measurably changes incoming damage with no other call site
+reading difficulty.
+
+Depends on 1b, 3b. Files: `src/core/game.ts`, `src/core/damage.ts`. Scope: S.
+
+### Checkpoint — Frame complete
+All four lengths are completable and balanced enough to playtest. Ground the
+next tuning pass in `logs/<run-id>.json` rather than guessing.
+
+## Phase 2 — Content
+
+Five enemy species exist and all unlock by floor 4; there are three shift types.
+Stretched over 25 floors with no additions, a longer run is the same fight for
+five times as long. This phase is the bulk of the work, not a polish pass.
+
+### 4a. Per-region enemy species
+
+Each region gets its own species drawn from a region-scoped pool rather than one
+global table gated by `minLevel`.
+
+Done when: regions share no species by default and each has at least two of its
+own.
+
+Depends on 3a, 3b. Files: `src/core/game.ts`, `src/core/regions.ts`,
+`src/core/state.ts`. Scope: M.
+
+### 4b. Per-region hazards
+
+A region-specific environmental threat beyond the three existing shift types.
+
+Done when: each region contributes one hazard, and hazard damage routes through
+`damagePlayer` like every other source.
+
+Depends on 3a. Files: `src/core/regions.ts`, `src/core/engine.ts`,
+`src/core/damage.ts`. Scope: M.
+
+### 4c. Region identity
+
+Palette and a floor-entry banner so a region is recognisable on sight. ASCII
+only — no tilesets.
+
+Done when: entering a new region is visually unmistakable.
+
+Depends on 3a. Files: `src/render/canvasRenderer.ts`, `src/ui/hud.ts`,
+`src/styles/main.css`. Scope: S.
+
+### 5a. Boss floor generation
+
+Every 5th floor is an arena, not a normal floor: one chamber, no loot scatter,
+exit sealed until the boss dies.
+
+Done when: floors 5/10/15/20/25 generate as arenas and the exit refuses to open
+early. `syncDoors` and the shift system must stay correct on this layout.
+
+Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
+`tests/shift.test.ts`. Scope: M.
+
+### 5b. Boss entities
+
+One boss per region with behaviour distinct from the standard chase-and-hit AI.
+
+Done when: each region's boss is beatable and does something no normal enemy
+does.
+
+Depends on 5a, 4a. Files: `src/core/game.ts`, `src/core/engine.ts`,
+`src/core/state.ts`. Scope: L — split per boss if it runs long.
+
+### 5c. Boss reward and region transition
+
+Killing a boss opens the exit, pays out, and marks the region cleared.
+
+Done when: a boss kill is the only way onward and the payout is visible.
+
+Depends on 5b. Files: `src/core/engine.ts`, `src/ui/hud.ts`. Scope: S.
+
+### 6a. Coins
+
+A currency that drops from enemies and floors, tracked on `Player`, shown in the
+HUD.
+
+Done when: coins accumulate across floors and survive save/resume.
+
+Depends on 2a. Files: `src/core/state.ts`, `src/core/game.ts`,
+`src/ui/hud.ts`. Scope: S.
+
+### 6b. Shop
+
+A merchant on each boss floor after the kill, selling a rolled stock. This is
+the run's choice point — spend now or save for a better region — and the
+player-facing difficulty valve.
+
+Done when: purchases deduct coins, stock is seeded per boss floor, and the shop
+cannot be re-rolled by leaving and returning.
+
+Depends on 5c, 6a. Files: `src/core/shop.ts` (new), `src/ui/`,
+`src/core/engine.ts`. Scope: M.
+
+### 6c. Shop pricing pass
+
+Price stock against real coin income once 6a/6b are live.
+
+Done when: pricing is grounded in `logs/<run-id>.json` income per region rather
+than guessed.
+
+Depends on 6b. Files: `src/core/shop.ts`. Scope: S.
+
+### 7. Escalating unraveling
+
+Shift cadence and severity ramp the longer the player lingers on a floor,
+rewarding efficient exits. Pressure is **per-floor** — `turnCount` never resets
+per floor, so a run-long counter would tax floor 1 dawdling for the rest of the
+run.
+
+Done when: a floor measurably tightens over time, resets on descent, and the
+telegraph fidelity guard in `tests/shift.test.ts` stays green.
+
+Depends on 3a. Files: `src/core/state.ts`, `src/core/engine.ts`,
+`src/core/shift/shiftSystem.ts`. Scope: M.
+
+### 8. Pursuer
+
+An entity that hunts the player across a floor and cannot be killed, only
+outrun. Pairs with 7 as the visible face of rising pressure.
+
+Done when: it tracks the player through the map, is escapable via the exit, and
+does not deadlock on a floor whose geometry just shifted.
+
+Depends on 7. Files: `src/core/state.ts`, `src/core/engine.ts`,
+`src/core/map/pathfinding.ts`. Scope: M.
+
+### 9. Weapon types
+
+Ranged and stronger melee weapons, reusing the equipment slot and comparison
+prompt built for armor. Feeds Phase 2 — regions and shops need things worth
+finding.
+
+Done when: weapons equip through the armor pattern and at least one changes
+attack range rather than just its number.
+
+Depends on 4a. Files: `src/core/state.ts`, `src/core/game.ts`,
+`src/core/engine.ts`, `src/ui/hud.ts`. Scope: L — split ranged from melee if it
+runs long.
+
+---
+
+# Independent — feel
+
+No dependency on the epic. Pick these up between phases.
 
 ## Impact effects for shifts and combat
 
-**Reported 2026-07-30.** The world shifting and enemy altercations should feel
-like events. Candidates: screen shake on a collapse, brief hit-stop on a kill,
-heavier particle bursts, a flash on the struck glyph.
+Shifts and altercations should read as events. Candidates: screen shake on a
+collapse, hit-stop on a kill, heavier particle bursts, a flash on the struck
+glyph.
 
-Note the render loop is now on-demand — effects that animate need to keep
-marking the frame dirty while they run, the way particles do via
-`ParticleSystem.active`.
+The render loop is on-demand — effects that animate must keep marking the frame
+dirty while they run, the way particles do via `ParticleSystem.active`.
 
-## Picking up an item should feel like something happened
+## Pickup feedback
 
-**Reported 2026-07-30.** Right now you walk over a `*` and keep going — no
-pause, no acknowledgement, nothing to mark it. Wants the same treatment as the
-impact effects above: some beat that says an item was gained.
-
-Candidates: a burst on the pickup tile, the item's name rising off it, a brief
-highlight on the hotbar slot it landed in.
+Walking over a `*` produces no acknowledgement. Candidates: a burst on the tile,
+the item name rising off it, a highlight on the hotbar slot it landed in.
 
 ## Show cooldowns
 
-**Reported 2026-07-30.** The shield's cooldown is only legible as a disabled
-button — `state.abilityCooldown` is already tracked and already gates
-`ui.abilityBtn.disabled` in `updateHud`, so the number exists and just isn't
-shown. Same for `stasisTurnsRemaining`, which the shift pill already surfaces.
+`state.abilityCooldown` already gates `ui.abilityBtn.disabled` in `updateHud`,
+so the number exists and simply is not shown. Same for `stasisTurnsRemaining`.
 
-## Difficulty is too high
+---
 
-**Reported 2026-07-30.** The user expects armor to carry most of this, so treat
-it as a follow-up to the armor entry rather than a separate tuning pass — see
-the note there. Ground any tuning in `logs/<run-id>.json` (damage by source)
-rather than guessing; the knobs are `ENEMY_TABLE` in `src/core/game.ts` and the
-combat constants in `src/core/engine.ts`.
+# Independent — monetization
 
-## Monetization that stays out of the way
+## Donation screen
 
-**Reported 2026-07-30.** Wants a revenue path that does not turn the HUD into ad
-space — the screen is already tight enough that the potion row and the log had
-to fight for it. A donation screen is the leading candidate: one entry point
-from the title/settings, nothing on the play surface.
+A revenue path that does not turn the HUD into ad space. One entry point from
+the title screen (1a), nothing on the play surface.
 
-Constraint worth keeping: the game is an offline PWA with no backend, so
-anything requiring a server or a store account is a much bigger change than it
-looks.
-
-## Settings screen with rebindable keys
-
-**Reported 2026-07-30.** Keys are currently hardcoded in `KEY_MOVES` and the
-`if/else` chain in `src/ui/controls.ts`. A settings screen would hold the
-bindings; `idb-keyval` is already installed and unused, so it is the obvious
-place to persist them.
-
-## Deferred earlier
-
-- Weapon item types (companion to armor above).
+Constraint: the game is an offline PWA with no backend, so anything requiring a
+server or a store account is a much bigger change than it looks.

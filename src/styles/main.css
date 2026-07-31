@@ -103,6 +103,48 @@ html, body {
   overflow: hidden;
 }
 
+.region-banner {
+  --region-accent: var(--accent-cyan);
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 5;
+  max-width: min(84%, 360px);
+  padding: 8px 18px;
+  transform: translate(-50%, -8px);
+  opacity: 0;
+  pointer-events: none;
+  color: var(--region-accent);
+  background: rgba(10, 10, 18, 0.9);
+  border: 1px solid var(--region-accent);
+  border-radius: 999px;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--region-accent) 35%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.region-banner--enter {
+  animation: region-banner-enter 2.8s ease-out both;
+}
+
+@keyframes region-banner-enter {
+  0% { opacity: 0; transform: translate(-50%, -8px); }
+  12%, 72% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .region-banner--enter {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* Grid Canvas container */
 .grid-container {
   display: grid;

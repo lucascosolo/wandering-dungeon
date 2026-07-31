@@ -1,16 +1,8 @@
-import { EnemyType, GameState, TileType } from '../core/state';
+import { EnemyType, GameState } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { ParticleSystem } from './particles';
 
 export const TILE_SIZE = 30;
-
-const TILE_COLORS: Record<TileType, string> = {
-  wall: '#1b1b28',
-  floor: '#262636',
-  door: '#3d3054',
-  stairs_down: '#1f4d52',
-  chasm: '#08080c',
-};
 
 const COLOR_PLAYER = '#00f0ff';
 const COLOR_ITEM = '#ffd166';
@@ -104,7 +96,8 @@ export function renderFrame(
 ): void {
   const { floorMap } = state;
   const { offsetX, offsetY } = computeCamera(state, width, height);
-  const hasHingeStress = regionForFloor(floorMap.level).index === 0;
+  const region = regionForFloor(floorMap.level);
+  const hasHingeStress = region.index === 0;
 
   ctx.fillStyle = '#0f0f15';
   ctx.fillRect(0, 0, width, height);
@@ -129,7 +122,7 @@ export function renderFrame(
       const py = y * TILE_SIZE + offsetY;
 
       ctx.globalAlpha = visible ? 1 : 0.35;
-      ctx.fillStyle = TILE_COLORS[tile.type];
+      ctx.fillStyle = tile.type === 'stairs_down' ? region.palette.stairs : region.palette[tile.type];
       ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
       if (tile.type !== 'wall') {

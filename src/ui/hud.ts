@@ -1,4 +1,5 @@
 import { EnemyType, GameState, Item } from '../core/state';
+import { regionForFloor } from '../core/regions';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
@@ -28,6 +29,7 @@ export function hotbarItems(state: GameState): Item[] {
 export interface HudElements {
   canvas: HTMLCanvasElement;
   floorLabel: HTMLElement;
+  regionBanner: HTMLElement;
   turnLabel: HTMLElement;
   shiftPill: HTMLElement;
   hpFill: HTMLElement;
@@ -86,7 +88,10 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <div class="bar bar--shield"><div class="bar__fill" id="shield-fill"></div></div>
     </div>
 
-    <div class="game-viewport"><canvas id="game-canvas"></canvas></div>
+    <div class="game-viewport">
+      <div class="region-banner" id="region-banner" role="status" aria-live="polite" aria-atomic="true"></div>
+      <canvas id="game-canvas"></canvas>
+    </div>
 
     <div class="log-panel" id="log-panel"></div>
 
@@ -136,6 +141,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
   return {
     canvas: byId<HTMLCanvasElement>('game-canvas'),
     floorLabel: byId('floor-label'),
+    regionBanner: byId('region-banner'),
     turnLabel: byId('turn-label'),
     shiftPill: byId('shift-pill'),
     hpFill: byId('hp-fill'),
@@ -161,6 +167,16 @@ export function updateHud(ui: HudElements, state: GameState): void {
 
   ui.floorLabel.textContent = `${floorMap.level}/${state.config.finalFloor}`;
   ui.turnLabel.textContent = String(state.turnCount);
+
+  const region = regionForFloor(floorMap.level);
+  if (ui.regionBanner.dataset.region !== String(region.index)) {
+    ui.regionBanner.dataset.region = String(region.index);
+    ui.regionBanner.textContent = region.name;
+    ui.regionBanner.style.setProperty('--region-accent', region.palette.accent);
+    ui.regionBanner.classList.remove('region-banner--enter');
+    void ui.regionBanner.offsetWidth;
+    ui.regionBanner.classList.add('region-banner--enter');
+  }
 
   if (state.isStasisActive) {
     ui.shiftPill.textContent = `STASIS ${state.stasisTurnsRemaining}`;

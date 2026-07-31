@@ -95,6 +95,21 @@ describe('Regions', () => {
     expect(regionForFloor(21).enemyPool).toEqual(['unmaking_hound', 'null_scribe']);
   });
 
+  it('gives every region a distinct terrain palette and accent', () => {
+    const palettes = REGIONS.map(region => region.palette);
+
+    palettes.forEach(palette => {
+      expect(palette.wall).toMatch(/^#/);
+      expect(palette.floor).toMatch(/^#/);
+      expect(palette.door).toMatch(/^#/);
+      expect(palette.stairs).toMatch(/^#/);
+      expect(palette.chasm).toMatch(/^#/);
+      expect(palette.accent).toMatch(/^#/);
+    });
+    expect(new Set(palettes.map(palette => palette.floor)).size).toBe(REGIONS.length);
+    expect(new Set(palettes.map(palette => palette.accent)).size).toBe(REGIONS.length);
+  });
+
   it('paces the roster from 0 in the first region to 1 in the last, any length', () => {
     for (const { floors } of Object.values(RUN_LENGTHS)) {
       expect(runProgress(1, floors)).toBe(0);

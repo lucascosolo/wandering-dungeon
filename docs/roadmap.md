@@ -157,12 +157,17 @@ Done when: each region contributes one hazard, and hazard damage routes through
 Depends on 3a. Files: `src/core/regions.ts`, `src/core/engine.ts`,
 `src/core/damage.ts`. Scope: M.
 
-### 4c. Region identity
+### ~~4c. Region identity~~ — shipped
 
 Palette and a floor-entry banner so a region is recognisable on sight. ASCII
 only — no tilesets.
 
-Done when: entering a new region is visually unmistakable.
+Shipped: terrain palettes derive from the region descriptor, and an accessible
+entry banner announces each region without adding state or changing viewport
+layout. Color reinforces identity while the region name remains the readable
+fallback.
+
+Done: entering a new region is visually unmistakable.
 
 Depends on 3a. Files: `src/render/canvasRenderer.ts`, `src/ui/hud.ts`,
 `src/styles/main.css`. Scope: S.

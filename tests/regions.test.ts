@@ -10,6 +10,7 @@ import {
   regionIndexForFloor,
   runProgress,
 } from '../src/core/regions';
+import { EnemyType } from '../src/core/state';
 
 describe('Regions', () => {
   it('puts each five-floor block in its own region', () => {
@@ -84,6 +85,21 @@ describe('Regions', () => {
       expect(region.enemyCount).toBeGreaterThanOrEqual(prev.enemyCount);
       expect(region.hpMultiplier).toBeGreaterThanOrEqual(prev.hpMultiplier);
       expect(region.attackBonus).toBeGreaterThanOrEqual(prev.attackBonus);
+    });
+  });
+
+  it('gives every region an explicit pool for the current enemy roster', () => {
+    const roster = new Set<EnemyType>([
+      'crawler',
+      'sentinel',
+      'fracture_beast',
+      'warp_stalker',
+      'collapse_behemoth',
+    ]);
+
+    REGIONS.forEach(region => {
+      expect(region.enemyPool.length).toBeGreaterThan(0);
+      expect(new Set(region.enemyPool)).toEqual(roster);
     });
   });
 

@@ -8,6 +8,7 @@ import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { showTitleScreen } from './ui/titleScreen';
 import { loadKeybinds } from './ui/keybinds';
+import { saveRun } from './core/save';
 import { RunConfig } from './core/runConfig';
 import {
   healthPotions,
@@ -122,6 +123,10 @@ function act(action: GameAction): void {
   if (state.pendingArmorOffer) {
     showArmorOffer(ui, state, resolveArmorOffer);
   }
+
+  // Autosave every turn. Writes on the same key are serialized by IndexedDB in
+  // the order they are issued, so the last turn is what lands.
+  void saveRun(state);
 
   if (state.isGameOver) {
     showEndModal(ui, state, restart, returnToTitle);
@@ -267,6 +272,8 @@ function startRun(seed: string, config: RunConfig): void {
   updateHud(ui, state);
   renderLog(ui, state);
   renderHotbar(ui, state);
+  // Save at turn 0 too, so a run abandoned before its first move is still there.
+  void saveRun(state);
 }
 
 let booted = false;

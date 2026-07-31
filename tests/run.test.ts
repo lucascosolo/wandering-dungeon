@@ -91,6 +91,11 @@ describe('Full run', () => {
     buildFloor(warrens, new SeededRNG('ash-crown-rng'), 15);
     expect(warrens.entities).toHaveLength(1);
     expect(warrens.entities[0].enemyType).toBe('cinder_gatekeeper');
+
+    const glass = createNewGame('prism-refractor-floor', createRunConfig('extreme', 'standard'));
+    buildFloor(glass, new SeededRNG('prism-refractor-rng'), 20);
+    expect(glass.entities).toHaveLength(1);
+    expect(glass.entities[0].enemyType).toBe('prism_refractor');
   });
 
   it('is completable end to end on a known seed', () => {

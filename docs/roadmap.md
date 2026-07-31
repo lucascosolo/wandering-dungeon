@@ -188,12 +188,13 @@ Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 
 ### 5b. Boss entities — in progress
 
-The first three boss slices are shipped: floor 5 spawns the Hinge Sovereign, a
+The first four boss slices are shipped: floor 5 spawns the Hinge Sovereign, a
 distinct arena entity whose ranged signature attack synchronizes with a pending
 shift, and floor 10 spawns the Rift Regent, which marks a tile for a delayed,
 dodgeable rift strike. Floor 15 adds the Cinder Gatekeeper, whose stasis-driven
-ash interdict controls the exit radius. The remaining two regional bosses still
-need their own entities and behaviours.
+ash interdict controls the exit radius, and floor 20's Prism Refractor marks a
+visible tile from the authoritative pending shift for a dodgeable glass fault.
+The final regional boss still needs its own entity and behaviour.
 
 Done when: each region's boss is beatable and does something no normal enemy
 does.

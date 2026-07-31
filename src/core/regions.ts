@@ -1,3 +1,5 @@
+import type { EnemyType } from './state';
+
 /**
  * A run is regions of five floors, each closing on its last floor. The region a
  * floor belongs to is derived from the floor number rather than stored on the
@@ -20,7 +22,16 @@ export interface Region {
   enemyCount: number;
   hpMultiplier: number;
   attackBonus: number;
+  enemyPool: readonly EnemyType[];
 }
+
+const CURRENT_ENEMY_POOL: readonly EnemyType[] = [
+  'crawler',
+  'sentinel',
+  'fracture_beast',
+  'warp_stalker',
+  'collapse_behemoth',
+];
 
 /**
  * Five names because the longest run is 25 floors. Shorter runs use the first
@@ -28,11 +39,46 @@ export interface Region {
  * dungeon.
  */
 export const REGIONS: Region[] = [
-  { index: 0, name: 'The Shifting Halls', enemyCount: 4, hpMultiplier: 1, attackBonus: 0 },
-  { index: 1, name: 'The Fracture Deeps', enemyCount: 5, hpMultiplier: 1.15, attackBonus: 1 },
-  { index: 2, name: 'The Ashen Warrens', enemyCount: 6, hpMultiplier: 1.3, attackBonus: 2 },
-  { index: 3, name: 'The Glass Expanse', enemyCount: 7, hpMultiplier: 1.45, attackBonus: 3 },
-  { index: 4, name: 'The Unmaking', enemyCount: 8, hpMultiplier: 1.6, attackBonus: 4 },
+  {
+    index: 0,
+    name: 'The Shifting Halls',
+    enemyCount: 4,
+    hpMultiplier: 1,
+    attackBonus: 0,
+    enemyPool: CURRENT_ENEMY_POOL,
+  },
+  {
+    index: 1,
+    name: 'The Fracture Deeps',
+    enemyCount: 5,
+    hpMultiplier: 1.15,
+    attackBonus: 1,
+    enemyPool: CURRENT_ENEMY_POOL,
+  },
+  {
+    index: 2,
+    name: 'The Ashen Warrens',
+    enemyCount: 6,
+    hpMultiplier: 1.3,
+    attackBonus: 2,
+    enemyPool: CURRENT_ENEMY_POOL,
+  },
+  {
+    index: 3,
+    name: 'The Glass Expanse',
+    enemyCount: 7,
+    hpMultiplier: 1.45,
+    attackBonus: 3,
+    enemyPool: CURRENT_ENEMY_POOL,
+  },
+  {
+    index: 4,
+    name: 'The Unmaking',
+    enemyCount: 8,
+    hpMultiplier: 1.6,
+    attackBonus: 4,
+    enemyPool: CURRENT_ENEMY_POOL,
+  },
 ];
 
 export function regionIndexForFloor(floor: number): number {

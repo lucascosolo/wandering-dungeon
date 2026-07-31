@@ -159,11 +159,10 @@ export function populateFloor(
   };
 
   const progress = runProgress(level, finalFloor);
-  const available = (Object.keys(ENEMY_TABLE) as EnemyType[]).filter(
+  const region = regionForFloor(level);
+  const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );
-
-  const region = regionForFloor(level);
 
   const enemies: Enemy[] = [];
   for (let i = 0; i < region.enemyCount; i++) {

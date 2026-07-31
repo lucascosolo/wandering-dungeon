@@ -611,6 +611,7 @@ describe('Turn Engine & Items', () => {
     state.floorMap.level = 25;
     state.player.position = { ...state.floorMap.exit };
     state.entities = [];
+    state.clearedRegions = [4];
 
     dispatchAction(state, { type: 'DESCEND' });
 
@@ -697,6 +698,25 @@ describe('Run configuration', () => {
     expect(state.floorMap.level).toBe(5);
     expect(state.turnCount).toBe(turn);
     expect(state.isGameOver).toBe(false);
+  });
+
+  it('opens the region after a boss defeat and pays the reward once', () => {
+    const state = createNewGame('boss-reward', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('boss-reward-rng'), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+    boss.hp = 1;
+
+    dispatchAction(state, { type: 'MOVE', dx: 1, dy: 0 });
+
+    expect(state.entities).toHaveLength(0);
+    expect(state.clearedRegions).toEqual([0]);
+    expect(state.player.inventory.some(item => item.id === 'boss_reward_5')).toBe(true);
+    expect(state.eventLog.some(log => log.text.includes('The Shifting Halls is cleared'))).toBe(true);
+
+    state.player.position = { ...state.floorMap.exit };
+    dispatchAction(state, { type: 'DESCEND' });
+    expect(state.floorMap.level).toBe(6);
   });
 
   it('gives the Hinge Sovereign a shift-synchronized signature attack', () => {
@@ -833,6 +853,7 @@ describe('Run configuration', () => {
     const { x, y } = state.player.position;
     state.floorMap.tiles[y][x].type = 'stairs_down';
     state.entities = [];
+    state.clearedRegions = [2];
     dispatchAction(state, { type: 'DESCEND' });
 
     expect(state.isVictory).toBe(true);
@@ -845,6 +866,7 @@ describe('Run configuration', () => {
     const { x, y } = state.player.position;
     state.floorMap.tiles[y][x].type = 'stairs_down';
     state.entities = [];
+    state.clearedRegions = [0];
     dispatchAction(state, { type: 'DESCEND' });
 
     expect(state.isVictory).toBe(false);

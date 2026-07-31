@@ -213,6 +213,8 @@ export interface GameState {
   exitBlockedStreak: number;
   /** Who last hurt the player, so death can name a culprit. */
   lastDamageSource: string | null;
+  /** Regions whose boss reward has already been claimed. */
+  clearedRegions: number[];
   eventLog: LogMessage[];
   isGameOver: boolean;
   isVictory: boolean;

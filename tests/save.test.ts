@@ -43,6 +43,23 @@ describe('Run persistence', () => {
     expect(restored.rngState.callCount).toBe(state.rngState.callCount);
   });
 
+  it('persists cleared regions and boss rewards across resume', () => {
+    const state = playedRun('save-boss-clear', 5);
+    state.clearedRegions = [0, 1];
+    state.player.inventory.push({
+      id: 'boss_reward_5',
+      type: 'hourglass_shard',
+      name: 'Hourglass Shard',
+      description: 'Adds 3 turns to the shift countdown.',
+      category: 'stabilization',
+    });
+
+    const restored = roundTrip(state)!;
+
+    expect(restored.clearedRegions).toEqual([0, 1]);
+    expect(restored.player.inventory.some(item => item.id === 'boss_reward_5')).toBe(true);
+  });
+
   it('survives a shift, which is the state most likely to diverge', () => {
     const state = createNewGame('save-shift', createRunConfig('medium', 'standard'));
     while (state.pendingShift === null && state.turnCount < 60) {

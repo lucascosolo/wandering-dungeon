@@ -89,15 +89,23 @@ thing to keep in sync across descent, save/resume, and the rescue paths.
 
 `isRegionEnd` already marks 5/10/15/20/25 for 5a.
 
-### 3b. Region-based enemy scaling
+### ~~3b. Region-based enemy scaling~~ — shipped
 
-Replace linear-in-level HP, attack, and count with per-region curves that step
-at region boundaries and stay flat within one.
+Per-region curves on the `Region` descriptor. Nothing grows with the floor
+number any more: floor 25 caps at 8 enemies, ×1.6 HP, +4 attack.
 
-Done when: no stat grows unbounded with floor number, floor 25 is survivable in
-`tests/run.test.ts`, and the 114-HP-Crawler case is gone.
+Also moved species unlocks off the floor number onto `runProgress`, because
+`minLevel` was the same defect — every species was out by floor 4, so the back
+half of a 25-floor run had nothing left to reveal and a 10-floor run met a
+Collapse Behemoth in starting armor. That is a slice of 4a; 4a still owns giving
+each region its *own* species rather than a shared ladder.
 
-Depends on 3a. Files: `src/core/game.ts`, `tests/run.test.ts`. Scope: M.
+Measured with an autoplay bot (armor swaps, shield, potions) over 10 seeds,
+median depth: short 3 → 7, long 3 → 12, extreme 3 → 6. Short runs went from 0/10
+completions to 2/10.
+
+**The wall was never floor 25 — it was floors 2-4**, on every run length,
+including Short. That is what the linear ramp was really doing.
 
 ### 3c. Difficulty multipliers
 

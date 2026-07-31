@@ -12,6 +12,7 @@ import {
 } from './state';
 import { RunConfig } from './runConfig';
 import { SeededRNG } from './rng';
+import { regionForFloor, runProgress } from './regions';
 import { generateFloor } from './map/generator';
 import { computeFOV } from './map/fow';
 
@@ -20,15 +21,16 @@ const STARTING_COUNTDOWN = 10;
 interface EnemyTemplate {
   hp: number;
   attackPower: number;
-  minLevel: number;
+  /** Fraction of the run that must be reached before this species appears. */
+  minProgress: number;
 }
 
 const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
-  crawler: { hp: 18, attackPower: 4, minLevel: 1 },
-  sentinel: { hp: 30, attackPower: 6, minLevel: 1 },
-  fracture_beast: { hp: 42, attackPower: 9, minLevel: 2 },
-  warp_stalker: { hp: 34, attackPower: 12, minLevel: 3 },
-  collapse_behemoth: { hp: 70, attackPower: 15, minLevel: 4 },
+  crawler: { hp: 18, attackPower: 4, minProgress: 0 },
+  sentinel: { hp: 30, attackPower: 6, minProgress: 0 },
+  fracture_beast: { hp: 42, attackPower: 9, minProgress: 0.25 },
+  warp_stalker: { hp: 34, attackPower: 12, minProgress: 0.5 },
+  collapse_behemoth: { hp: 70, attackPower: 15, minProgress: 0.8 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -133,7 +135,12 @@ function manhattan(a: Position, b: Position): number {
  * Place enemies and item drops on a freshly generated floor.
  * Nothing spawns within 5 tiles of the entrance so the player gets a beat to orient.
  */
-export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
+export function populateFloor(
+  map: FloorMap,
+  rng: SeededRNG,
+  level: number,
+  finalFloor: number
+): {
   enemies: Enemy[];
   drops: ItemDrop[];
 } {
@@ -151,18 +158,20 @@ export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
     return null;
   };
 
+  const progress = runProgress(level, finalFloor);
   const available = (Object.keys(ENEMY_TABLE) as EnemyType[]).filter(
-    t => ENEMY_TABLE[t].minLevel <= level
+    t => ENEMY_TABLE[t].minProgress <= progress
   );
 
+  const region = regionForFloor(level);
+
   const enemies: Enemy[] = [];
-  const enemyCount = 3 + level;
-  for (let i = 0; i < enemyCount; i++) {
+  for (let i = 0; i < region.enemyCount; i++) {
     const position = take();
     if (!position) break;
     const enemyType = available[rng.randomInt(0, available.length - 1)];
     const template = ENEMY_TABLE[enemyType];
-    const hp = template.hp + (level - 1) * 4;
+    const hp = Math.round(template.hp * region.hpMultiplier);
     enemies.push({
       id: `enemy_${level}_${i}`,
       name: enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -170,7 +179,7 @@ export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
       position,
       hp,
       maxHp: hp,
-      attackPower: template.attackPower + (level - 1),
+      attackPower: template.attackPower + region.attackBonus,
       staggeredTurns: 0,
     });
   }
@@ -198,7 +207,7 @@ export function populateFloor(map: FloorMap, rng: SeededRNG, level: number): {
 /** Build a floor at `level` and move the player onto its entrance. */
 export function buildFloor(state: GameState, rng: SeededRNG, level: number): void {
   const map = generateFloor(rng, level);
-  const { enemies, drops } = populateFloor(map, rng, level);
+  const { enemies, drops } = populateFloor(map, rng, level, state.config.finalFloor);
 
   map.drops = drops;
   state.floorMap = map;

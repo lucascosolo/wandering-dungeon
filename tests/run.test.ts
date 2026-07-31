@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createNewGame } from '../src/core/game';
+import { buildFloor, createNewGame } from '../src/core/game';
+import { SeededRNG } from '../src/core/rng';
 import { dispatchAction } from '../src/core/engine';
 import { createRunConfig } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
@@ -20,12 +21,32 @@ function autoPlay(state: GameState, maxTurns = 4000): void {
       continue;
     }
 
-    if (player.hp < player.maxHp * 0.4) {
+    // Take an upgrade, raise the shield when something is on top of you, drink
+    // below half. Without these the bot is not a player, it is a pacifist in
+    // starting armor, and the depth it reaches says nothing about the balance.
+    if (state.pendingArmorOffer) {
+      const better = (state.pendingArmorOffer.defense ?? 0) > (player.armor?.defense ?? 0);
+      dispatchAction(state, { type: better ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
+      continue;
+    }
+
+    if (player.hp < player.maxHp * 0.5) {
       const potion = player.inventory.find(i => i.type === 'health_potion');
       if (potion) {
         dispatchAction(state, { type: 'USE_ITEM', itemId: potion.id });
         continue;
       }
+    }
+
+    const adjacentThreat = state.entities.some(
+      e =>
+        e.hp > 0 &&
+        Math.abs(e.position.x - player.position.x) <= 1 &&
+        Math.abs(e.position.y - player.position.y) <= 1
+    );
+    if (adjacentThreat && state.abilityCooldown === 0 && player.shieldHp === 0) {
+      dispatchAction(state, { type: 'ABILITY' });
+      continue;
     }
 
     const path = findPath(floorMap, player.position, floorMap.exit);
@@ -64,6 +85,35 @@ describe('Full run', () => {
       reached.push(state.floorMap.level);
     }
     expect(Math.max(...reached)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps the deepest floor within a fixed ceiling', () => {
+    const state = createNewGame('deep-floor', createRunConfig('extreme', 'brutal'));
+    const rng = new SeededRNG('deep-floor-rng');
+    buildFloor(state, rng, 25);
+
+    // The old curves were linear in level with no ceiling, which put 28 enemies
+    // and a 114 HP Crawler on floor 25 against a player whose attack never grows.
+    expect(state.entities.length).toBeLessThanOrEqual(8);
+    for (const enemy of state.entities) {
+      expect(enemy.maxHp, `${enemy.name} on floor 25`).toBeLessThanOrEqual(120);
+      if (enemy.enemyType === 'crawler') expect(enemy.maxHp).toBeLessThanOrEqual(30);
+    }
+  });
+
+  it('gets a player-like bot well past the first region on a long run', () => {
+    // A depth regression net, not a win condition: the bot never retreats and
+    // never uses the shift items, so it dies deeper than a rush and shallower
+    // than a careful human. Before region curves it died on floor 3 or 4 of
+    // every run length, whatever the length was.
+    const depths = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(seed => {
+      const state = createNewGame(seed, createRunConfig('long', 'standard'));
+      autoPlay(state, 8000);
+      return state.floorMap.level;
+    });
+
+    const median = [...depths].sort((a, b) => a - b)[Math.floor(depths.length / 2)];
+    expect(median, `depths ${depths.join(', ')}`).toBeGreaterThanOrEqual(6);
   });
 
   it('never leaves the player standing on a non-walkable tile', () => {

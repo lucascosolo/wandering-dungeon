@@ -743,6 +743,26 @@ describe('Run configuration', () => {
     expect(state.entities[0].bossCooldown).toBe(4);
   });
 
+  it('makes the Cinder Gatekeeper punish stasis near the exit', () => {
+    const state = createNewGame('cinder-gatekeeper', createRunConfig('long', 'standard'));
+    buildFloor(state, new SeededRNG('cinder-gatekeeper-rng'), 15);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    state.isStasisActive = true;
+    state.stasisTurnsRemaining = 3;
+
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBe(100);
+    expect(state.entities[0].bossTarget).toEqual(state.floorMap.exit);
+
+    state.player.position = { ...state.floorMap.exit };
+    const hp = state.player.hp;
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBeLessThan(hp);
+    expect(state.entities[0].bossCooldown).toBe(4);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);

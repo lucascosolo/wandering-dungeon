@@ -43,6 +43,7 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   null_scribe: { hp: 28, attackPower: 6, minProgress: 0 },
   hinge_sovereign: { hp: 110, attackPower: 10, minProgress: 0 },
   rift_regent: { hp: 125, attackPower: 11, minProgress: 0 },
+  cinder_gatekeeper: { hp: 135, attackPower: 12, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -174,7 +175,13 @@ export function populateFloor(
   const region = regionForFloor(level);
   const isBossFloor = isRegionEnd(level);
   const bossType: EnemyType | null =
-    level === 5 ? 'hinge_sovereign' : level === 10 ? 'rift_regent' : null;
+    level === 5
+      ? 'hinge_sovereign'
+      : level === 10
+        ? 'rift_regent'
+        : level === 15
+          ? 'cinder_gatekeeper'
+          : null;
   const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );
@@ -196,6 +203,8 @@ export function populateFloor(
         ? 'Hinge Sovereign'
         : bossType === 'rift_regent'
           ? 'Rift Regent'
+          : bossType === 'cinder_gatekeeper'
+            ? 'Cinder Gatekeeper'
           : enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       enemyType,
       isBoss: bossType !== null,

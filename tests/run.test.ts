@@ -86,6 +86,11 @@ describe('Full run', () => {
     buildFloor(deeps, new SeededRNG('rift-maw-rng'), 10);
     expect(deeps.entities).toHaveLength(1);
     expect(deeps.entities[0].enemyType).toBe('rift_regent');
+
+    const warrens = createNewGame('ash-crown-floor', createRunConfig('long', 'standard'));
+    buildFloor(warrens, new SeededRNG('ash-crown-rng'), 15);
+    expect(warrens.entities).toHaveLength(1);
+    expect(warrens.entities[0].enemyType).toBe('cinder_gatekeeper');
   });
 
   it('is completable end to end on a known seed', () => {

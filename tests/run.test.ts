@@ -136,6 +136,20 @@ describe('Full run', () => {
     expect(state.entities.some(enemy => enemy.maxHp === 34 && enemy.attackPower === 9)).toBe(true);
   });
 
+  it('spawns only Glass Expanse species with region-scaled stats on floor 16', () => {
+    const state = createNewGame('glass-expanse-roster', createRunConfig('extreme', 'brutal'));
+    const allowed = new Set(['facet_reaver', 'glass_moth']);
+
+    buildFloor(state, new SeededRNG('glass-expanse-floor'), 16);
+
+    expect(state.entities).toHaveLength(7);
+    expect(state.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
+    expect(state.entities.every(enemy =>
+      (enemy.maxHp === 52 && enemy.attackPower === 10) ||
+      (enemy.maxHp === 35 && enemy.attackPower === 9)
+    )).toBe(true);
+  });
+
   it('gets a player-like bot well past the first region on a long run', () => {
     // A depth regression net, not a win condition: the bot never retreats and
     // never uses the shift items, so it dies deeper than a rush and shallower

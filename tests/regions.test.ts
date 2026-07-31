@@ -100,7 +100,8 @@ describe('Regions', () => {
     expect(regionForFloor(1).enemyPool).toEqual(['hinge_warden', 'seam_skitter']);
     expect(regionForFloor(6).enemyPool).toEqual(['fracture_leech', 'riftbound']);
     expect(regionForFloor(11).enemyPool).toEqual(['ashlock', 'stasis_scorcher']);
-    REGIONS.slice(3).forEach(region => {
+    expect(regionForFloor(16).enemyPool).toEqual(['facet_reaver', 'glass_moth']);
+    REGIONS.slice(4).forEach(region => {
       expect(region.enemyPool.length).toBeGreaterThan(0);
       expect(new Set(region.enemyPool)).toEqual(roster);
     });

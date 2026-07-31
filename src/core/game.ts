@@ -41,6 +41,7 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   glass_moth: { hp: 24, attackPower: 6, minProgress: 0 },
   unmaking_hound: { hp: 34, attackPower: 7, minProgress: 0 },
   null_scribe: { hp: 28, attackPower: 6, minProgress: 0 },
+  hinge_sovereign: { hp: 110, attackPower: 10, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -170,25 +171,33 @@ export function populateFloor(
 
   const progress = runProgress(level, finalFloor);
   const region = regionForFloor(level);
+  const isBossFloor = isRegionEnd(level);
+  const bossType: EnemyType | null = level === 5 ? 'hinge_sovereign' : null;
   const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );
 
   const enemies: Enemy[] = [];
-  for (let i = 0; i < region.enemyCount; i++) {
-    const position = take();
+  const enemyCount = bossType ? 1 : region.enemyCount;
+  for (let i = 0; i < enemyCount; i++) {
+    const position = bossType
+      ? { x: Math.floor((map.entrance.x + map.exit.x) / 2), y: map.entrance.y }
+      : take();
     if (!position) break;
-    const enemyType = available[rng.randomInt(0, available.length - 1)];
+    if (bossType) taken.add(`${position.x},${position.y}`);
+    const enemyType = bossType ?? available[rng.randomInt(0, available.length - 1)];
     const template = ENEMY_TABLE[enemyType];
     const hp = Math.round(template.hp * region.hpMultiplier);
     enemies.push({
       id: `enemy_${level}_${i}`,
-      name: enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      name: bossType ? 'Hinge Sovereign' : enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       enemyType,
+      isBoss: bossType !== null,
+      bossCooldown: bossType ? 0 : undefined,
       position,
       hp,
       maxHp: hp,
-      attackPower: template.attackPower + region.attackBonus,
+      attackPower: template.attackPower + region.attackBonus + (bossType ? 2 : 0),
       staggeredTurns: 0,
     });
   }

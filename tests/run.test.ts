@@ -14,7 +14,11 @@ import { GameState } from '../src/core/state';
 function autoPlay(state: GameState, maxTurns = 4000): void {
   for (let turn = 0; turn < maxTurns && !state.isGameOver; turn++) {
     const { player, floorMap } = state;
-    const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
+    const arenaThreat = floorMap.level % 5 === 0
+      ? state.entities.find(enemy => enemy.hp > 0)
+      : undefined;
+    const onStairs =
+      floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down' && !arenaThreat;
 
     if (onStairs) {
       dispatchAction(state, { type: 'DESCEND' });
@@ -49,9 +53,6 @@ function autoPlay(state: GameState, maxTurns = 4000): void {
       continue;
     }
 
-    const arenaThreat = floorMap.level % 5 === 0
-      ? state.entities.find(enemy => enemy.hp > 0)
-      : undefined;
     const destination = arenaThreat?.position ?? floorMap.exit;
     const path = findPath(floorMap, player.position, destination);
     if (path && path.length >= 2) {
@@ -77,6 +78,9 @@ describe('Full run', () => {
     expect(Object.values(state.floorMap.shiftGroups)).toHaveLength(1);
     expect(state.floorMap.drops).toEqual([]);
     expect(state.entities.length).toBeGreaterThan(0);
+    expect(state.entities).toHaveLength(1);
+    expect(state.entities[0].enemyType).toBe('hinge_sovereign');
+    expect(state.entities[0].isBoss).toBe(true);
   });
 
   it('is completable end to end on a known seed', () => {

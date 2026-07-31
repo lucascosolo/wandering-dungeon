@@ -186,9 +186,12 @@ invariants remain intact on the corridor-free layout.
 Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 `tests/shift.test.ts`. Scope: M.
 
-### 5b. Boss entities
+### 5b. Boss entities — in progress
 
-One boss per region with behaviour distinct from the standard chase-and-hit AI.
+The first boss slice is shipped: floor 5 now spawns the Hinge Sovereign, a
+distinct arena entity whose ranged signature attack synchronizes with a pending
+shift. The remaining four regional bosses still need their own entities and
+behaviours.
 
 Done when: each region's boss is beatable and does something no normal enemy
 does.

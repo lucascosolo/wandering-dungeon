@@ -150,6 +150,20 @@ describe('Full run', () => {
     )).toBe(true);
   });
 
+  it('spawns only Unmaking species with capped region stats on floor 21', () => {
+    const state = createNewGame('unmaking-roster', createRunConfig('extreme', 'brutal'));
+    const allowed = new Set(['unmaking_hound', 'null_scribe']);
+
+    buildFloor(state, new SeededRNG('unmaking-floor'), 21);
+
+    expect(state.entities).toHaveLength(8);
+    expect(state.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
+    expect(state.entities.every(enemy =>
+      (enemy.maxHp === 54 && enemy.attackPower === 11) ||
+      (enemy.maxHp === 45 && enemy.attackPower === 10)
+    )).toBe(true);
+  });
+
   it('gets a player-like bot well past the first region on a long run', () => {
     // A depth regression net, not a win condition: the bot never retreats and
     // never uses the shift items, so it dies deeper than a rush and shallower

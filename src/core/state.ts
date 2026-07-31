@@ -124,7 +124,9 @@ export type EnemyType =
   | 'ashlock'
   | 'stasis_scorcher'
   | 'facet_reaver'
-  | 'glass_moth';
+  | 'glass_moth'
+  | 'unmaking_hound'
+  | 'null_scribe';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

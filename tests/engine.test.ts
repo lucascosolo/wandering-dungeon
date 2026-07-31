@@ -114,6 +114,15 @@ function tileWithGroupPrefix(
   throw new Error(`generated floor has no ${prefix} ${type} tile`);
 }
 
+function stairsPosition(state: ReturnType<typeof createMockGameState>) {
+  for (let y = 0; y < state.floorMap.height; y++) {
+    for (let x = 0; x < state.floorMap.width; x++) {
+      if (state.floorMap.tiles[y][x].type === 'stairs_down') return { x, y };
+    }
+  }
+  throw new Error('generated floor has no stairs');
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -563,6 +572,50 @@ describe('Turn Engine & Items', () => {
     later.shiftCountdown = 5;
     dispatchAction(later, { type: 'WAIT' });
     expect(later.player.hp).toBe(100);
+  });
+
+  it('charges an Unmaking toll when the player waits on the stairs', () => {
+    const state = createMockGameState();
+    state.floorMap.level = 21;
+    state.player.position = stairsPosition(state);
+    state.shiftCountdown = 5;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.shiftCountdown).toBe(4);
+    expect(state.player.hp).toBe(98);
+    expect(state.lastDamageSource).toBe("the Unmaking's stair toll");
+  });
+
+  it('does not charge the stair toll on other tiles or during stasis', () => {
+    const ordinary = createMockGameState();
+    ordinary.floorMap.level = 21;
+    ordinary.shiftCountdown = 5;
+    dispatchAction(ordinary, { type: 'WAIT' });
+    expect(ordinary.player.hp).toBe(100);
+
+    const frozen = createMockGameState();
+    frozen.floorMap.level = 21;
+    frozen.player.position = stairsPosition(frozen);
+    frozen.shiftCountdown = 5;
+    frozen.isStasisActive = true;
+    frozen.stasisTurnsRemaining = 2;
+    dispatchAction(frozen, { type: 'WAIT' });
+    expect(frozen.player.hp).toBe(100);
+    expect(frozen.shiftCountdown).toBe(5);
+  });
+
+  it('lets final-floor descent win before any Unmaking toll can trigger', () => {
+    const state = createNewGame('unmaking-victory', createRunConfig('extreme', 'brutal'));
+    state.floorMap.level = 25;
+    state.player.position = { ...state.floorMap.exit };
+
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.isVictory).toBe(true);
+    expect(state.isGameOver).toBe(true);
+    expect(state.player.hp).toBe(100);
+    expect(state.turnCount).toBe(0);
   });
 });
 

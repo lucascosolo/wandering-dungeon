@@ -8,7 +8,7 @@ import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { showTitleScreen } from './ui/titleScreen';
 import { loadKeybinds } from './ui/keybinds';
-import { saveRun } from './core/save';
+import { clearRun, loadRun, saveRun } from './core/save';
 import { RunConfig } from './core/runConfig';
 import {
   healthPotions,
@@ -125,8 +125,10 @@ function act(action: GameAction): void {
   }
 
   // Autosave every turn. Writes on the same key are serialized by IndexedDB in
-  // the order they are issued, so the last turn is what lands.
-  void saveRun(state);
+  // the order they are issued, so the last turn is what lands — including this
+  // clear, which must not be overtaken by a save from the turn before it.
+  if (state.isGameOver) void clearRun();
+  else void saveRun(state);
 
   if (state.isGameOver) {
     showEndModal(ui, state, restart, returnToTitle);
@@ -249,19 +251,46 @@ function returnToTitle(): void {
   // Close the abandoned run's log before its state is left behind.
   recorder.flush();
   stopTravel();
-  showTitleScreen({ onNewGame: config => startRun(randomSeed(), config) });
+  openTitleScreen();
 }
 
 /**
- * Wipe the shell back to a fresh run. Everything a run owns is replaced here, so
- * a second run cannot inherit a modal, a queued walk, or the previous log.
+ * The save is re-read every time rather than cached, because the run just played
+ * may have cleared it — Continue must not offer a run that is over.
  */
+function openTitleScreen(): void {
+  void loadRun().then(saved => {
+    showTitleScreen({
+      saved,
+      onNewGame: config => startRun(randomSeed(), config),
+      onContinue: resumeRun,
+    });
+  });
+}
+
+/** Resume a saved run. The state is the save itself, so nothing is re-derived. */
+function resumeRun(saved: GameState): void {
+  enterRun(saved);
+}
+
 function startRun(seed: string, config: RunConfig): void {
+  enterRun(createNewGame(seed, config));
+  // Save at turn 0 too, so a run abandoned before its first move is still there.
+  void saveRun(state);
+}
+
+/**
+ * Wipe the shell onto a run, new or resumed. Everything a run owns is replaced
+ * here, so a second run cannot inherit a modal, a queued walk, or the previous
+ * log. A resumed run does start a fresh run-log — the telemetry is per sitting,
+ * not per run.
+ */
+function enterRun(next: GameState): void {
   if (!booted) bootGameShell();
 
   stopTravel();
-  runConfig = config;
-  state = createNewGame(seed, config);
+  state = next;
+  runConfig = next.config;
   recorder = new RunRecorder(state);
   particles.clear();
   dirty = true;
@@ -272,8 +301,6 @@ function startRun(seed: string, config: RunConfig): void {
   updateHud(ui, state);
   renderLog(ui, state);
   renderHotbar(ui, state);
-  // Save at turn 0 too, so a run abandoned before its first move is still there.
-  void saveRun(state);
 }
 
 let booted = false;
@@ -359,8 +386,17 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 
-// Bindings are read per keypress, but the title screen must not open before they
-// load or the settings screen would show defaults over a saved set.
-loadKeybinds().then(() => {
-  showTitleScreen({ onNewGame: config => startRun(readSeed(), config) });
-});
+// Both reads must land before the title opens: the settings screen would
+// otherwise show default bindings over a saved set, and Continue would offer
+// nothing while a run sat on disk.
+void loadKeybinds().then(() =>
+  loadRun().then(saved => {
+    showTitleScreen({
+      saved,
+      // ?seed= only applies to a new run started from a cold load; a resumed run
+      // carries the seed it was created with.
+      onNewGame: config => startRun(readSeed(), config),
+      onContinue: resumeRun,
+    });
+  })
+);

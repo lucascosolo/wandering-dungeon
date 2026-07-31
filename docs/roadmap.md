@@ -29,16 +29,11 @@ Two findings from the current code drive the ordering:
 
 ## Phase 1 — Frame
 
-### 1a. Title screen shell
+### ~~1a. Title screen shell~~ — shipped
 
-Boot to a menu instead of straight into a run: New Game, Continue, Settings.
-Continue is disabled until 2a lands.
-
-Done when: the game starts at a menu, New Game reaches a playable run, and
-`main.ts` no longer builds a run on load.
-
-Files: `src/main.ts`, `src/ui/` (new screen module), `src/styles/main.css`.
-Scope: M.
+`src/ui/titleScreen.ts`. Continue and Settings are present but disabled; 2b and
+1c enable them. The end modal gained a Main Menu button, so the title is
+reachable after the first run rather than being a one-time splash.
 
 ### 1b. Run configuration
 

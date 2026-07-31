@@ -88,7 +88,7 @@ describe('Regions', () => {
     });
   });
 
-  it('gives every region an explicit pool for the current enemy roster', () => {
+  it('gives the first region an exclusive pool and keeps later pools explicit', () => {
     const roster = new Set<EnemyType>([
       'crawler',
       'sentinel',
@@ -97,7 +97,8 @@ describe('Regions', () => {
       'collapse_behemoth',
     ]);
 
-    REGIONS.forEach(region => {
+    expect(regionForFloor(1).enemyPool).toEqual(['hinge_warden', 'seam_skitter']);
+    REGIONS.slice(1).forEach(region => {
       expect(region.enemyPool.length).toBeGreaterThan(0);
       expect(new Set(region.enemyPool)).toEqual(roster);
     });

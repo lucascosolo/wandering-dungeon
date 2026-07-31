@@ -1,4 +1,4 @@
-import { GameState, Player, Enemy } from '../src/core/state';
+import { GameState, Player, Enemy, EnemyType } from '../src/core/state';
 import { SeededRNG } from '../src/core/rng';
 import { generateFloor } from '../src/core/map/generator';
 import { createRunConfig } from '../src/core/runConfig';
@@ -93,7 +93,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
  */
 export function createMockEnemy(
   position: { x: number; y: number },
-  type: 'crawler' | 'sentinel' | 'fracture_beast' | 'warp_stalker' | 'collapse_behemoth' = 'crawler'
+  type: EnemyType = 'crawler'
 ): Enemy {
   return {
     id: `enemy_${position.x}_${position.y}`,

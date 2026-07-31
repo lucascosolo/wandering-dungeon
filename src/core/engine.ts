@@ -256,7 +256,16 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       attack(state, rng, enemy.name, enemy.attackPower, null, events);
       continue;
     }
-    if (dist > ENEMY_AGGRO_RADIUS) continue;
+
+    if (enemy.enemyType === 'hinge_warden' && state.pendingShift) continue;
+
+    const aggroRadius =
+      enemy.enemyType === 'seam_skitter'
+        ? state.pendingShift
+          ? 10
+          : 6
+        : ENEMY_AGGRO_RADIUS;
+    if (dist > aggroRadius) continue;
 
     const path = findPath(state.floorMap, enemy.position, state.player.position);
     if (!path || path.length < 2) continue;

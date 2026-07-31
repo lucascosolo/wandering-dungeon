@@ -116,7 +116,9 @@ export type EnemyType =
   | 'sentinel'
   | 'fracture_beast'
   | 'warp_stalker'
-  | 'collapse_behemoth';
+  | 'collapse_behemoth'
+  | 'hinge_warden'
+  | 'seam_skitter';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

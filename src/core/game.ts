@@ -31,6 +31,8 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   fracture_beast: { hp: 42, attackPower: 9, minProgress: 0.25 },
   warp_stalker: { hp: 34, attackPower: 12, minProgress: 0.5 },
   collapse_behemoth: { hp: 70, attackPower: 15, minProgress: 0.8 },
+  hinge_warden: { hp: 32, attackPower: 7, minProgress: 0 },
+  seam_skitter: { hp: 20, attackPower: 5, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {

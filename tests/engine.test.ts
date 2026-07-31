@@ -4,7 +4,37 @@ import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
 import { createNewGame } from '../src/core/game';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
+import { findPath } from '../src/core/map/pathfinding';
 import { createMockGameState, createMockEnemy } from './helpers';
+
+function enemyAtDistance(state: ReturnType<typeof createMockGameState>, distance: number) {
+  const { player, floorMap } = state;
+  for (let y = 0; y < floorMap.height; y++) {
+    for (let x = 0; x < floorMap.width; x++) {
+      const tile = floorMap.tiles[y][x].type;
+      const position = { x, y };
+      const manhattan = Math.abs(x - player.position.x) + Math.abs(y - player.position.y);
+      if (
+        manhattan === distance &&
+        (tile === 'floor' || tile === 'door') &&
+        findPath(floorMap, position, player.position)?.length
+      ) {
+        return position;
+      }
+    }
+  }
+  throw new Error(`no walkable tile at distance ${distance}`);
+}
+
+function pendingShift() {
+  return {
+    type: 'room_slide' as const,
+    targetGroupId: null,
+    changes: [],
+    groupMoves: {},
+    blocksExit: false,
+  };
+}
 
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
@@ -96,6 +126,59 @@ describe('Turn Engine & Items', () => {
 
     expect(state.shiftCountdown).toBe(state.nextShiftCountdownMax);
     expect(state.eventLog.some(m => m.type === 'shift')).toBe(true);
+  });
+
+  it('lets a Hinge Warden hold position during a shift telegraph', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'hinge_warden');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('lets a Hinge Warden resume pursuit outside a telegraph', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'hinge_warden');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+  });
+
+  it('keeps a Seam Skitter outside its normal aggro range', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'seam_skitter');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('lets a Seam Skitter rush during a shift telegraph', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'seam_skitter');
+    const beforeDistance =
+      Math.abs(enemy.position.x - state.player.position.x) +
+      Math.abs(enemy.position.y - state.player.position.y);
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    const afterDistance =
+      Math.abs(enemy.position.x - state.player.position.x) +
+      Math.abs(enemy.position.y - state.player.position.y);
+    expect(afterDistance).toBeLessThan(beforeDistance);
   });
 });
 

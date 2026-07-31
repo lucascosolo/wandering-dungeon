@@ -7,6 +7,7 @@ import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { showTitleScreen } from './ui/titleScreen';
+import { loadKeybinds } from './ui/keybinds';
 import { RunConfig } from './core/runConfig';
 import {
   healthPotions,
@@ -351,4 +352,8 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 
-showTitleScreen({ onNewGame: config => startRun(readSeed(), config) });
+// Bindings are read per keypress, but the title screen must not open before they
+// load or the settings screen would show defaults over a saved set.
+loadKeybinds().then(() => {
+  showTitleScreen({ onNewGame: config => startRun(readSeed(), config) });
+});

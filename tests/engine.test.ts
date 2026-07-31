@@ -26,9 +26,12 @@ function enemyAtDistance(state: ReturnType<typeof createMockGameState>, distance
   throw new Error(`no walkable tile at distance ${distance}`);
 }
 
-function pendingShift(blocksExit = false) {
+function pendingShift(
+  type: 'room_slide' | 'corridor_reconnect' | 'localized_collapse' = 'room_slide',
+  blocksExit = false
+) {
   return {
-    type: 'room_slide' as const,
+    type,
     targetGroupId: null,
     changes: [],
     groupMoves: {},
@@ -278,7 +281,7 @@ describe('Turn Engine & Items', () => {
     const expectedStep = findPath(state.floorMap, before, state.floorMap.exit)![1];
     state.entities.push(enemy);
     state.shiftCountdown = 3;
-    state.pendingShift = pendingShift(true);
+    state.pendingShift = pendingShift('room_slide', true);
 
     dispatchAction(state, { type: 'WAIT' });
 
@@ -368,6 +371,68 @@ describe('Turn Engine & Items', () => {
     dispatchAction(state, { type: 'WAIT' });
 
     expect(enemy.position).toEqual(before);
+  });
+
+  it('keeps an Unmaking Hound just outside its normal aggro range', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 8), 'unmaking_hound');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('makes an Unmaking Hound pursue during localized collapse', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 8), 'unmaking_hound');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift('localized_collapse');
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+  });
+
+  it('keeps a Null Scribe outside its normal aggro range', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 6), 'null_scribe');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('sends a Null Scribe toward the exit during a room slide', () => {
+    const state = createMockGameState();
+    const route = enemyWithDivergingPaths(state);
+    const enemy = createMockEnemy(route.position, 'null_scribe');
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift('room_slide');
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(route.exitStep);
+  });
+
+  it('keeps a Null Scribe player-focused during a corridor reconnect', () => {
+    const state = createMockGameState();
+    const position = enemyAtDistance(state, 4);
+    const enemy = createMockEnemy(position, 'null_scribe');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift('corridor_reconnect');
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
   });
 });
 

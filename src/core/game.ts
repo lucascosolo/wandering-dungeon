@@ -39,6 +39,8 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   stasis_scorcher: { hp: 26, attackPower: 7, minProgress: 0 },
   facet_reaver: { hp: 36, attackPower: 7, minProgress: 0 },
   glass_moth: { hp: 24, attackPower: 6, minProgress: 0 },
+  unmaking_hound: { hp: 34, attackPower: 7, minProgress: 0 },
+  null_scribe: { hp: 28, attackPower: 6, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {

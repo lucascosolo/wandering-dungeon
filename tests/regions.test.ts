@@ -10,7 +10,6 @@ import {
   regionIndexForFloor,
   runProgress,
 } from '../src/core/regions';
-import { EnemyType } from '../src/core/state';
 
 describe('Regions', () => {
   it('puts each five-floor block in its own region', () => {
@@ -89,22 +88,11 @@ describe('Regions', () => {
   });
 
   it('gives the first region an exclusive pool and keeps later pools explicit', () => {
-    const roster = new Set<EnemyType>([
-      'crawler',
-      'sentinel',
-      'fracture_beast',
-      'warp_stalker',
-      'collapse_behemoth',
-    ]);
-
     expect(regionForFloor(1).enemyPool).toEqual(['hinge_warden', 'seam_skitter']);
     expect(regionForFloor(6).enemyPool).toEqual(['fracture_leech', 'riftbound']);
     expect(regionForFloor(11).enemyPool).toEqual(['ashlock', 'stasis_scorcher']);
     expect(regionForFloor(16).enemyPool).toEqual(['facet_reaver', 'glass_moth']);
-    REGIONS.slice(4).forEach(region => {
-      expect(region.enemyPool.length).toBeGreaterThan(0);
-      expect(new Set(region.enemyPool)).toEqual(roster);
-    });
+    expect(regionForFloor(21).enemyPool).toEqual(['unmaking_hound', 'null_scribe']);
   });
 
   it('paces the roster from 0 in the first region to 1 in the last, any length', () => {

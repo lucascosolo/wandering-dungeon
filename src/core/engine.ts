@@ -263,7 +263,15 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
 
     let target = state.player.position;
     let aggroRadius = ENEMY_AGGRO_RADIUS;
-    if (enemy.enemyType === 'facet_reaver' && state.pendingShift) {
+    if (enemy.enemyType === 'unmaking_hound') {
+      aggroRadius = state.pendingShift?.type === 'localized_collapse' ? Infinity : 7;
+    } else if (enemy.enemyType === 'null_scribe') {
+      aggroRadius = 5;
+      if (state.pendingShift?.type === 'room_slide') {
+        target = state.floorMap.exit;
+        aggroRadius = Infinity;
+      }
+    } else if (enemy.enemyType === 'facet_reaver' && state.pendingShift) {
       target = state.floorMap.exit;
       aggroRadius = Infinity;
     } else if (enemy.enemyType === 'ashlock' && state.pendingShift?.blocksExit) {

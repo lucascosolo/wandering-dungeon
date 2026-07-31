@@ -36,6 +36,8 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   stasis_scorcher: { glyph: 'C', color: '#e76f51', label: 'Stasis Scorcher' },
   facet_reaver: { glyph: 'f', color: '#b8c0ff', label: 'Facet Reaver' },
   glass_moth: { glyph: 'm', color: '#80ded9', label: 'Glass Moth' },
+  unmaking_hound: { glyph: 'U', color: '#d00000', label: 'Unmaking Hound' },
+  null_scribe: { glyph: 'N', color: '#c77dff', label: 'Null Scribe' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';

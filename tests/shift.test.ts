@@ -12,6 +12,7 @@ import {
   MAX_EXIT_BLOCKED_STREAK,
 } from '../src/core/shift/shiftSystem';
 import { createNewGame } from '../src/core/game';
+import { createRunConfig } from '../src/core/runConfig';
 import { dispatchAction } from '../src/core/engine';
 import { FloorMap } from '../src/core/state';
 
@@ -256,7 +257,7 @@ describe('Shift Engine', () => {
       // shift would churn them across the whole floor instead of only where
       // the geometry moved.
       for (const seed of ['door-a', 'door-b', 'door-c', 'door-d']) {
-        const state = createNewGame(seed);
+        const state = createNewGame(seed, createRunConfig('short', 'standard'));
         const before = state.floorMap.tiles.map(row => row.map(t => t.type));
 
         syncDoors(state.floorMap);
@@ -278,7 +279,7 @@ describe('Shift Engine', () => {
       // two are legitimate — two rooms joined by a short corridor put a
       // threshold at each end — so only three in a line indicates the bug.
       for (const seed of ['door-a', 'door-b', 'door-c', 'door-d', 'door-e']) {
-        const map = createNewGame(seed).floorMap;
+        const map = createNewGame(seed, createRunConfig('short', 'standard')).floorMap;
         const isDoor = (x: number, y: number): boolean =>
           x >= 0 && x < map.width && y >= 0 && y < map.height && map.tiles[y][x].type === 'door';
 
@@ -299,7 +300,7 @@ describe('Shift Engine', () => {
 
     it('leaves no door stranded away from a corridor after many shifts', () => {
       for (const seed of ['door-1', 'door-2', 'door-3', 'door-4', 'door-5', 'door-6']) {
-        const state = createNewGame(seed);
+        const state = createNewGame(seed, createRunConfig('short', 'standard'));
 
         for (let turn = 0; turn < 200 && !state.isGameOver; turn++) {
           dispatchAction(state, { type: 'WAIT' });

@@ -722,3 +722,69 @@ html, body {
 }
 
 .modal__actions .action-btn { height: 44px; margin-top: 0; }
+
+.setup__heading {
+  margin: 0 0 14px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.setup__label {
+  align-self: flex-start;
+  margin-bottom: 6px;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.setup__options {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.setup__options--locked { opacity: 0.45; }
+
+.setup-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 6px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setup-btn small {
+  margin-top: 2px;
+  font-size: 0.55rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.setup-btn:disabled { cursor: default; }
+
+.setup-btn--on {
+  background: var(--accent-cyan-glow);
+  border-color: var(--border-glow);
+  color: var(--accent-cyan);
+}
+
+.setup__summary {
+  margin: 0 0 18px;
+  font-size: 0.72rem;
+  text-align: center;
+  color: var(--text-muted);
+}

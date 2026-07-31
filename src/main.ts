@@ -7,6 +7,7 @@ import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { showTitleScreen } from './ui/titleScreen';
+import { RunConfig } from './core/runConfig';
 import {
   healthPotions,
   hotbarItems,
@@ -31,6 +32,8 @@ let ui!: HudElements;
 let ctx!: CanvasRenderingContext2D;
 let state!: GameState;
 let recorder!: RunRecorder;
+/** The config the current run was started with, so New Run can repeat it. */
+let runConfig!: RunConfig;
 let viewWidth = 0;
 let viewHeight = 0;
 
@@ -233,25 +236,26 @@ function toggleInventory(): void {
 }
 
 function restart(): void {
-  startRun(randomSeed());
+  startRun(randomSeed(), runConfig);
 }
 
 function returnToTitle(): void {
   // Close the abandoned run's log before its state is left behind.
   recorder.flush();
   stopTravel();
-  showTitleScreen({ onNewGame: restart });
+  showTitleScreen({ onNewGame: config => startRun(randomSeed(), config) });
 }
 
 /**
  * Wipe the shell back to a fresh run. Everything a run owns is replaced here, so
  * a second run cannot inherit a modal, a queued walk, or the previous log.
  */
-function startRun(seed: string): void {
+function startRun(seed: string, config: RunConfig): void {
   if (!booted) bootGameShell();
 
   stopTravel();
-  state = createNewGame(seed);
+  runConfig = config;
+  state = createNewGame(seed, config);
   recorder = new RunRecorder(state);
   particles.clear();
   dirty = true;
@@ -347,4 +351,4 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 
-showTitleScreen({ onNewGame: () => startRun(readSeed()) });
+showTitleScreen({ onNewGame: config => startRun(readSeed(), config) });

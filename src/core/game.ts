@@ -10,6 +10,7 @@ import {
   Position,
   FloorMap,
 } from './state';
+import { RunConfig } from './runConfig';
 import { SeededRNG } from './rng';
 import { generateFloor } from './map/generator';
 import { computeFOV } from './map/fow';
@@ -216,7 +217,7 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
 }
 
 /** Create a fresh run. `seed` drives every generation and combat roll. */
-export function createNewGame(seed: string): GameState {
+export function createNewGame(seed: string, config: RunConfig): GameState {
   const rng = new SeededRNG(seed);
 
   const player: Player = {
@@ -239,6 +240,7 @@ export function createNewGame(seed: string): GameState {
 
   const state: GameState = {
     seed,
+    config,
     rngState: rng.serialize(),
     turnCount: 0,
     shiftCountdown: STARTING_COUNTDOWN,
@@ -267,7 +269,7 @@ export function createNewGame(seed: string): GameState {
 
   state.eventLog.push({
     id: 'log_start',
-    text: 'You step into the Wandering Dungeon. Reach floor 5 and get out alive.',
+    text: `You step into the Wandering Dungeon. Reach floor ${config.finalFloor} and get out alive.`,
     type: 'info',
     timestamp: 0,
   });

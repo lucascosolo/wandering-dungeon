@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createNewGame } from '../src/core/game';
-import { dispatchAction, FINAL_FLOOR } from '../src/core/engine';
+import { dispatchAction } from '../src/core/engine';
+import { createRunConfig } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
 import { GameState } from '../src/core/state';
 
@@ -44,13 +45,13 @@ function autoPlay(state: GameState, maxTurns = 4000): void {
 
 describe('Full run', () => {
   it('is completable end to end on a known seed', () => {
-    const state = createNewGame('mvp-smoke');
+    const state = createNewGame('mvp-smoke', createRunConfig('short', 'standard'));
     autoPlay(state);
 
     expect(state.isGameOver).toBe(true);
     // A run that reaches the final floor and survives must report victory.
     if (state.isVictory) {
-      expect(state.floorMap.level).toBe(FINAL_FLOOR);
+      expect(state.floorMap.level).toBe(state.config.finalFloor);
     }
     expect(state.turnCount).toBeGreaterThan(0);
   });
@@ -58,7 +59,7 @@ describe('Full run', () => {
   it('reaches at least floor 2 across several seeds', () => {
     const reached: number[] = [];
     for (const seed of ['alpha', 'beta', 'gamma', 'delta', 'epsilon']) {
-      const state = createNewGame(seed);
+      const state = createNewGame(seed, createRunConfig('short', 'standard'));
       autoPlay(state);
       reached.push(state.floorMap.level);
     }
@@ -66,7 +67,7 @@ describe('Full run', () => {
   });
 
   it('never leaves the player standing on a non-walkable tile', () => {
-    const state = createNewGame('walkability');
+    const state = createNewGame('walkability', createRunConfig('short', 'standard'));
     for (let i = 0; i < 200 && !state.isGameOver; i++) {
       const { x, y } = state.player.position;
       const type = state.floorMap.tiles[y][x].type;

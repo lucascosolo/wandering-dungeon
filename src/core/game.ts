@@ -12,7 +12,7 @@ import {
 } from './state';
 import { RunConfig } from './runConfig';
 import { SeededRNG } from './rng';
-import { regionForFloor, runProgress } from './regions';
+import { isRegionEnd, regionForFloor, runProgress } from './regions';
 import { generateFloor } from './map/generator';
 import { computeFOV } from './map/fow';
 
@@ -194,6 +194,8 @@ export function populateFloor(
   }
 
   const drops: ItemDrop[] = [];
+  if (isRegionEnd(level)) return { enemies, drops };
+
   const dropCount = 2 + rng.randomInt(0, 2);
   for (let i = 0; i < dropCount; i++) {
     const position = take();

@@ -6,6 +6,20 @@ import { computeFOV } from '../src/core/map/fow';
 import { FloorMap } from '../src/core/state';
 
 describe('Map Generator', () => {
+  it('generates region-end floors as single-room arenas', () => {
+    const map = generateFloor(new SeededRNG('arena-seed'), 5);
+    const groups = Object.values(map.shiftGroups);
+    const roomGroups = groups.filter(group => group.type === 'room');
+    const corridorGroups = groups.filter(group => group.type === 'corridor');
+    const stairs = map.tiles.flat().filter(tile => tile.type === 'stairs_down');
+
+    expect(roomGroups).toHaveLength(1);
+    expect(corridorGroups).toHaveLength(0);
+    expect(stairs).toHaveLength(1);
+    expect(hasValidPath(map, map.entrance, map.exit)).toBe(true);
+    expect(generateFloor(new SeededRNG('arena-seed'), 5)).toEqual(map);
+  });
+
   it('generates a floor map with at least 4 rooms, shiftGroups, entrance, and exit', () => {
     const rng = new SeededRNG('test-map-seed-123');
     const map = generateFloor(rng, 1, 32, 32);

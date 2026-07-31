@@ -90,6 +90,16 @@ function doorPosition(state: ReturnType<typeof createMockGameState>) {
   throw new Error('generated floor has no door');
 }
 
+function shiftGroupTile(state: ReturnType<typeof createMockGameState>) {
+  for (let y = 0; y < state.floorMap.height; y++) {
+    for (let x = 0; x < state.floorMap.width; x++) {
+      const groupId = state.floorMap.tiles[y][x].shiftGroupId;
+      if (groupId) return { position: { x, y }, groupId };
+    }
+  }
+  throw new Error('generated floor has no shift group tile');
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -478,6 +488,35 @@ describe('Turn Engine & Items', () => {
     dispatchAction(frozen, { type: 'WAIT' });
     expect(frozen.player.hp).toBe(100);
     expect(frozen.shiftCountdown).toBe(5);
+  });
+
+  it('damages a Fracture Deeps tile targeted by the pending shift', () => {
+    const state = createMockGameState();
+    const target = shiftGroupTile(state);
+    state.floorMap.level = 6;
+    state.player.position = target.position;
+    state.shiftCountdown = 3;
+    state.pendingShift = { ...pendingShift(), targetGroupId: target.groupId };
+
+    const result = dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.shiftCountdown).toBe(2);
+    expect(state.player.hp).toBe(98);
+    expect(state.lastDamageSource).toBe("the Deeps' rift");
+    expect(result.events.some(event => event.includes('rift shears'))).toBe(true);
+  });
+
+  it('does not trigger Fracture Deeps rift shear on an untargeted group', () => {
+    const state = createMockGameState();
+    const target = shiftGroupTile(state);
+    state.floorMap.level = 6;
+    state.player.position = target.position;
+    state.shiftCountdown = 3;
+    state.pendingShift = { ...pendingShift(), targetGroupId: 'other-group' };
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBe(100);
   });
 });
 

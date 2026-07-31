@@ -81,15 +81,13 @@ A run can be configured, started, quit, resumed, and finished at any of the four
 lengths. Scaling is still wrong; that is 3a–3c, and it is now the only thing
 between the game and a playable 25-floor run.
 
-### 3a. Region model
+### ~~3a. Region model~~ — shipped
 
-Map floor number to a region index and a region descriptor table. No behaviour
-change yet — this is the seam everything in Phase 2 hangs off.
+`src/core/regions.ts`. Pure functions over the floor number; nothing was added to
+`GameState`. The region is derived, not stored — a cached copy would be one more
+thing to keep in sync across descent, save/resume, and the rescue paths.
 
-Done when: a pure function maps floor → region for all four run lengths, unit
-tested at every boundary.
-
-Files: `src/core/regions.ts` (new), `src/core/state.ts`. Scope: S.
+`isRegionEnd` already marks 5/10/15/20/25 for 5a.
 
 ### 3b. Region-based enemy scaling
 

@@ -188,10 +188,11 @@ Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 
 ### 5b. Boss entities — in progress
 
-The first boss slice is shipped: floor 5 now spawns the Hinge Sovereign, a
+The first two boss slices are shipped: floor 5 spawns the Hinge Sovereign, a
 distinct arena entity whose ranged signature attack synchronizes with a pending
-shift. The remaining four regional bosses still need their own entities and
-behaviours.
+shift, and floor 10 spawns the Rift Regent, which marks a tile for a delayed,
+dodgeable rift strike. The remaining three regional bosses still need their own
+entities and behaviours.
 
 Done when: each region's boss is beatable and does something no normal enemy
 does.

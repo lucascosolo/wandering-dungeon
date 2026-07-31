@@ -81,6 +81,11 @@ describe('Full run', () => {
     expect(state.entities).toHaveLength(1);
     expect(state.entities[0].enemyType).toBe('hinge_sovereign');
     expect(state.entities[0].isBoss).toBe(true);
+
+    const deeps = createNewGame('rift-maw-floor', createRunConfig('short', 'standard'));
+    buildFloor(deeps, new SeededRNG('rift-maw-rng'), 10);
+    expect(deeps.entities).toHaveLength(1);
+    expect(deeps.entities[0].enemyType).toBe('rift_regent');
   });
 
   it('is completable end to end on a known seed', () => {

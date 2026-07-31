@@ -42,6 +42,7 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   unmaking_hound: { hp: 34, attackPower: 7, minProgress: 0 },
   null_scribe: { hp: 28, attackPower: 6, minProgress: 0 },
   hinge_sovereign: { hp: 110, attackPower: 10, minProgress: 0 },
+  rift_regent: { hp: 125, attackPower: 11, minProgress: 0 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -172,7 +173,8 @@ export function populateFloor(
   const progress = runProgress(level, finalFloor);
   const region = regionForFloor(level);
   const isBossFloor = isRegionEnd(level);
-  const bossType: EnemyType | null = level === 5 ? 'hinge_sovereign' : null;
+  const bossType: EnemyType | null =
+    level === 5 ? 'hinge_sovereign' : level === 10 ? 'rift_regent' : null;
   const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );
@@ -190,7 +192,11 @@ export function populateFloor(
     const hp = Math.round(template.hp * region.hpMultiplier);
     enemies.push({
       id: `enemy_${level}_${i}`,
-      name: bossType ? 'Hinge Sovereign' : enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      name: bossType === 'hinge_sovereign'
+        ? 'Hinge Sovereign'
+        : bossType === 'rift_regent'
+          ? 'Rift Regent'
+          : enemyType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       enemyType,
       isBoss: bossType !== null,
       bossCooldown: bossType ? 0 : undefined,

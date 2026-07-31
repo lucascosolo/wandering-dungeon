@@ -118,7 +118,9 @@ export type EnemyType =
   | 'warp_stalker'
   | 'collapse_behemoth'
   | 'hinge_warden'
-  | 'seam_skitter';
+  | 'seam_skitter'
+  | 'fracture_leech'
+  | 'riftbound';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

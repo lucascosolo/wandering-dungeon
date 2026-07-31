@@ -113,6 +113,17 @@ describe('Full run', () => {
     );
   });
 
+  it('spawns only Fracture Deeps species on floor 6', () => {
+    const config = createRunConfig('extreme', 'brutal');
+    const state = createNewGame('fracture-deeps-roster', config);
+    const allowed = new Set(['fracture_leech', 'riftbound']);
+
+    buildFloor(state, new SeededRNG('fracture-deeps-floor'), 6);
+
+    expect(state.entities.length).toBe(5);
+    expect(state.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
+  });
+
   it('gets a player-like bot well past the first region on a long run', () => {
     // A depth regression net, not a win condition: the bot never retreats and
     // never uses the shift items, so it dies deeper than a rush and shallower

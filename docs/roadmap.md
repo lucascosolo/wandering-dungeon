@@ -253,6 +253,45 @@ Depends on 4a. Files: `src/core/state.ts`, `src/core/game.ts`,
 `src/core/engine.ts`, `src/ui/hud.ts`. Scope: L — split ranged from melee if it
 runs long.
 
+### 10a. Experience and levels
+
+Kills grant XP; XP raises a player level that ramps `maxHp` and `attackPower`.
+The point is incentive, not power: right now nothing rewards clearing a floor
+over walking past it to the stairs.
+
+This **pulls against 7** — pressure rewards leaving fast, XP rewards staying to
+fight. That tension is the design, but only if both are tuned together: if
+pressure outpaces XP, fighting is never worth it and 10a is dead weight. Build
+10a first and tune 7 against it.
+
+Done when: kills grant XP, levels raise stats through one choke point, and
+progress survives save/resume.
+
+Depends on 3b. Files: `src/core/state.ts`, `src/core/engine.ts`,
+`src/core/game.ts`. Scope: M.
+
+### 10b. Level-up splash
+
+A brief overlay naming the new level and what it gained. Level-ups are the
+payoff that makes 10a legible — a silent stat bump teaches nothing.
+
+Done when: the splash names each stat gained, does not consume a turn, and does
+not interrupt a queued tap-to-travel walk mid-step.
+
+Depends on 10a. Files: `src/ui/hud.ts`, `src/main.ts`, `src/styles/main.css`.
+Scope: S.
+
+### 10c. XP curve pass
+
+Tune XP per species and the level curve against real kill counts once 10a/10b
+are live.
+
+Done when: the curve is grounded in `logs/<run-id>.json` kills per region rather
+than guessed, and a full-clear run is measurably stronger at the boss than a
+rush run.
+
+Depends on 10b. Files: `src/core/game.ts`. Scope: S.
+
 ---
 
 # Independent — feel

@@ -81,6 +81,15 @@ function enemyWithDivergingPaths(state: ReturnType<typeof createMockGameState>) 
   throw new Error('no tile with diverging player and exit paths');
 }
 
+function doorPosition(state: ReturnType<typeof createMockGameState>) {
+  for (let y = 0; y < state.floorMap.height; y++) {
+    for (let x = 0; x < state.floorMap.width; x++) {
+      if (state.floorMap.tiles[y][x].type === 'door') return { x, y };
+    }
+  }
+  throw new Error('generated floor has no door');
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -433,6 +442,42 @@ describe('Turn Engine & Items', () => {
     dispatchAction(state, { type: 'WAIT' });
 
     expect(enemy.position).not.toEqual(before);
+  });
+
+  it('damages a player standing on a Shifting Halls door before a shift', () => {
+    const state = createMockGameState();
+    state.player.position = doorPosition(state);
+    state.shiftCountdown = 5;
+
+    const result = dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.shiftCountdown).toBe(4);
+    expect(state.player.hp).toBe(98);
+    expect(state.lastDamageSource).toBe("the Halls' hinge");
+    expect(result.events.some(event => event.includes('stressed hinge'))).toBe(true);
+  });
+
+  it('does not trigger hinge stress on ordinary tiles, later regions, or stasis turns', () => {
+    const ordinary = createMockGameState();
+    ordinary.shiftCountdown = 5;
+    dispatchAction(ordinary, { type: 'WAIT' });
+    expect(ordinary.player.hp).toBe(100);
+
+    const later = createMockGameState();
+    later.floorMap.level = 6;
+    later.player.position = doorPosition(later);
+    later.shiftCountdown = 5;
+    dispatchAction(later, { type: 'WAIT' });
+    expect(later.player.hp).toBe(100);
+
+    const frozen = createMockGameState();
+    frozen.player.position = doorPosition(frozen);
+    frozen.shiftCountdown = 5;
+    frozen.isStasisActive = true;
+    frozen.stasisTurnsRemaining = 2;
+    dispatchAction(frozen, { type: 'WAIT' });
+    expect(frozen.player.hp).toBe(100);
+    expect(frozen.shiftCountdown).toBe(5);
   });
 });
 

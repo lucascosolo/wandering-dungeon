@@ -332,10 +332,21 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
 
   state.shiftCountdown--;
 
+  const currentTile = state.floorMap.tiles[state.player.position.y][state.player.position.x];
+  if (
+    state.shiftCountdown === 2 &&
+    regionForFloor(state.floorMap.level).index === 1 &&
+    state.pendingShift?.targetGroupId &&
+    currentTile.shiftGroupId === state.pendingShift.targetGroupId
+  ) {
+    events.push('A rift shears open beneath you as the chamber prepares to move.');
+    damagePlayer(state, 2, events, "the Deeps' rift");
+  }
+
   if (
     state.shiftCountdown === 4 &&
     regionForFloor(state.floorMap.level).index === 0 &&
-    state.floorMap.tiles[state.player.position.y][state.player.position.x].type === 'door'
+    currentTile.type === 'door'
   ) {
     events.push('A stressed hinge tears at your footing.');
     damagePlayer(state, 2, events, "the Halls' hinge");

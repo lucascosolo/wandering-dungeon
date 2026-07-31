@@ -55,16 +55,16 @@ game, which de-risks 2a.
 Reachable from the title screen only. An in-run settings entry needs a pause
 screen that does not exist yet; file it with 2b if it starts to bite.
 
-### 2a. Persist and restore a run
+### ~~2a. Persist and restore a run~~ — shipped
 
-Autosave `GameState` after each turn; restore it on load. `rngState` must
-round-trip or a resumed run diverges from its seed.
+`src/core/save.ts`. `GameState` is plain data end to end, so idb-keyval's
+structured clone is the whole serializer — no custom encoding. Autosaves on every
+turn and at turn 0; ~138 KB a write.
 
-Done when: a run reloads mid-floor with identical state, and a test asserts
-round-trip equality including RNG continuity.
+`decodeRun` refuses a finished run and a save from another `SAVE_VERSION`, so a
+save that outlives its run cannot be resumed even if 2b's clear never lands.
 
-Files: `src/core/state.ts`, new persistence module, `src/main.ts`,
-`tests/`. Scope: M.
+`loadRun` has no caller yet — 2b is the button.
 
 ### 2b. Continue wiring
 

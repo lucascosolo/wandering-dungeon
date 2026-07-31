@@ -6,7 +6,7 @@ import { GameState } from './state';
  * satisfy. A save from a different version is discarded rather than restored —
  * a run resumed into a half-missing state is worse than losing it.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const STORAGE_KEY = 'run-in-progress';
 

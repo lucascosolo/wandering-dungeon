@@ -169,14 +169,18 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.turnLabel.textContent = String(state.turnCount);
 
   const region = regionForFloor(floorMap.level);
-  if (ui.regionBanner.dataset.region !== String(region.index)) {
+  const regionChanged = ui.regionBanner.dataset.region !== String(region.index);
+  const regionLabel = state.clearedRegions.includes(region.index)
+    ? `${region.name} · CLEARED`
+    : region.name;
+  if (regionChanged) {
     ui.regionBanner.dataset.region = String(region.index);
-    ui.regionBanner.textContent = region.name;
     ui.regionBanner.style.setProperty('--region-accent', region.palette.accent);
     ui.regionBanner.classList.remove('region-banner--enter');
     void ui.regionBanner.offsetWidth;
     ui.regionBanner.classList.add('region-banner--enter');
   }
+  ui.regionBanner.textContent = regionLabel;
 
   if (state.isStasisActive) {
     ui.shiftPill.textContent = `STASIS ${state.stasisTurnsRemaining}`;

@@ -82,6 +82,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     lastShiftType: null,
     exitBlockedStreak: 0,
     lastDamageSource: null,
+    clearedRegions: [],
     eventLog: [],
     isGameOver: false,
     isVictory: false,

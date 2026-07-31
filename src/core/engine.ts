@@ -10,7 +10,7 @@ import {
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
-import { buildFloor } from './game';
+import { buildFloor, createItem } from './game';
 import { isRegionEnd, regionForFloor } from './regions';
 
 export type GameAction =
@@ -228,9 +228,16 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
     return false;
   }
 
-  if (isRegionEnd(floorMap.level) && state.entities.some(enemy => enemy.hp > 0)) {
-    events.push('The arena remains sealed while its guardians live.');
-    return false;
+  if (isRegionEnd(floorMap.level)) {
+    const regionIndex = regionForFloor(floorMap.level).index;
+    if (state.entities.some(enemy => enemy.isBoss && enemy.hp > 0)) {
+      events.push('The arena remains sealed while its guardian lives.');
+      return false;
+    }
+    if (!state.clearedRegions.includes(regionIndex)) {
+      events.push('The arena remains sealed until its guardian is defeated.');
+      return false;
+    }
   }
 
   if (floorMap.level >= state.config.finalFloor) {
@@ -243,6 +250,20 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
   events.push(`You descend to floor ${floorMap.level + 1}.`);
   buildFloor(state, rng, floorMap.level + 1);
   return true;
+}
+
+function awardBossDefeats(state: GameState, events: string[]): void {
+  const defeatedBosses = state.entities.filter(enemy => enemy.isBoss && enemy.hp <= 0);
+  if (defeatedBosses.length === 0) return;
+
+  const clearedRegions = state.clearedRegions;
+  const region = regionForFloor(state.floorMap.level);
+  if (clearedRegions.includes(region.index)) return;
+
+  clearedRegions.push(region.index);
+  const reward = createItem('hourglass_shard', `boss_reward_${state.floorMap.level}`);
+  state.player.inventory.push(reward);
+  events.push(`${defeatedBosses[0].name} falls. ${region.name} is cleared; you claim a ${reward.name}.`);
 }
 
 function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
@@ -589,6 +610,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     }
     case 'DESCEND': {
       const before = state.floorMap.level;
+      awardBossDefeats(state, events);
       spentTurn = descend(state, rng, events);
       // A successful descent replaces the world; the old floor gets no response turn.
       changedFloor = state.floorMap.level !== before;
@@ -609,9 +631,11 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   }
 
   if (consumesTurn(action) && spentTurn && !state.isGameOver && !changedFloor) {
+    awardBossDefeats(state, events);
     state.entities = state.entities.filter(e => e.hp > 0);
     enemyTurns(state, rng, events);
     advanceClock(state, rng, events);
+    awardBossDefeats(state, events);
     state.entities = state.entities.filter(e => e.hp > 0);
   }
 

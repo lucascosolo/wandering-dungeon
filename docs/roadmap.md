@@ -204,9 +204,11 @@ does.
 Depends on 5a, 4a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 `src/core/state.ts`. Scope: L — split per boss if it runs long.
 
-### 5c. Boss reward and region transition
+### ~~5c. Boss reward and region transition~~ — shipped
 
-Killing a boss opens the exit, pays out, and marks the region cleared.
+Killing a boss opens the exit, pays out a visible Hourglass Shard reward, and
+records the region as cleared in the run state. The gate is boss-specific, so a
+dead or missing ordinary enemy cannot keep a defeated arena locked.
 
 Done when: a boss kill is the only way onward and the payout is visible.
 

@@ -313,6 +313,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     lastShiftType: null,
     exitBlockedStreak: 0,
     lastDamageSource: null,
+    clearedRegions: [],
     eventLog: [],
     isGameOver: false,
     isVictory: false,

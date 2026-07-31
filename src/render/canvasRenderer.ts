@@ -34,6 +34,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   hinge_sovereign: { glyph: 'Q', color: '#ffd166', label: 'Hinge Sovereign' },
   rift_regent: { glyph: 'M', color: '#9d4edd', label: 'Rift Regent' },
   cinder_gatekeeper: { glyph: 'C', color: '#e09f3e', label: 'Cinder Gatekeeper' },
+  prism_refractor: { glyph: 'P', color: '#b8c0ff', label: 'Prism Refractor' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
@@ -219,7 +220,7 @@ export function renderFrame(
     // Staggered enemies are dimmed rather than lowercased — the glyph's letter
     // now identifies the species, so case is no longer free to carry state.
     ctx.globalAlpha = enemy.staggeredTurns > 0 ? 0.45 : 1;
-    drawGlyph(ctx, enemy.isBoss ? '!' : style.glyph, enemy.isBoss ? '#ffffff' : style.color, px, py);
+    drawGlyph(ctx, enemy.isBoss ? style.glyph.toUpperCase() : style.glyph, enemy.isBoss ? '#ffffff' : style.color, px, py);
 
     // HP pip under the glyph.
     const ratio = enemy.hp / enemy.maxHp;

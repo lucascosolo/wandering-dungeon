@@ -763,6 +763,29 @@ describe('Run configuration', () => {
     expect(state.entities[0].bossCooldown).toBe(4);
   });
 
+  it('makes the Prism Refractor mark a visible tile from the pending shift', () => {
+    const state = createNewGame('prism-refractor', createRunConfig('extreme', 'standard'));
+    buildFloor(state, new SeededRNG('prism-refractor-rng'), 20);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    const target = { x: state.player.position.x, y: state.player.position.y + 1 };
+    state.floorMap.visible[target.y][target.x] = true;
+    state.pendingShift = {
+      ...pendingShift(),
+      changes: [{ x: target.x, y: target.y, to: 'floor', shiftGroupId: 'arena_1' }],
+    };
+    state.shiftCountdown = 2;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.entities[0].bossTarget).toEqual(target);
+    state.player.position = target;
+    const hp = state.player.hp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBeLessThan(hp);
+    expect(state.entities[0].bossCooldown).toBe(4);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);

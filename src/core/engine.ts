@@ -317,6 +317,43 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.enemyType === 'prism_refractor' && enemy.bossTarget) {
+      const marked =
+        enemy.bossTarget.x === state.player.position.x &&
+        enemy.bossTarget.y === state.player.position.y;
+      if (marked) {
+        damagePlayer(state, 6, events, enemy.name);
+        events.push(`${enemy.name} fractures the marked tile into a spray of glass.`);
+      } else {
+        events.push(`${enemy.name}'s refracted fault misses as you move.`);
+      }
+      enemy.bossTarget = undefined;
+      enemy.bossCooldown = 4;
+      continue;
+    }
+
+    if (enemy.enemyType === 'prism_refractor' && enemy.bossCooldown === 0 && state.pendingShift && state.shiftCountdown === 2) {
+      const candidates = state.pendingShift.changes
+        .filter(change =>
+          change.x >= 0 && change.x < state.floorMap.width &&
+          change.y >= 0 && change.y < state.floorMap.height &&
+          state.floorMap.visible[change.y][change.x] &&
+          isWalkableAt(state, { x: change.x, y: change.y }) &&
+          !(change.x === state.player.position.x && change.y === state.player.position.y) &&
+          !(change.x === enemy.position.x && change.y === enemy.position.y)
+        )
+        .sort((a, b) =>
+          Math.abs(a.x - state.player.position.x) + Math.abs(a.y - state.player.position.y) -
+          (Math.abs(b.x - state.player.position.x) + Math.abs(b.y - state.player.position.y))
+        );
+      const target = candidates[0];
+      if (target) {
+        enemy.bossTarget = { x: target.x, y: target.y };
+        events.push(`${enemy.name} refracts the coming shift around a glass-marked tile.`);
+        continue;
+      }
+    }
+
     if (
       enemy.enemyType === 'rift_regent' &&
       enemy.bossCooldown === 0 &&

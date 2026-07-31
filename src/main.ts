@@ -1,10 +1,12 @@
 import { createNewGame } from './core/game';
 import { dispatchAction, GameAction } from './core/engine';
 import { FloorMap, GameState, Position } from './core/state';
+import type { HudElements } from './ui/hud';
 import { findPath } from './core/map/pathfinding';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
+import { showTitleScreen } from './ui/titleScreen';
 import {
   healthPotions,
   hotbarItems,
@@ -18,17 +20,17 @@ import {
 } from './ui/hud';
 import { RunRecorder } from './telemetry/runLog';
 
-const root = document.getElementById('app');
-if (!root) throw new Error('#app container missing');
-
-const ui = mountUI(root, useItem);
-const ctx = ui.canvas.getContext('2d');
-if (!ctx) throw new Error('2D canvas context unavailable');
-
 const particles = new ParticleSystem();
 
-let state: GameState = createNewGame(readSeed());
-let recorder = new RunRecorder(state);
+/**
+ * Assigned by `bootGameShell` on the first run and reused by every run after.
+ * Nothing that reads them can run before a run exists — the title screen is the
+ * only thing on screen until then.
+ */
+let ui!: HudElements;
+let ctx!: CanvasRenderingContext2D;
+let state!: GameState;
+let recorder!: RunRecorder;
 let viewWidth = 0;
 let viewHeight = 0;
 
@@ -40,12 +42,14 @@ let viewHeight = 0;
  */
 let dirty = true;
 
+function randomSeed(): string {
+  return Math.floor(Math.random() * 1e9).toString(36);
+}
+
 /** Seed comes from ?seed= so a run can be shared or replayed exactly. */
 function readSeed(): string {
   const fromUrl = new URLSearchParams(window.location.search).get('seed');
-  return fromUrl && fromUrl.length > 0
-    ? fromUrl
-    : Math.floor(Math.random() * 1e9).toString(36);
+  return fromUrl && fromUrl.length > 0 ? fromUrl : randomSeed();
 }
 
 function resizeCanvas(): void {
@@ -116,7 +120,7 @@ function act(action: GameAction): void {
   }
 
   if (state.isGameOver) {
-    showEndModal(ui, state, restart);
+    showEndModal(ui, state, restart, returnToTitle);
   }
 }
 
@@ -229,63 +233,100 @@ function toggleInventory(): void {
 }
 
 function restart(): void {
-  // Close the old run's log before the state it describes is thrown away.
+  startRun(randomSeed());
+}
+
+function returnToTitle(): void {
+  // Close the abandoned run's log before its state is left behind.
   recorder.flush();
   stopTravel();
-  state = createNewGame(Math.floor(Math.random() * 1e9).toString(36));
+  showTitleScreen({ onNewGame: restart });
+}
+
+/**
+ * Wipe the shell back to a fresh run. Everything a run owns is replaced here, so
+ * a second run cannot inherit a modal, a queued walk, or the previous log.
+ */
+function startRun(seed: string): void {
+  if (!booted) bootGameShell();
+
+  stopTravel();
+  state = createNewGame(seed);
   recorder = new RunRecorder(state);
   particles.clear();
   dirty = true;
   ui.modal.classList.add('hidden');
   ui.armorModal.classList.add('hidden');
   closeInventory();
+  resizeCanvas();
   updateHud(ui, state);
   renderLog(ui, state);
   renderHotbar(ui, state);
 }
 
-attachControls(ui.canvas, {
-  move: (dx, dy) => act({ type: 'MOVE', dx, dy }),
-  wait: () => act({ type: 'WAIT' }),
-  ability: () => act({ type: 'ABILITY' }),
-  descend: () => act({ type: 'DESCEND' }),
-  toggleInventory,
-  usePotion,
-  useHotbarSlot: (slot) => {
-    const item = hotbarItems(state)[slot - 1];
-    if (item) useItem(item.id);
-  },
-  tapTile: (px, py) => {
-    const { offsetX, offsetY } = computeCamera(state, viewWidth, viewHeight);
-    const tileX = Math.floor((px - offsetX) / TILE_SIZE);
-    const tileY = Math.floor((py - offsetY) / TILE_SIZE);
-    const dx = tileX - state.player.position.x;
-    const dy = tileY - state.player.position.y;
+let booted = false;
 
-    // Adjacent is a single MOVE so it also swings at whatever is standing there;
-    // anything further is a walk along the shortest known route.
-    if (Math.abs(dx) + Math.abs(dy) === 1) act({ type: 'MOVE', dx, dy });
-    else travelTo({ x: tileX, y: tileY });
-  },
-});
+/**
+ * The DOM, listeners, and render loop a run needs — built once on the first New
+ * Game and reused by every run after, since none of it depends on which run is
+ * being played.
+ */
+function bootGameShell(): void {
+  booted = true;
 
-root.querySelector('#btn-wait')!.addEventListener('click', () => act({ type: 'WAIT' }));
-root.querySelector('#btn-ability')!.addEventListener('click', () => act({ type: 'ABILITY' }));
-root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
-root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
-ui.potionBtn.addEventListener('click', usePotion);
-root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
+  const root = document.getElementById('app');
+  if (!root) throw new Error('#app container missing');
 
-// The viewport is flex-sized, so its box is only known after layout — observe it
-// rather than measuring once at startup.
-new ResizeObserver(resizeCanvas).observe(ui.canvas.parentElement!);
+  ui = mountUI(root, useItem);
+  const context = ui.canvas.getContext('2d');
+  if (!context) throw new Error('2D canvas context unavailable');
+  ctx = context;
 
-// An abandoned run is data too, so push it before the page goes away. pagehide
-// fires on mobile backgrounding where unload does not.
-window.addEventListener('pagehide', () => recorder.flush(true));
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') recorder.flush(true);
-});
+  attachControls(ui.canvas, {
+    move: (dx, dy) => act({ type: 'MOVE', dx, dy }),
+    wait: () => act({ type: 'WAIT' }),
+    ability: () => act({ type: 'ABILITY' }),
+    descend: () => act({ type: 'DESCEND' }),
+    toggleInventory,
+    usePotion,
+    useHotbarSlot: (slot) => {
+      const item = hotbarItems(state)[slot - 1];
+      if (item) useItem(item.id);
+    },
+    tapTile: (px, py) => {
+      const { offsetX, offsetY } = computeCamera(state, viewWidth, viewHeight);
+      const tileX = Math.floor((px - offsetX) / TILE_SIZE);
+      const tileY = Math.floor((py - offsetY) / TILE_SIZE);
+      const dx = tileX - state.player.position.x;
+      const dy = tileY - state.player.position.y;
+
+      // Adjacent is a single MOVE so it also swings at whatever is standing there;
+      // anything further is a walk along the shortest known route.
+      if (Math.abs(dx) + Math.abs(dy) === 1) act({ type: 'MOVE', dx, dy });
+      else travelTo({ x: tileX, y: tileY });
+    },
+  });
+
+  root.querySelector('#btn-wait')!.addEventListener('click', () => act({ type: 'WAIT' }));
+  root.querySelector('#btn-ability')!.addEventListener('click', () => act({ type: 'ABILITY' }));
+  root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
+  root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
+  ui.potionBtn.addEventListener('click', usePotion);
+  root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
+
+  // The viewport is flex-sized, so its box is only known after layout — observe it
+  // rather than measuring once at startup.
+  new ResizeObserver(resizeCanvas).observe(ui.canvas.parentElement!);
+
+  // An abandoned run is data too, so push it before the page goes away. pagehide
+  // fires on mobile backgrounding where unload does not.
+  window.addEventListener('pagehide', () => recorder.flush(true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') recorder.flush(true);
+  });
+
+  requestAnimationFrame(loop);
+}
 
 let lastFrame = performance.now();
 
@@ -299,15 +340,11 @@ function loop(now: number): void {
   }
 
   if (dirty) {
-    renderFrame(ctx!, state, viewWidth, viewHeight, particles);
+    renderFrame(ctx, state, viewWidth, viewHeight, particles);
     dirty = false;
   }
 
   requestAnimationFrame(loop);
 }
 
-resizeCanvas();
-updateHud(ui, state);
-renderLog(ui, state);
-renderHotbar(ui, state);
-requestAnimationFrame(loop);
+showTitleScreen({ onNewGame: () => startRun(readSeed()) });

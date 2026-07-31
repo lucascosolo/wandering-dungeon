@@ -283,7 +283,12 @@ export function showArmorOffer(
   ui.armorModal.querySelector('#btn-armor-decline')!.addEventListener('click', () => onDecide(false));
 }
 
-export function showEndModal(ui: HudElements, state: GameState, onRestart: () => void): void {
+export function showEndModal(
+  ui: HudElements,
+  state: GameState,
+  onRestart: () => void,
+  onMainMenu: () => void
+): void {
   const won = state.isVictory;
   const cause = state.lastDamageSource;
   const causeLine =
@@ -299,10 +304,14 @@ export function showEndModal(ui: HudElements, state: GameState, onRestart: () =>
       ${causeLine ? `<p class="modal__cause">${escapeHtml(causeLine)}</p>` : ''}
       <p class="modal__stats">Floor ${state.floorMap.level} &middot; ${state.turnCount} turns</p>
       <p class="modal__seed">seed: ${escapeHtml(state.seed)}</p>
-      <button class="action-btn" id="btn-restart" type="button">New Run</button>
+      <div class="modal__actions">
+        <button class="action-btn" id="btn-main-menu" type="button">Main Menu</button>
+        <button class="action-btn" id="btn-restart" type="button">New Run</button>
+      </div>
     </div>
   `;
   ui.modal.querySelector<HTMLButtonElement>('#btn-restart')!.addEventListener('click', onRestart);
+  ui.modal.querySelector<HTMLButtonElement>('#btn-main-menu')!.addEventListener('click', onMainMenu);
 }
 
 function escapeHtml(text: string): string {

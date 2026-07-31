@@ -617,3 +617,108 @@ html, body {
 .modal__card .action-btn { height: 44px; margin-top: 8px; }
 
 .hidden { display: none !important; }
+
+/* Sits on `body`, not `#app` — `mountUI` replaces `#app`'s contents wholesale,
+   so a title screen nested inside it would not survive the first New Game. */
+.title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-area-top) + 24px) 24px calc(var(--safe-area-bottom) + 24px);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(157, 78, 221, 0.18), transparent 60%),
+    var(--bg-main);
+}
+
+.title-screen__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.title-screen__mark {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  letter-spacing: 0.22em;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 18px var(--accent-cyan-glow);
+}
+
+.title-screen__name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.title-screen__tagline {
+  margin: 0 0 22px;
+  font-size: 0.78rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.title-screen__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.title-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.title-btn small {
+  margin-top: 2px;
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.title-btn:hover:not(:disabled),
+.title-btn:active:not(:disabled) {
+  background: var(--accent-cyan-glow);
+  border-color: var(--border-glow);
+}
+
+.title-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.title-btn--primary {
+  background: var(--accent-cyan-glow);
+  border-color: var(--border-glow);
+  color: var(--accent-cyan);
+}
+
+.modal__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.modal__actions .action-btn { height: 44px; margin-top: 0; }

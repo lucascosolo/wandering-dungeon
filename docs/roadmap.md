@@ -126,13 +126,16 @@ Five enemy species exist and all unlock by floor 4; there are three shift types.
 Stretched over 25 floors with no additions, a longer run is the same fight for
 five times as long. This phase is the bulk of the work, not a polish pass.
 
-### 4a. Per-region enemy species
+### ~~4a. Per-region enemy species~~ — shipped
 
-Each region gets its own species drawn from a region-scoped pool rather than one
-global table gated by `minLevel`.
+Each region gets two exclusive species drawn from a region-scoped pool. The
+roster now has a distinct tactical identity per region: telegraph bracing and
+ambushes in the Shifting Halls, exit pursuit in the Fracture Deeps, stasis and
+sealing pressure in the Ashen Warrens, route refraction in the Glass Expanse,
+and shift-type-specific hunters in the Unmaking.
 
-Done when: regions share no species by default and each has at least two of its
-own.
+Done: regions share no species and each has two of its own. The shared legacy
+pool remains in the data table only as a migration fallback for future content.
 
 Depends on 3a, 3b. Files: `src/core/game.ts`, `src/core/regions.ts`,
 `src/core/state.ts`. Scope: M.

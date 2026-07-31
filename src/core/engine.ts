@@ -12,6 +12,7 @@ import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
 import { buildFloor, coinsPerKill, createItem } from './game';
 import { isRegionEnd, regionForFloor } from './regions';
+import { createShop, resolvePurchase } from './shop';
 
 export type GameAction =
   | { type: 'MOVE'; dx: number; dy: number }
@@ -21,6 +22,7 @@ export type GameAction =
   | { type: 'DESCEND' }
   | { type: 'EQUIP_ARMOR' }
   | { type: 'DECLINE_ARMOR' }
+  | { type: 'BUY_ITEM'; offerId: string }
   | { type: 'INSPECT_TILE'; x: number; y: number };
 
 export interface DispatchResult {
@@ -43,7 +45,10 @@ function consumesTurn(action: GameAction): boolean {
   return (
     action.type !== 'INSPECT_TILE' &&
     action.type !== 'EQUIP_ARMOR' &&
-    action.type !== 'DECLINE_ARMOR'
+    action.type !== 'DECLINE_ARMOR' &&
+    // Trading is free. Charging a turn would let the dungeon shift the arena
+    // apart while the player reads a price list.
+    action.type !== 'BUY_ITEM'
   );
 }
 
@@ -264,7 +269,29 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
   return true;
 }
 
-function awardBossDefeats(state: GameState, events: string[]): void {
+/**
+ * Spend coins on a stocked offer. The shop module decides whether the trade is
+ * legal; the write to `GameState` stays here, so there remains exactly one place
+ * the player's purse and inventory change.
+ */
+function buyFromShop(state: GameState, offerId: string, events: string[]): void {
+  const shop = state.shop;
+  if (!shop) {
+    events.push('There is no one here to trade with.');
+    return;
+  }
+
+  const result = resolvePurchase(shop, offerId, state.player.coins);
+  events.push(result.message);
+  if (!result.ok || !result.item) return;
+
+  const offer = shop.stock.find(entry => entry.id === offerId)!;
+  offer.sold = true;
+  state.player.coins -= offer.price;
+  state.player.inventory.push(result.item);
+}
+
+function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): void {
   const defeatedBosses = state.entities.filter(enemy => enemy.isBoss && enemy.hp <= 0);
   if (defeatedBosses.length === 0) return;
 
@@ -273,6 +300,9 @@ function awardBossDefeats(state: GameState, events: string[]): void {
   if (clearedRegions.includes(region.index)) return;
 
   clearedRegions.push(region.index);
+  // The merchant arrives with the region's fall, and is rolled exactly once —
+  // see ShopState. Reopening the modal must never reroll the stock.
+  state.shop = createShop(rng, region.index, state.floorMap.level);
   const reward = createItem('hourglass_shard', `boss_reward_${state.floorMap.level}`);
   state.player.inventory.push(reward);
   events.push(`${defeatedBosses[0].name} falls. ${region.name} is cleared; you claim a ${reward.name}.`);
@@ -622,7 +652,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     }
     case 'DESCEND': {
       const before = state.floorMap.level;
-      awardBossDefeats(state, events);
+      awardBossDefeats(state, rng, events);
       spentTurn = descend(state, rng, events);
       // A successful descent replaces the world; the old floor gets no response turn.
       changedFloor = state.floorMap.level !== before;
@@ -634,6 +664,9 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     case 'DECLINE_ARMOR':
       state.pendingArmorOffer = null;
       break;
+    case 'BUY_ITEM':
+      buyFromShop(state, action.offerId, events);
+      break;
     case 'INSPECT_TILE': {
       const { x, y } = action;
       const inBounds = x >= 0 && x < state.floorMap.width && y >= 0 && y < state.floorMap.height;
@@ -643,11 +676,11 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   }
 
   if (consumesTurn(action) && spentTurn && !state.isGameOver && !changedFloor) {
-    awardBossDefeats(state, events);
+    awardBossDefeats(state, rng, events);
     state.entities = state.entities.filter(e => e.hp > 0);
     enemyTurns(state, rng, events);
     advanceClock(state, rng, events);
-    awardBossDefeats(state, events);
+    awardBossDefeats(state, rng, events);
     state.entities = state.entities.filter(e => e.hp > 0);
   }
 

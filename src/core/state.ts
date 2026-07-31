@@ -122,7 +122,9 @@ export type EnemyType =
   | 'fracture_leech'
   | 'riftbound'
   | 'ashlock'
-  | 'stasis_scorcher';
+  | 'stasis_scorcher'
+  | 'facet_reaver'
+  | 'glass_moth';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

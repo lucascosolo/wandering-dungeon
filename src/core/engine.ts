@@ -258,11 +258,15 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
     }
 
     if (enemy.enemyType === 'fracture_leech' && !state.pendingShift) continue;
+    if (enemy.enemyType === 'glass_moth' && !state.pendingShift) continue;
     if (enemy.enemyType === 'hinge_warden' && state.pendingShift) continue;
 
     let target = state.player.position;
     let aggroRadius = ENEMY_AGGRO_RADIUS;
-    if (enemy.enemyType === 'ashlock' && state.pendingShift?.blocksExit) {
+    if (enemy.enemyType === 'facet_reaver' && state.pendingShift) {
+      target = state.floorMap.exit;
+      aggroRadius = Infinity;
+    } else if (enemy.enemyType === 'ashlock' && state.pendingShift?.blocksExit) {
       target = state.floorMap.exit;
       aggroRadius = Infinity;
     } else if (enemy.enemyType === 'riftbound') {
@@ -274,6 +278,8 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       aggroRadius = 12;
     } else if (enemy.enemyType === 'stasis_scorcher') {
       aggroRadius = state.isStasisActive ? 9 : 5;
+    } else if (enemy.enemyType === 'glass_moth') {
+      aggroRadius = 10;
     }
     if (dist > aggroRadius) continue;
 

@@ -52,6 +52,32 @@ function enemyWithExitPath(state: ReturnType<typeof createMockGameState>) {
   throw new Error('no walkable tile with a route to the exit');
 }
 
+function enemyWithDivergingPaths(state: ReturnType<typeof createMockGameState>) {
+  const { player, floorMap } = state;
+  for (let y = 0; y < floorMap.height; y++) {
+    for (let x = 0; x < floorMap.width; x++) {
+      const position = { x, y };
+      const tile = floorMap.tiles[y][x].type;
+      const playerPath = findPath(floorMap, position, player.position);
+      const exitPath = findPath(floorMap, position, floorMap.exit);
+      const distanceToPlayer = Math.abs(x - player.position.x) + Math.abs(y - player.position.y);
+      if (
+        (tile === 'floor' || tile === 'door') &&
+        distanceToPlayer > 1 &&
+        distanceToPlayer <= 8 &&
+        playerPath &&
+        playerPath.length > 1 &&
+        exitPath &&
+        exitPath.length > 1 &&
+        (playerPath[1].x !== exitPath[1].x || playerPath[1].y !== exitPath[1].y)
+      ) {
+        return { position, playerStep: playerPath[1], exitStep: exitPath[1] };
+      }
+    }
+  }
+  throw new Error('no tile with diverging player and exit paths');
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -281,6 +307,67 @@ describe('Turn Engine & Items', () => {
     dispatchAction(state, { type: 'WAIT' });
 
     expect(enemy.position).not.toEqual(before);
+  });
+
+  it('lets a Facet Reaver pursue the player on stable geometry', () => {
+    const state = createMockGameState();
+    const route = enemyWithDivergingPaths(state);
+    const enemy = createMockEnemy(route.position, 'facet_reaver');
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(route.playerStep);
+  });
+
+  it('redirects a Facet Reaver to the exit during a telegraph', () => {
+    const state = createMockGameState();
+    const route = enemyWithDivergingPaths(state);
+    const enemy = createMockEnemy(route.position, 'facet_reaver');
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(route.exitStep);
+  });
+
+  it('keeps a Glass Moth dormant until a shift is telegraphed', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'glass_moth');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('lets a Glass Moth pursue during a telegraph', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'glass_moth');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+  });
+
+  it('keeps a Glass Moth outside its telegraph aggro range', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 11), 'glass_moth');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift();
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
   });
 });
 

@@ -36,6 +36,7 @@ const LEGACY_ENEMY_POOL: readonly EnemyType[] = [
 const SHIFTING_HALLS_POOL: readonly EnemyType[] = ['hinge_warden', 'seam_skitter'];
 const FRACTURE_DEEPS_POOL: readonly EnemyType[] = ['fracture_leech', 'riftbound'];
 const ASHEN_WARRENS_POOL: readonly EnemyType[] = ['ashlock', 'stasis_scorcher'];
+const GLASS_EXPANSE_POOL: readonly EnemyType[] = ['facet_reaver', 'glass_moth'];
 
 /**
  * Five names because the longest run is 25 floors. Shorter runs use the first
@@ -73,7 +74,7 @@ export const REGIONS: Region[] = [
     enemyCount: 7,
     hpMultiplier: 1.45,
     attackBonus: 3,
-    enemyPool: LEGACY_ENEMY_POOL,
+    enemyPool: GLASS_EXPANSE_POOL,
   },
   {
     index: 4,

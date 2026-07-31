@@ -79,6 +79,7 @@ export type ItemType =
   | 'haste_sigil'
   | 'rewind_scroll'
   | 'health_potion'
+  | 'coin_cache'
   | ArmorType;
 
 export type ArmorType = 'padded_vest' | 'scrap_plating' | 'warden_carapace';
@@ -88,9 +89,14 @@ export interface Item {
   type: ItemType;
   name: string;
   description: string;
-  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor';
+  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor' | 'currency';
   /** Flat damage soaked per hit. Armor only — see damagePlayer. */
   defense?: number;
+  /**
+   * Coins in the cache. Currency only: it is spent into `player.coins` on pickup
+   * and never enters the inventory, so it can never be "used" as a consumable.
+   */
+  value?: number;
 }
 
 export interface Entity {
@@ -109,6 +115,8 @@ export interface Player extends Entity {
   /** Worn armor. Kept out of `inventory` so it can never be "used" as a consumable. */
   armor: Item | null;
   inventory: Item[];
+  /** Spending money for the post-boss merchant. Carries across floors. */
+  coins: number;
 }
 
 export type EnemyType =

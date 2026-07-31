@@ -10,7 +10,7 @@ import {
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
-import { buildFloor, createItem } from './game';
+import { buildFloor, coinsPerKill, createItem } from './game';
 import { isRegionEnd, regionForFloor } from './regions';
 
 export type GameAction =
@@ -112,7 +112,13 @@ function attack(
     target.hp = Math.max(0, target.hp - dealt);
     events.push(`${attackerName} hits ${target.name} for ${dealt} damage.`);
     if (target.hp <= 0) {
-      events.push(`${target.name} is destroyed.`);
+      // Only the player ever has an enemy as a target, so a kill here is always
+      // theirs. Paid straight to the purse rather than dropped: a coin pile the
+      // next shift buries would tax the player for fighting where the geometry
+      // was about to move.
+      const bounty = coinsPerKill(regionForFloor(state.floorMap.level).index, target.isBoss === true);
+      state.player.coins += bounty;
+      events.push(`${target.name} is destroyed. You collect ${bounty} coins.`);
     }
   } else {
     events.push(`${attackerName} strikes you.`);
@@ -151,6 +157,12 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         drops.splice(index, 1);
         state.player.armor = drop.item;
         events.push(`You strap on the ${drop.item.name}.`);
+      } else if (drop.item.category === 'currency') {
+        // Currency never enters the inventory — it is a number on the player, so
+        // it cannot be "used", dropped, or take up a hotbar slot.
+        drops.splice(index, 1);
+        state.player.coins += drop.item.value ?? 0;
+        events.push(`You pocket ${drop.item.value ?? 0} coins.`);
       } else {
         drops.splice(index, 1);
         state.player.inventory.push(drop.item);

@@ -79,6 +79,13 @@ const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
     description: 'Restores 30 HP.',
     category: 'consumable',
   },
+  coin_cache: {
+    type: 'coin_cache',
+    name: 'Coins',
+    description: 'Spending money for the merchant beyond the next boss.',
+    category: 'currency',
+    value: 0,
+  },
   padded_vest: {
     type: 'padded_vest',
     name: 'Padded Vest',
@@ -128,6 +135,25 @@ const LOOT_POOL: ItemType[] = [
 
 export function createItem(type: ItemType, id: string): Item {
   return { id, ...ITEM_TABLE[type] };
+}
+
+/** A coin pile worth `value`. The amount is per-pile, so it cannot live in ITEM_TABLE. */
+export function createCoinCache(value: number, id: string): Item {
+  return { ...createItem('coin_cache', id), value, name: `${value} Coins` };
+}
+
+/**
+ * Coin income scales with the region so a later shop is not priced out of reach
+ * of the floors that feed it. 6c prices stock against what this actually pays.
+ */
+export function coinsForRegion(regionIndex: number, rng: SeededRNG): number {
+  return 8 + regionIndex * 4 + rng.randomInt(0, 5);
+}
+
+/** What one kill pays. Deliberately small — floors are the main income. */
+export function coinsPerKill(regionIndex: number, isBoss: boolean): number {
+  const base = 2 + regionIndex;
+  return isBoss ? base * 10 : base;
 }
 
 /** All walkable tiles, used as the spawn candidate pool. */
@@ -238,6 +264,16 @@ export function populateFloor(
     drops.push({ item: createItem(type, `drop_${level}_${i}`), position });
   }
 
+  const cacheCount = 2 + rng.randomInt(0, 1);
+  for (let i = 0; i < cacheCount; i++) {
+    const position = take();
+    if (!position) break;
+    drops.push({
+      item: createCoinCache(coinsForRegion(region.index, rng), `coins_${level}_${i}`),
+      position,
+    });
+  }
+
   const armorPosition = take();
   if (armorPosition) {
     drops.push({
@@ -285,6 +321,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     shieldHp: 0,
     shieldTurnsRemaining: 0,
     armor: null,
+    coins: 0,
     inventory: [
       createItem('health_potion', 'start_potion'),
       createItem('stasis_flask', 'start_stasis'),

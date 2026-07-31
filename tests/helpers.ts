@@ -22,6 +22,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     shieldHp: 0,
     shieldTurnsRemaining: 0,
     armor: null,
+    coins: 0,
     inventory: [
       {
         id: 'stasis_1',

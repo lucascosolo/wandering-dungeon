@@ -99,6 +99,26 @@ export interface Item {
   value?: number;
 }
 
+export interface ShopOffer {
+  id: string;
+  item: Item;
+  price: number;
+  sold: boolean;
+}
+
+/**
+ * The merchant that arrives when a region's boss falls. Rolled once and stored,
+ * so closing and reopening cannot reroll the stock, and it rides the save with
+ * the rest of the state.
+ */
+export interface ShopState {
+  regionIndex: number;
+  /** The boss floor it belongs to. Descending past it retires the merchant. */
+  floor: number;
+  merchant: string;
+  stock: ShopOffer[];
+}
+
 export interface Entity {
   id: string;
   name: string;
@@ -223,6 +243,8 @@ export interface GameState {
   lastDamageSource: string | null;
   /** Regions whose boss reward has already been claimed. */
   clearedRegions: number[];
+  /** The merchant on this boss floor, or null when there is none to trade with. */
+  shop: ShopState | null;
   eventLog: LogMessage[];
   isGameOver: boolean;
   isVictory: boolean;

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createNewGame } from '../src/core/game';
 import { dispatchAction } from '../src/core/engine';
 import { createRunConfig } from '../src/core/runConfig';
+import { createShop } from '../src/core/shop';
+import { SeededRNG } from '../src/core/rng';
 import { decodeRun, encodeRun, SAVE_VERSION } from '../src/core/save';
 import { GameState } from '../src/core/state';
 
@@ -70,6 +72,16 @@ describe('Run persistence', () => {
     // a region's worth of income.
     expect(restored.player.coins).toBe(137);
     expect(restored.floorMap.drops).toEqual(state.floorMap.drops);
+  });
+
+  it('brings the merchant back with the same stock', () => {
+    const state = playedRun('save-shop', 5);
+    state.shop = createShop(new SeededRNG('save-shop-stock'), 2, 15);
+
+    const restored = roundTrip(state)!;
+
+    // Rerolling on resume would let a player close the tab until the stock suited them.
+    expect(restored.shop).toEqual(state.shop);
   });
 
   it('survives a shift, which is the state most likely to diverge', () => {

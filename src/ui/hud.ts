@@ -39,8 +39,10 @@ export interface HudElements {
   potionCount: HTMLElement;
   armorChip: HTMLElement;
   armorName: HTMLElement;
+  coinChip: HTMLButtonElement;
   coinCount: HTMLElement;
   armorModal: HTMLElement;
+  shopModal: HTMLElement;
   logPanel: HTMLElement;
   hotbar: HTMLElement;
   inventorySheet: HTMLElement;
@@ -109,10 +111,10 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
         <span class="armor-chip__name" id="armor-name">Unarmoured</span>
       </div>
 
-      <div class="coin-chip" id="coin-chip">
+      <button class="coin-chip" id="coin-chip" type="button" disabled>
         <span class="coin-chip__glyph">$</span>
         <span class="coin-chip__count" id="coin-count">0</span>
-      </div>
+      </button>
     </div>
 
     <div class="hotbar" id="hotbar"></div>
@@ -130,6 +132,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </div>
 
     <div class="modal hidden" id="armor-modal"></div>
+    <div class="modal hidden" id="shop-modal"></div>
     <div class="modal hidden" id="modal"></div>
   `;
 
@@ -157,8 +160,10 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     potionCount: byId('potion-count'),
     armorChip: byId('armor-chip'),
     armorName: byId('armor-name'),
+    coinChip: byId<HTMLButtonElement>('coin-chip'),
     coinCount: byId('coin-count'),
     armorModal: byId('armor-modal'),
+    shopModal: byId('shop-modal'),
     logPanel: byId('log-panel'),
     hotbar: byId('hotbar'),
     inventorySheet: byId('inventory-sheet'),
@@ -203,6 +208,10 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.shieldFill.style.width = `${Math.min(100, (player.shieldHp / player.maxHp) * 100)}%`;
 
   ui.coinCount.textContent = String(player.coins);
+  // Doubles as the way back into the merchant's stock, so a modal closed by
+  // accident does not cost the player the shop.
+  ui.coinChip.disabled = state.shop === null;
+  ui.coinChip.classList.toggle('coin-chip--merchant', state.shop !== null);
 
   const potions = healthPotions(state).length;
   ui.potionCount.textContent = String(potions);
@@ -310,6 +319,54 @@ export function showArmorOffer(
   `;
   ui.armorModal.querySelector('#btn-armor-equip')!.addEventListener('click', () => onDecide(true));
   ui.armorModal.querySelector('#btn-armor-decline')!.addEventListener('click', () => onDecide(false));
+}
+
+/**
+ * The merchant's stock. Rebuilt from state after every purchase rather than
+ * patched in place, so what is on screen is always the stored stock — the same
+ * list a save/resume would bring back.
+ */
+export function showShop(
+  ui: HudElements,
+  state: GameState,
+  onBuy: (offerId: string) => void,
+  onClose: () => void
+): void {
+  const shop = state.shop!;
+  const { coins } = state.player;
+
+  const rows = shop.stock
+    .map(offer => {
+      const affordable = coins >= offer.price;
+      const label = offer.sold ? 'Sold' : `$${offer.price}`;
+      return `
+      <button class="shop-row" type="button" data-offer-id="${offer.id}"
+              ${offer.sold || !affordable ? 'disabled' : ''}>
+        <span class="shop-row__name">${escapeHtml(offer.item.name)}</span>
+        <span class="shop-row__desc">${escapeHtml(offer.item.description)}</span>
+        <span class="shop-row__price${offer.sold ? ' shop-row__price--sold' : ''}">${label}</span>
+      </button>`;
+    })
+    .join('');
+
+  ui.shopModal.classList.remove('hidden');
+  ui.shopModal.innerHTML = `
+    <div class="modal__card glass-panel">
+      <h2>${escapeHtml(shop.merchant)}</h2>
+      <p class="modal__stats">Your purse: <span class="shop-purse">$${coins}</span></p>
+      <div class="shop-list">${rows}</div>
+      <p class="modal__seed">the merchant stays until you descend</p>
+      <div class="modal__actions">
+        <button class="action-btn" id="btn-shop-close" type="button">Leave</button>
+      </div>
+    </div>
+  `;
+
+  ui.shopModal.querySelector('.shop-list')!.addEventListener('click', e => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-offer-id]');
+    if (row?.dataset.offerId) onBuy(row.dataset.offerId);
+  });
+  ui.shopModal.querySelector('#btn-shop-close')!.addEventListener('click', onClose);
 }
 
 export function showEndModal(

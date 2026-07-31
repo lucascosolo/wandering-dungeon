@@ -19,6 +19,7 @@ import {
   renderLog,
   showArmorOffer,
   showEndModal,
+  showShop,
   updateHud,
 } from './ui/hud';
 import { RunRecorder } from './telemetry/runLog';
@@ -124,6 +125,13 @@ function act(action: GameAction): void {
     showArmorOffer(ui, state, resolveArmorOffer);
   }
 
+  // The boss falling is the only thing that opens the shop unprompted; after
+  // that it is the player's to reopen from the coin chip.
+  if (state.shop && shopGreetedFloor !== state.shop.floor) {
+    shopGreetedFloor = state.shop.floor;
+    openShop();
+  }
+
   // Autosave every turn. Writes on the same key are serialized by IndexedDB in
   // the order they are issued, so the last turn is what lands — including this
   // clear, which must not be overtaken by a save from the turn before it.
@@ -138,6 +146,23 @@ function act(action: GameAction): void {
 function resolveArmorOffer(equip: boolean): void {
   ui.armorModal.classList.add('hidden');
   act({ type: equip ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
+}
+
+/** The floor whose merchant has already introduced themselves. */
+let shopGreetedFloor: number | null = null;
+
+function openShop(): void {
+  if (!state.shop) return;
+  showShop(ui, state, buyOffer, closeShop);
+}
+
+function closeShop(): void {
+  ui.shopModal.classList.add('hidden');
+}
+
+function buyOffer(offerId: string): void {
+  act({ type: 'BUY_ITEM', offerId });
+  openShop();
 }
 
 function useItem(itemId: string): void {
@@ -296,6 +321,9 @@ function enterRun(next: GameState): void {
   dirty = true;
   ui.modal.classList.add('hidden');
   ui.armorModal.classList.add('hidden');
+  // A resumed run's merchant has already been met — reopening is the coin chip's job.
+  shopGreetedFloor = next.shop ? next.shop.floor : null;
+  closeShop();
   closeInventory();
   resizeCanvas();
   updateHud(ui, state);
@@ -351,6 +379,7 @@ function bootGameShell(): void {
   root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
   root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
   ui.potionBtn.addEventListener('click', usePotion);
+  ui.coinChip.addEventListener('click', openShop);
   root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
 
   // The viewport is flex-sized, so its box is only known after layout — observe it

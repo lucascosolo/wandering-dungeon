@@ -9,6 +9,7 @@ import {
   createCoinCache,
   createNewGame,
 } from '../src/core/game';
+import { priceFor } from '../src/core/shop';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
@@ -761,6 +762,84 @@ describe('Coins', () => {
 
     expect(caches.length).toBeGreaterThan(0);
     for (const cache of caches) expect(cache.item.value ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe('Shop', () => {
+  /** A boss floor with its guardian already one blow from death, beside the player. */
+  function atBossDeath(seed: string) {
+    const state = createNewGame(seed, createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG(`${seed}-rng`), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+    boss.hp = 1;
+    dispatchAction(state, { type: 'MOVE', dx: 1, dy: 0 });
+    return state;
+  }
+
+  it('opens a merchant when the region falls', () => {
+    const state = atBossDeath('shop-open');
+
+    expect(state.shop).not.toBeNull();
+    expect(state.shop!.floor).toBe(5);
+    expect(state.shop!.regionIndex).toBe(0);
+    // The run's difficulty valve must never roll shut.
+    expect(state.shop!.stock.some(offer => offer.item.type === 'health_potion')).toBe(true);
+  });
+
+  it('deducts coins and hands over the item', () => {
+    const state = atBossDeath('shop-buy');
+    const offer = state.shop!.stock[0];
+    state.player.coins = offer.price + 5;
+    const carried = state.player.inventory.length;
+
+    dispatchAction(state, { type: 'BUY_ITEM', offerId: offer.id });
+
+    expect(state.player.coins).toBe(5);
+    expect(state.player.inventory).toHaveLength(carried + 1);
+    expect(state.shop!.stock[0].sold).toBe(true);
+  });
+
+  it('refuses a second sale and a purchase beyond the purse', () => {
+    const state = atBossDeath('shop-refuse');
+    const [first, second] = state.shop!.stock;
+    state.player.coins = first.price;
+
+    dispatchAction(state, { type: 'BUY_ITEM', offerId: first.id });
+    const carried = state.player.inventory.length;
+    dispatchAction(state, { type: 'BUY_ITEM', offerId: first.id });
+    dispatchAction(state, { type: 'BUY_ITEM', offerId: second.id });
+
+    expect(state.player.coins).toBe(0);
+    expect(state.player.inventory).toHaveLength(carried);
+  });
+
+  it('does not spend a turn, so the arena cannot shift while browsing', () => {
+    const state = atBossDeath('shop-free');
+    const offer = state.shop!.stock[0];
+    state.player.coins = offer.price;
+    const turn = state.turnCount;
+
+    dispatchAction(state, { type: 'BUY_ITEM', offerId: offer.id });
+
+    expect(state.turnCount).toBe(turn);
+  });
+
+  it('cannot be re-rolled, and retires when the player descends', () => {
+    const state = atBossDeath('shop-stable');
+    const before = state.shop!.stock.map(offer => `${offer.item.type}:${offer.price}`);
+
+    // Closing and reopening the modal only re-reads this stored stock.
+    expect(state.shop!.stock.map(offer => `${offer.item.type}:${offer.price}`)).toEqual(before);
+
+    state.player.position = { ...state.floorMap.exit };
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.shop).toBeNull();
+  });
+
+  it('marks the same stock up in later regions', () => {
+    expect(priceFor('health_potion', 4)).toBeGreaterThan(priceFor('health_potion', 0));
   });
 });
 

@@ -219,7 +219,7 @@ Done when: a boss kill is the only way onward and the payout is visible.
 
 Depends on 5b. Files: `src/core/engine.ts`, `src/ui/hud.ts`. Scope: S.
 
-### 6a. Coins
+### ~~6a. Coins~~ — shipped
 
 A currency that drops from enemies and floors, tracked on `Player`, shown in the
 HUD.
@@ -229,7 +229,7 @@ Done when: coins accumulate across floors and survive save/resume.
 Depends on 2a. Files: `src/core/state.ts`, `src/core/game.ts`,
 `src/ui/hud.ts`. Scope: S.
 
-### 6b. Shop
+### ~~6b. Shop~~ — shipped
 
 A merchant on each boss floor after the kill, selling a rolled stock. This is
 the run's choice point — spend now or save for a better region — and the
@@ -240,6 +240,13 @@ cannot be re-rolled by leaving and returning.
 
 Depends on 5c, 6a. Files: `src/core/shop.ts` (new), `src/ui/`,
 `src/core/engine.ts`. Scope: M.
+
+The merchant is rolled once inside `awardBossDefeats` and stored on `GameState`,
+so closing the modal, reopening it from the coin chip, or resuming a save all
+read the same stock. `BUY_ITEM` is a free action — charging a turn would let the
+arena shift apart while the player read a price list. Stock always leads with a
+Health Potion; the shop is the difficulty valve and a valve that can roll shut
+is not a valve.
 
 ### 6c. Shop pricing pass
 

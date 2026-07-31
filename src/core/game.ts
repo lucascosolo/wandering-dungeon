@@ -296,6 +296,8 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.player.position = { x: map.entrance.x, y: map.entrance.y };
   state.preShiftSnapshot = null;
   state.pendingShift = null;
+  // The merchant belongs to the boss floor. Descending leaves them behind.
+  state.shop = null;
   state.pendingArmorOffer = null;
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
@@ -351,6 +353,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     exitBlockedStreak: 0,
     lastDamageSource: null,
     clearedRegions: [],
+    shop: null,
     eventLog: [],
     isGameOver: false,
     isVictory: false,

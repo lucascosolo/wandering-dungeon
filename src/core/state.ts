@@ -1,3 +1,5 @@
+import { RunConfig } from './runConfig';
+
 export interface Position {
   x: number;
   y: number;
@@ -151,6 +153,8 @@ export interface FloorMap {
 
 export interface GameState {
   seed: string;
+  /** Length and difficulty chosen at the title screen. Fixed for the run. */
+  config: RunConfig;
   rngState: {
     seed: string;
     callCount: number;

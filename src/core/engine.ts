@@ -27,9 +27,6 @@ export interface DispatchResult {
   events: string[];
 }
 
-/** Floor the player must clear to win the MVP run. */
-export const FINAL_FLOOR = 5;
-
 /** Fallout Shield: base absorb is 25% of max HP, +50% when a shift is imminent. */
 const SHIELD_BASE_FRACTION = 0.25;
 const SHIELD_DURATION = 3;
@@ -230,7 +227,7 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
     return false;
   }
 
-  if (floorMap.level >= FINAL_FLOOR) {
+  if (floorMap.level >= state.config.finalFloor) {
     state.isVictory = true;
     state.isGameOver = true;
     events.push('You climb out of the shifting dark. You survived the Wandering Dungeon.');

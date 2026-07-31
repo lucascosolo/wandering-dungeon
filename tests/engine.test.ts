@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { dispatchAction } from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
+import { createNewGame } from '../src/core/game';
+import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { createMockGameState, createMockEnemy } from './helpers';
 
 describe('Turn Engine & Items', () => {
@@ -158,5 +160,63 @@ describe('Armor', () => {
     expect(state.player.armor?.id).toBe('worn');
     expect(state.pendingArmorOffer).toBeNull();
     expect(state.turnCount).toBe(turn);
+  });
+});
+
+describe('Run configuration', () => {
+  it('offers four lengths, each a whole number of five-floor regions', () => {
+    const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
+    expect(floors).toEqual([10, 15, 20, 25]);
+    for (const count of floors) expect(count % 5).toBe(0);
+  });
+
+  it('forces the longest run to brutal and leaves the others free', () => {
+    expect(createRunConfig('extreme', 'gentle').difficulty).toBe('brutal');
+    expect(createRunConfig('long', 'gentle').difficulty).toBe('gentle');
+  });
+
+  it('ends the run on the configured floor, not a hardcoded one', () => {
+    const state = createNewGame('config-victory', createRunConfig('medium', 'standard'));
+    expect(state.config.finalFloor).toBe(15);
+
+    // Standing on the last floor's stairs is the win condition.
+    state.floorMap.level = 15;
+    const { x, y } = state.player.position;
+    state.floorMap.tiles[y][x].type = 'stairs_down';
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.isVictory).toBe(true);
+    expect(state.isGameOver).toBe(true);
+  });
+
+  it('descends past the old five-floor limit on a longer run', () => {
+    const state = createNewGame('config-descend', createRunConfig('medium', 'standard'));
+    state.floorMap.level = 5;
+    const { x, y } = state.player.position;
+    state.floorMap.tiles[y][x].type = 'stairs_down';
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.isVictory).toBe(false);
+    expect(state.floorMap.level).toBe(6);
+  });
+
+  it('scales incoming damage by difficulty at a single choke point', () => {
+    const hits = (difficulty: 'gentle' | 'standard' | 'brutal') => {
+      const state = createMockGameState();
+      state.config = createRunConfig('short', difficulty);
+      damagePlayer(state, 20, []);
+      return 100 - state.player.hp;
+    };
+
+    expect(hits('standard')).toBe(20);
+    expect(hits('gentle')).toBe(14);
+    expect(hits('brutal')).toBe(26);
+  });
+
+  it('never scales damage away entirely', () => {
+    const state = createMockGameState();
+    state.config = createRunConfig('short', 'gentle');
+    damagePlayer(state, 1, []);
+    expect(state.player.hp).toBe(99);
   });
 });

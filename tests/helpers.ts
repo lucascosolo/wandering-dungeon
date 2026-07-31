@@ -1,6 +1,7 @@
 import { GameState, Player, Enemy } from '../src/core/state';
 import { SeededRNG } from '../src/core/rng';
 import { generateFloor } from '../src/core/map/generator';
+import { createRunConfig } from '../src/core/runConfig';
 
 /**
  * Create a minimal mock GameState for testing.
@@ -62,6 +63,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
 
   return {
     seed,
+    config: createRunConfig('short', 'standard'),
     rngState: rng.serialize(),
     turnCount: 0,
     shiftCountdown: 8,

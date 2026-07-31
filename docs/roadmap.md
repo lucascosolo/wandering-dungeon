@@ -35,20 +35,15 @@ Two findings from the current code drive the ordering:
 1c enable them. The end modal gained a Main Menu button, so the title is
 reachable after the first run rather than being a one-time splash.
 
-### 1b. Run configuration
+### ~~1b. Run configuration~~ — shipped
 
-New Game picks length (10/15/20/25) and difficulty. 25 is locked to hard.
-`FINAL_FLOOR` (`src/core/engine.ts:31`) becomes a per-run value on `GameState`;
-the hardcoded "Reach floor 5" opening log line reads from it.
+`src/core/runConfig.ts`. `FINAL_FLOOR` is gone; `state.config.finalFloor` drives
+victory, the opening log line, and the HUD's `1/15` floor readout.
 
-Difficulty is a chosen multiplier, not a rebalance — current numbers become the
-middle tier and an easier tier goes below them, so nothing existing gets nerfed.
-
-Done when: a chosen length ends the run on that floor, difficulty is stored on
-the run, and no floor count is hardcoded outside the config.
-
-Depends on 1a. Files: `src/core/state.ts`, `src/core/game.ts`,
-`src/core/engine.ts`, `src/ui/`. Scope: M.
+Took a slice of 3c early: the difficulty tier is applied as an incoming-damage
+multiplier in `damagePlayer` (gentle 0.7 / standard 1.0 / brutal 1.3), because a
+picker whose choice did nothing would have been a lie. 3c still owns applying
+difficulty to the region curves once 3b exists.
 
 ### 1c. Settings screen with rebindable keys
 

@@ -1,4 +1,5 @@
 import { GameState } from './state';
+import { DIFFICULTIES } from './runConfig';
 
 /**
  * The single path by which the player loses HP, shared by combat and shift
@@ -18,9 +19,13 @@ export function damagePlayer(
   const { player } = state;
   state.lastDamageSource = source;
 
+  // The one place the chosen difficulty is applied. Every source of player HP
+  // loss already funnels through here, so scaling incoming damage covers all of
+  // them without each one needing to know the difficulty exists.
+  let remaining = Math.max(1, Math.round(amount * DIFFICULTIES[state.config.difficulty].damageTaken));
+
   // Armor soaks before the shield so a worn plate is worth something even when
   // the shield is down, but never to zero — no armor makes the player immune.
-  let remaining = amount;
   const defense = player.armor?.defense ?? 0;
   if (defense > 0) {
     const soaked = Math.min(defense, remaining - 1);

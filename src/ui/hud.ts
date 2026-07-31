@@ -159,7 +159,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
 export function updateHud(ui: HudElements, state: GameState): void {
   const { player, floorMap } = state;
 
-  ui.floorLabel.textContent = String(floorMap.level);
+  ui.floorLabel.textContent = `${floorMap.level}/${state.config.finalFloor}`;
   ui.turnLabel.textContent = String(state.turnCount);
 
   if (state.isStasisActive) {

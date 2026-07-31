@@ -58,6 +58,9 @@ export function restorePreShiftSnapshot(state: GameState): void {
     }
   }
 
+  // The snapshot restores tile types, so the stairs move back with them.
+  syncExit(map);
+
   for (const [id, placement] of Object.entries(snapshot.shiftGroupPlacements)) {
     const group = map.shiftGroups[id];
     if (!group) continue;
@@ -288,6 +291,34 @@ function carveRescuePath(map: FloorMap, from: Position, to: Position): void {
  *
  * Only floor and door tiles are ever swapped; stairs and chasms are left alone.
  */
+/**
+ * Re-derive `map.exit` from the tile that actually is the stairs, for the same
+ * reason `syncDoors` re-derives doors: a room slide carries every tile it owns
+ * to the room's new position, and the stairs tile is not exempt.
+ *
+ * `map.exit` used to be written once at generation and never moved, so after a
+ * slide it named a coordinate the stairs had left. Everything that guards the
+ * way out reads that coordinate — `blocksExit`, the exit-blocked streak, and
+ * `carveRescuePath` — so the fail-safe was digging to the wrong tile and the
+ * real stairs could stay walled off indefinitely.
+ *
+ * If nothing is left to find, two rooms slid across each other and one
+ * overwrote the stairs. Re-stamping them at the recorded position is the only
+ * recovery: a floor with no stairs cannot be finished at all.
+ */
+export function syncExit(map: FloorMap): void {
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (map.tiles[y][x].type === 'stairs_down') {
+        map.exit = { x, y };
+        return;
+      }
+    }
+  }
+
+  map.tiles[map.exit.y][map.exit.x].type = 'stairs_down';
+}
+
 export function syncDoors(map: FloorMap): void {
   const isCorridorGroup = (id: string | null): boolean => id !== null && id.startsWith('corridor');
 
@@ -382,6 +413,8 @@ export function planShift(state: GameState, rng: SeededRNG): PendingShift {
   for (const targetGroupId of candidates) {
     const sim = cloneGeometry(map);
     rehearseShift({ ...state, floorMap: sim }, type, targetGroupId, roomIds[0], rng);
+    // Before any exit check below, or they all measure where the stairs *were*.
+    syncExit(sim);
 
     const landing = playerLandingSpot(sim, state.player.position);
     if (!landing) continue; // nowhere to stand — never acceptable
@@ -524,6 +557,7 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
       group.currentOffset = { ...move.currentOffset };
     }
 
+    syncExit(map);
     events.push(SHIFT_FLAVOUR[plan.type]);
 
     // The player can be caught in the collapse: shunt them clear and bill them

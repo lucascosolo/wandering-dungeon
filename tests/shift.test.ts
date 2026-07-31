@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createMockGameState, createMockEnemy } from './helpers';
 import { SeededRNG } from '../src/core/rng';
-import { hasValidPath } from '../src/core/map/pathfinding';
+import { findPath, hasValidPath } from '../src/core/map/pathfinding';
 import {
   executeShift,
   capturePreShiftSnapshot,
@@ -311,6 +311,78 @@ describe('Shift Engine', () => {
           stranded,
           `seed ${seed} left ${stranded.length} stranded door(s), e.g. ${JSON.stringify(stranded[0])}`
         ).toEqual([]);
+      }
+    });
+  });
+
+  describe('exit consistency', () => {
+    /**
+     * `map.exit` is what every guard on the way out reads — `blocksExit`, the
+     * exit-blocked streak, and `carveRescuePath`. A room slide carries the
+     * stairs tile with the rest of its room, so an exit written once at
+     * generation ends up naming a coordinate the stairs have left, and the
+     * fail-safe digs to the wrong tile while the real stairs stay walled off.
+     */
+    function exitFaults(map: FloorMap): string[] {
+      const faults: string[] = [];
+      const stairs: { x: number; y: number }[] = [];
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          if (map.tiles[y][x].type === 'stairs_down') stairs.push({ x, y });
+        }
+      }
+
+      if (stairs.length !== 1) faults.push(`${stairs.length} stairs tiles`);
+      const at = map.tiles[map.exit.y][map.exit.x].type;
+      if (at !== 'stairs_down') faults.push(`exit names a '${at}' tile`);
+      return faults;
+    }
+
+    /**
+     * The player has to be walking, not waiting: shift targets are chosen near
+     * the player, so a stationary run never slides the room holding the stairs
+     * and the whole fault goes unreproduced. These seeds all fault within a few
+     * floors if `syncExit` stops being called.
+     */
+    it('keeps map.exit on the stairs while the player walks the floor', () => {
+      for (const seed of ['x3', 'x13', 'x17', 'x19', 'x23', 'x28']) {
+        const state = createNewGame(seed, createRunConfig('extreme', 'brutal'));
+
+        for (let turn = 0; turn < 400 && !state.isGameOver; turn++) {
+          const { player, floorMap } = state;
+          if (floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down') {
+            dispatchAction(state, { type: 'DESCEND' });
+          } else {
+            const path = findPath(floorMap, player.position, floorMap.exit);
+            if (path && path.length >= 2) {
+              const step = path[1];
+              dispatchAction(state, {
+                type: 'MOVE',
+                dx: step.x - player.position.x,
+                dy: step.y - player.position.y,
+              });
+            } else {
+              dispatchAction(state, { type: 'WAIT' });
+            }
+          }
+
+          const faults = exitFaults(state.floorMap);
+          expect(
+            faults,
+            `seed ${seed} floor ${state.floorMap.level} turn ${turn}: ${faults.join(', ')}`
+          ).toEqual([]);
+        }
+      }
+    });
+
+    it('restores the stairs after a rewind moves them back', () => {
+      const state = createNewGame('exit-rewind', createRunConfig('short', 'standard'));
+      const rng = new SeededRNG('exit-rewind-rng');
+
+      for (let i = 0; i < 12; i++) {
+        executeShift(state, rng);
+        restorePreShiftSnapshot(state);
+        expect(exitFaults(state.floorMap)).toEqual([]);
       }
     });
   });

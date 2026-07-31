@@ -60,6 +60,18 @@ describe('Run persistence', () => {
     expect(restored.player.inventory.some(item => item.id === 'boss_reward_5')).toBe(true);
   });
 
+  it('persists coins and any cache still lying on the floor', () => {
+    const state = playedRun('save-coins', 5);
+    state.player.coins = 137;
+
+    const restored = roundTrip(state)!;
+
+    // The purse is what the merchant reads, so losing it on resume would erase
+    // a region's worth of income.
+    expect(restored.player.coins).toBe(137);
+    expect(restored.floorMap.drops).toEqual(state.floorMap.drops);
+  });
+
   it('survives a shift, which is the state most likely to diverge', () => {
     const state = createNewGame('save-shift', createRunConfig('medium', 'standard'));
     while (state.pendingShift === null && state.turnCount < 60) {

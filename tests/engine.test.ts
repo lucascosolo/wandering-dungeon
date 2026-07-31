@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { dispatchAction } from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
-import { buildFloor, createNewGame } from '../src/core/game';
+import {
+  buildFloor,
+  coinsForRegion,
+  coinsPerKill,
+  createCoinCache,
+  createNewGame,
+} from '../src/core/game';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
@@ -683,6 +689,78 @@ describe('Armor', () => {
     expect(state.player.armor?.id).toBe('worn');
     expect(state.pendingArmorOffer).toBeNull();
     expect(state.turnCount).toBe(turn);
+  });
+});
+
+describe('Coins', () => {
+  /** Walkable neighbour of the player, so the test moves rather than bumps a wall. */
+  function step(state: ReturnType<typeof createMockGameState>) {
+    const { x, y } = state.player.position;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
+      if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
+    }
+    throw new Error('player is walled in');
+  }
+
+  it('banks a cache instead of putting it in the inventory', () => {
+    const state = createMockGameState();
+    const target = step(state);
+    const carried = state.player.inventory.length;
+    state.floorMap.drops = [
+      { item: createCoinCache(17, 'cache_1'), position: { x: target.x, y: target.y } },
+    ];
+
+    dispatchAction(state, { type: 'MOVE', dx: target.dx, dy: target.dy });
+
+    expect(state.player.coins).toBe(17);
+    // Currency must never reach the inventory, or it takes a hotbar slot and
+    // becomes something the player can try to "use".
+    expect(state.player.inventory).toHaveLength(carried);
+    expect(state.floorMap.drops).toHaveLength(0);
+  });
+
+  it('pays a bounty for a kill, more for a boss', () => {
+    expect(coinsPerKill(0, false)).toBeGreaterThan(0);
+    expect(coinsPerKill(4, false)).toBeGreaterThan(coinsPerKill(0, false));
+    expect(coinsPerKill(0, true)).toBeGreaterThan(coinsPerKill(0, false));
+  });
+
+  it('pays out when the player lands the killing blow', () => {
+    const state = createMockGameState();
+    const target = step(state);
+    const enemy = createMockEnemy({ x: target.x, y: target.y });
+    enemy.hp = 1;
+    state.entities = [enemy];
+
+    dispatchAction(state, { type: 'MOVE', dx: target.dx, dy: target.dy });
+
+    expect(enemy.hp).toBe(0);
+    expect(state.player.coins).toBe(coinsPerKill(0, false));
+  });
+
+  it('scales floor income with the region so a later shop stays affordable', () => {
+    const rng = new SeededRNG('coin-income');
+    const early = coinsForRegion(0, rng);
+    const late = coinsForRegion(4, rng);
+    expect(late).toBeGreaterThan(early);
+  });
+
+  it('accumulates across floors', () => {
+    const state = createNewGame('coin-carry', createRunConfig('medium', 'standard'));
+    state.player.coins = 42;
+    buildFloor(state, new SeededRNG('coin-carry-rng'), 2);
+
+    // Coins live on the player, not the floor, so descending cannot drop them.
+    expect(state.player.coins).toBe(42);
+  });
+
+  it('puts spendable caches on a normal floor', () => {
+    const state = createNewGame('coin-drops', createRunConfig('medium', 'standard'));
+    const caches = (state.floorMap.drops ?? []).filter(d => d.item.category === 'currency');
+
+    expect(caches.length).toBeGreaterThan(0);
+    for (const cache of caches) expect(cache.item.value ?? 0).toBeGreaterThan(0);
   });
 });
 

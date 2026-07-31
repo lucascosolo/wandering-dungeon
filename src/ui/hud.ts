@@ -39,6 +39,7 @@ export interface HudElements {
   potionCount: HTMLElement;
   armorChip: HTMLElement;
   armorName: HTMLElement;
+  coinCount: HTMLElement;
   armorModal: HTMLElement;
   logPanel: HTMLElement;
   hotbar: HTMLElement;
@@ -76,7 +77,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </header>
 
     <div class="legend">
-      @ you &middot; * item &middot; [ armor &middot; + door &middot; &gt; stairs &middot;
+      @ you &middot; * item &middot; [ armor &middot; $ coins &middot; + door &middot; &gt; stairs &middot;
       foes <span class="legend__foes">${enemyLegend()}</span>
       <span class="legend__hint">weak&rarr;deadly</span> &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
@@ -106,6 +107,11 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <div class="armor-chip" id="armor-chip">
         <span class="armor-chip__glyph">[</span>
         <span class="armor-chip__name" id="armor-name">Unarmoured</span>
+      </div>
+
+      <div class="coin-chip" id="coin-chip">
+        <span class="coin-chip__glyph">$</span>
+        <span class="coin-chip__count" id="coin-count">0</span>
       </div>
     </div>
 
@@ -151,6 +157,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     potionCount: byId('potion-count'),
     armorChip: byId('armor-chip'),
     armorName: byId('armor-name'),
+    coinCount: byId('coin-count'),
     armorModal: byId('armor-modal'),
     logPanel: byId('log-panel'),
     hotbar: byId('hotbar'),
@@ -194,6 +201,8 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.hpFill.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   ui.hpLabel.textContent = `${player.hp} / ${player.maxHp}`;
   ui.shieldFill.style.width = `${Math.min(100, (player.shieldHp / player.maxHp) * 100)}%`;
+
+  ui.coinCount.textContent = String(player.coins);
 
   const potions = healthPotions(state).length;
   ui.potionCount.textContent = String(potions);

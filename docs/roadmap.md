@@ -107,14 +107,19 @@ completions to 2/10.
 **The wall was never floor 25 — it was floors 2-4**, on every run length,
 including Short. That is what the linear ramp was really doing.
 
-### 3c. Difficulty multipliers
+### ~~3c. Difficulty multipliers~~ — shipped in 1b
 
-Apply the 1b difficulty tier on top of region curves at a single choke point.
+1b implemented this early and the entry was never closed. The tier is applied as
+an incoming-damage multiplier in `damagePlayer` — the one choke point every
+source of player HP loss already flows through — and
+`tests/engine.test.ts` guards that each tier measurably changes damage taken.
 
-Done when: each tier measurably changes incoming damage with no other call site
-reading difficulty.
-
-Depends on 1b, 3b. Files: `src/core/game.ts`, `src/core/damage.ts`. Scope: S.
+**Deliberately not extended to the region curves.** Difficulty stays one lever.
+Scaling enemy count and HP by tier as well would compound with the damage
+multiplier, so Brutal would land far harder than its 1.3× reads, and it would
+need a retune of the curves 3b just settled. If a tier should feel *different*
+rather than just harsher, that is a new entry — the honest version is per-tier
+region curves, not a second multiplier stacked on the first.
 
 ### Checkpoint — Frame complete
 All four lengths are completable and balanced enough to playtest. Ground the

@@ -96,6 +96,11 @@ describe('Full run', () => {
     buildFloor(glass, new SeededRNG('prism-refractor-rng'), 20);
     expect(glass.entities).toHaveLength(1);
     expect(glass.entities[0].enemyType).toBe('prism_refractor');
+
+    const unmaking = createNewGame('null-testament-floor', createRunConfig('extreme', 'brutal'));
+    buildFloor(unmaking, new SeededRNG('null-testament-rng'), 25);
+    expect(unmaking.entities).toHaveLength(1);
+    expect(unmaking.entities[0].enemyType).toBe('null_testament');
   });
 
   it('is completable end to end on a known seed', () => {

@@ -281,6 +281,35 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.enemyType === 'rift_regent' && enemy.bossTarget) {
+      const marked =
+        enemy.bossTarget.x === state.player.position.x &&
+        enemy.bossTarget.y === state.player.position.y;
+      if (marked) {
+        damagePlayer(state, 6, events, enemy.name);
+        events.push(`${enemy.name} tears open the marked rift beneath you.`);
+      } else {
+        events.push(`${enemy.name}'s marked rift collapses harmlessly.`);
+      }
+      enemy.bossTarget = undefined;
+      enemy.bossCooldown = 4;
+      continue;
+    }
+
+    if (
+      enemy.enemyType === 'rift_regent' &&
+      enemy.bossCooldown === 0 &&
+      state.pendingShift &&
+      state.shiftCountdown <= 2 &&
+      state.pendingShift.targetGroupId &&
+      state.floorMap.tiles[enemy.position.y][enemy.position.x].shiftGroupId ===
+        state.pendingShift.targetGroupId
+    ) {
+      enemy.bossTarget = { ...state.player.position };
+      events.push(`${enemy.name} marks your footing as the chamber prepares to shift.`);
+      continue;
+    }
+
     if (enemy.enemyType === 'fracture_leech' && !state.pendingShift) continue;
     if (enemy.enemyType === 'glass_moth' && !state.pendingShift) continue;
     if (enemy.enemyType === 'hinge_warden' && state.pendingShift) continue;

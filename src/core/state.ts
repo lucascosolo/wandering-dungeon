@@ -127,7 +127,8 @@ export type EnemyType =
   | 'glass_moth'
   | 'unmaking_hound'
   | 'null_scribe'
-  | 'hinge_sovereign';
+  | 'hinge_sovereign'
+  | 'rift_regent';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;
@@ -135,6 +136,8 @@ export interface Enemy extends Entity {
   isBoss?: boolean;
   /** Cooldown for an arena guardian's ranged signature attack. */
   bossCooldown?: number;
+  /** Tile marked by a delayed arena attack. */
+  bossTarget?: Position;
   /** Turns this enemy will skip. Non-zero is what "staggered" means — there is
    * deliberately no separate boolean to fall out of sync with it. */
   staggeredTurns: number;

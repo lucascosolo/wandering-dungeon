@@ -714,6 +714,35 @@ describe('Run configuration', () => {
     expect(state.entities[0].bossCooldown).toBe(3);
   });
 
+  it('lets the Rift Regent mark a tile and rewards movement', () => {
+    const state = createNewGame('rift-regent', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('rift-regent-rng'), 10);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 2, y: state.player.position.y };
+    state.pendingShift = { ...pendingShift(), targetGroupId: 'arena_1' };
+    state.shiftCountdown = 2;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBe(100);
+    expect(state.entities[0].bossTarget).toEqual(state.player.position);
+
+    const hp = state.player.hp;
+    state.player.position = { x: state.player.position.x, y: state.player.position.y + 1 };
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBe(hp);
+    expect(state.entities[0].bossTarget).toBeUndefined();
+    expect(state.entities[0].bossCooldown).toBe(4);
+
+    state.entities[0].bossCooldown = 0;
+    state.entities[0].bossTarget = { ...state.player.position };
+    const markedHp = state.player.hp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBeLessThan(markedHp);
+    expect(state.entities[0].bossCooldown).toBe(4);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);

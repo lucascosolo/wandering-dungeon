@@ -32,6 +32,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   unmaking_hound: { glyph: 'U', color: '#d00000', label: 'Unmaking Hound' },
   null_scribe: { glyph: 'N', color: '#c77dff', label: 'Null Scribe' },
   hinge_sovereign: { glyph: 'Q', color: '#ffd166', label: 'Hinge Sovereign' },
+  rift_regent: { glyph: 'M', color: '#9d4edd', label: 'Rift Regent' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
@@ -202,6 +203,17 @@ export function renderFrame(
     const px = x * TILE_SIZE + offsetX;
     const py = y * TILE_SIZE + offsetY;
     const style = ENEMY_STYLES[enemy.enemyType];
+
+    if (enemy.bossTarget) {
+      ctx.strokeStyle = '#ff4d6d';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        enemy.bossTarget.x * TILE_SIZE + offsetX + 2,
+        enemy.bossTarget.y * TILE_SIZE + offsetY + 2,
+        TILE_SIZE - 4,
+        TILE_SIZE - 4
+      );
+    }
 
     // Staggered enemies are dimmed rather than lowercased — the glyph's letter
     // now identifies the species, so case is no longer free to carry state.

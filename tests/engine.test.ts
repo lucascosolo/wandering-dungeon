@@ -100,6 +100,20 @@ function shiftGroupTile(state: ReturnType<typeof createMockGameState>) {
   throw new Error('generated floor has no shift group tile');
 }
 
+function tileWithGroupPrefix(
+  state: ReturnType<typeof createMockGameState>,
+  prefix: string,
+  type: 'floor' | 'door' = 'floor'
+) {
+  for (let y = 0; y < state.floorMap.height; y++) {
+    for (let x = 0; x < state.floorMap.width; x++) {
+      const tile = state.floorMap.tiles[y][x];
+      if (tile.type === type && tile.shiftGroupId?.startsWith(prefix)) return { x, y };
+    }
+  }
+  throw new Error(`generated floor has no ${prefix} ${type} tile`);
+}
+
 describe('Turn Engine & Items', () => {
   it('decrements shift countdown on turn-consuming actions, not non-turn actions', () => {
     const state = createMockGameState();
@@ -517,6 +531,38 @@ describe('Turn Engine & Items', () => {
     dispatchAction(state, { type: 'WAIT' });
 
     expect(state.player.hp).toBe(100);
+  });
+
+  it('damages a player standing in an Ashen Warrens corridor', () => {
+    const state = createMockGameState();
+    state.floorMap.level = 11;
+    state.player.position = tileWithGroupPrefix(state, 'corridor_');
+    state.shiftCountdown = 5;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.hp).toBe(98);
+    expect(state.lastDamageSource).toBe("the Warrens' ash");
+    expect(state.eventLog.some(event => event.text.includes('Ash pours'))).toBe(true);
+
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.player.hp).toBe(98);
+  });
+
+  it('does not trigger Ash Choke on rooms or outside the Ashen Warrens', () => {
+    const room = createMockGameState();
+    room.floorMap.level = 11;
+    room.player.position = tileWithGroupPrefix(room, 'room_');
+    room.shiftCountdown = 5;
+    dispatchAction(room, { type: 'WAIT' });
+    expect(room.player.hp).toBe(100);
+
+    const later = createMockGameState();
+    later.floorMap.level = 16;
+    later.player.position = tileWithGroupPrefix(later, 'corridor_');
+    later.shiftCountdown = 5;
+    dispatchAction(later, { type: 'WAIT' });
+    expect(later.player.hp).toBe(100);
   });
 });
 

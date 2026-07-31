@@ -144,11 +144,11 @@ Depends on 3a, 3b. Files: `src/core/game.ts`, `src/core/regions.ts`,
 
 A region-specific environmental threat beyond the three existing shift types.
 
-Two slices shipped: Shifting Halls doors inflict mild, telegraphed hinge stress,
-and a Fracture Deeps shift can shear the targeted group under the player. Both
-route through armor, shield, difficulty, and run logs; the remaining three
-regional hazards stay intentionally unfired until these contributions are
-playtested.
+Three slices shipped: Shifting Halls doors inflict mild, telegraphed hinge
+stress; a Fracture Deeps shift can shear the targeted group under the player;
+and Ashen Warrens corridors vent choking ash before a shift. All route through
+armor, shield, difficulty, and run logs; the remaining two regional hazards stay
+intentionally unfired until these contributions are playtested.
 
 Done when: each region contributes one hazard, and hazard damage routes through
 `damagePlayer` like every other source.

@@ -848,3 +848,8 @@ html, body {
   border-color: var(--border-glow);
   color: var(--accent-cyan);
 }
+
+.title-btn--danger {
+  border-color: var(--warning-red-glow);
+  color: var(--warning-red);
+}

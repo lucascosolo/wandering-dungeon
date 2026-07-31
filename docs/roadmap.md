@@ -66,19 +66,20 @@ save that outlives its run cannot be resumed even if 2b's clear never lands.
 
 `loadRun` has no caller yet — 2b is the button.
 
-### 2b. Continue wiring
+### ~~2b. Continue wiring~~ — shipped
 
-Enable Continue when a save exists; clear the save on death or victory so a
-finished run cannot be resumed.
+Continue reports the floor and turn it would resume, and the save is re-read
+every time the title opens rather than cached — the run just played may have
+cleared it.
 
-Done when: Continue resumes the last unfinished run and is disabled after one
-ends.
+Beyond the task: one save slot means New Game destroys the run in progress, so
+Descend now asks first when there is one. Losing a twenty-floor run to a mistap
+is not recoverable.
 
-Depends on 1a, 2a. Files: `src/main.ts`, `src/ui/`. Scope: S.
-
-### Checkpoint — Frame is navigable
+### ~~Checkpoint — Frame is navigable~~ — reached
 A run can be configured, started, quit, resumed, and finished at any of the four
-lengths. Scaling is still wrong; that is 3a–3c.
+lengths. Scaling is still wrong; that is 3a–3c, and it is now the only thing
+between the game and a playable 25-floor run.
 
 ### 3a. Region model
 

@@ -8,9 +8,13 @@ import {
   RUN_LENGTHS,
 } from '../core/runConfig';
 import { showSettingsScreen } from './settingsScreen';
+import { GameState } from '../core/state';
 
 export interface TitleScreenHandlers {
   onNewGame: (config: RunConfig) => void;
+  onContinue: (saved: GameState) => void;
+  /** The run in progress, already loaded — null when there is none. */
+  saved: GameState | null;
 }
 
 const LENGTH_ORDER: RunLength[] = ['short', 'medium', 'long', 'extreme'];
@@ -26,6 +30,7 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
   screen.className = 'title-screen';
   document.body.appendChild(screen);
 
+  const { saved } = handlers;
   let length: RunLength = 'short';
   let difficulty: Difficulty = 'standard';
 
@@ -47,9 +52,13 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
           <button class="title-btn title-btn--primary" id="btn-new-game" type="button">
             New Game
           </button>
-          <button class="title-btn" id="btn-continue" type="button" disabled>
+          <button class="title-btn" id="btn-continue" type="button" ${saved ? '' : 'disabled'}>
             Continue
-            <small>no run in progress</small>
+            <small>${
+              saved
+                ? `floor ${saved.floorMap.level}/${saved.config.finalFloor} &middot; turn ${saved.turnCount}`
+                : 'no run in progress'
+            }</small>
           </button>
           <button class="title-btn" id="btn-settings" type="button">
             Settings
@@ -59,6 +68,12 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
       </div>
     `;
     screen.querySelector('#btn-new-game')!.addEventListener('click', renderSetup);
+    if (saved) {
+      screen.querySelector('#btn-continue')!.addEventListener('click', () => {
+        close();
+        handlers.onContinue(saved);
+      });
+    }
     // Settings stacks on top rather than replacing the menu, so backing out of it
     // needs no state — this screen is still underneath, untouched.
     screen.querySelector('#btn-settings')!.addEventListener('click', () =>
@@ -126,9 +141,37 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
     );
     screen.querySelector('#btn-back')!.addEventListener('click', renderMenu);
     screen.querySelector('#btn-begin')!.addEventListener('click', () => {
-      close();
-      handlers.onNewGame(createRunConfig(length, difficulty));
+      // There is one save slot, so starting a run destroys the one in progress.
+      // Losing a twenty-floor run to a mistapped button is not recoverable.
+      if (saved) renderOverwriteWarning();
+      else begin();
     });
+  }
+
+  function begin(): void {
+    close();
+    handlers.onNewGame(createRunConfig(length, difficulty));
+  }
+
+  function renderOverwriteWarning(): void {
+    screen.innerHTML = `
+      <div class="title-screen__inner">
+        <h2 class="setup__heading">Abandon your run?</h2>
+        <p class="setup__summary">
+          A run is in progress on floor ${saved!.floorMap.level}/${saved!.config.finalFloor},
+          turn ${saved!.turnCount}. Starting a new one erases it.
+        </p>
+
+        <div class="title-screen__menu">
+          <button class="title-btn title-btn--danger" id="btn-overwrite" type="button">
+            Erase and descend
+          </button>
+          <button class="title-btn title-btn--primary" id="btn-keep" type="button">Keep it</button>
+        </div>
+      </div>
+    `;
+    screen.querySelector('#btn-overwrite')!.addEventListener('click', begin);
+    screen.querySelector('#btn-keep')!.addEventListener('click', renderSetup);
   }
 
   renderMenu();

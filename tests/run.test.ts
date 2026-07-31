@@ -49,7 +49,11 @@ function autoPlay(state: GameState, maxTurns = 4000): void {
       continue;
     }
 
-    const path = findPath(floorMap, player.position, floorMap.exit);
+    const arenaThreat = floorMap.level % 5 === 0
+      ? state.entities.find(enemy => enemy.hp > 0)
+      : undefined;
+    const destination = arenaThreat?.position ?? floorMap.exit;
+    const path = findPath(floorMap, player.position, destination);
     if (path && path.length >= 2) {
       const step = path[1];
       dispatchAction(state, {
@@ -65,6 +69,16 @@ function autoPlay(state: GameState, maxTurns = 4000): void {
 }
 
 describe('Full run', () => {
+  it('builds sealed arena floors without loot scatter', () => {
+    const state = createNewGame('arena-floor', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('arena-floor-rng'), 5);
+
+    expect(state.floorMap.shiftGroups).toHaveProperty('arena_1');
+    expect(Object.values(state.floorMap.shiftGroups)).toHaveLength(1);
+    expect(state.floorMap.drops).toEqual([]);
+    expect(state.entities.length).toBeGreaterThan(0);
+  });
+
   it('is completable end to end on a known seed', () => {
     const state = createNewGame('mvp-smoke', createRunConfig('short', 'standard'));
     autoPlay(state);

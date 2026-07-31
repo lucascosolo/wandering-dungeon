@@ -11,7 +11,7 @@ import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
 import { buildFloor } from './game';
-import { regionForFloor } from './regions';
+import { isRegionEnd, regionForFloor } from './regions';
 
 export type GameAction =
   | { type: 'MOVE'; dx: number; dy: number }
@@ -225,6 +225,11 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
 
   if (tile.type !== 'stairs_down') {
     events.push('There are no stairs here.');
+    return false;
+  }
+
+  if (isRegionEnd(floorMap.level) && state.entities.some(enemy => enemy.hp > 0)) {
+    events.push('The arena remains sealed while its guardians live.');
     return false;
   }
 

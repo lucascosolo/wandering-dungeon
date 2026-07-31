@@ -1,5 +1,6 @@
 import { SeededRNG } from '../rng';
 import { FloorMap, GridTile, Position, ShiftGroup } from '../state';
+import { isRegionEnd } from '../regions';
 import { syncDoors } from '../shift/shiftSystem';
 
 interface Room {
@@ -12,12 +13,53 @@ interface Room {
   centerY: number;
 }
 
+function generateArena(level: number, width: number, height: number): FloorMap {
+  const arenaWidth = Math.max(8, width - 10);
+  const arenaHeight = Math.max(8, height - 10);
+  const origin = { x: Math.floor((width - arenaWidth) / 2), y: Math.floor((height - arenaHeight) / 2) };
+  const tiles: GridTile[][] = Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => ({ x, y, type: 'wall' as const, shiftGroupId: null }))
+  );
+  const groupId = 'arena_1';
+  for (let y = origin.y; y < origin.y + arenaHeight; y++) {
+    for (let x = origin.x; x < origin.x + arenaWidth; x++) {
+      tiles[y][x] = { x, y, type: 'floor', shiftGroupId: groupId };
+    }
+  }
+
+  const entrance = { x: origin.x + 2, y: origin.y + Math.floor(arenaHeight / 2) };
+  const exit = { x: origin.x + arenaWidth - 3, y: origin.y + Math.floor(arenaHeight / 2) };
+  tiles[exit.y][exit.x].type = 'stairs_down';
+  const map: FloorMap = {
+    level,
+    width,
+    height,
+    tiles,
+    shiftGroups: {
+      [groupId]: {
+        id: groupId,
+        type: 'room',
+        bounds: { x: origin.x, y: origin.y, width: arenaWidth, height: arenaHeight },
+        currentOffset: { x: 0, y: 0 },
+      },
+    },
+    entrance,
+    exit,
+    explored: Array.from({ length: height }, () => Array(width).fill(false)),
+    visible: Array.from({ length: height }, () => Array(width).fill(false)),
+  };
+  syncDoors(map);
+  return map;
+}
+
 export function generateFloor(
   rng: SeededRNG,
   level: number,
   width = 32,
   height = 32
 ): FloorMap {
+  if (isRegionEnd(level)) return generateArena(level, width, height);
+
   const maxAttempts = 100;
   const minRooms = 4;
   const targetRooms = 8;

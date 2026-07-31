@@ -172,13 +172,16 @@ Done: entering a new region is visually unmistakable.
 Depends on 3a. Files: `src/render/canvasRenderer.ts`, `src/ui/hud.ts`,
 `src/styles/main.css`. Scope: S.
 
-### 5a. Boss floor generation
+### ~~5a. Boss floor generation~~ — shipped
 
 Every 5th floor is an arena, not a normal floor: one chamber, no loot scatter,
 exit sealed until the boss dies.
 
-Done when: floors 5/10/15/20/25 generate as arenas and the exit refuses to open
-early. `syncDoors` and the shift system must stay correct on this layout.
+Shipped: floors 5/10/15/20/25 generate as deterministic single-room arenas
+with one shift group, no corridors, and no loot scatter. The stairs remain
+walkable for pathfinding but descent is sealed until every live arena guardian
+is defeated; the boss-specific gate arrives in 5b. The existing door and shift
+invariants remain intact on the corridor-free layout.
 
 Depends on 3a. Files: `src/core/game.ts`, `src/core/engine.ts`,
 `tests/shift.test.ts`. Scope: M.

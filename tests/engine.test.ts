@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { dispatchAction } from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
-import { createNewGame } from '../src/core/game';
+import { buildFloor, createNewGame } from '../src/core/game';
+import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
 import { createMockGameState, createMockEnemy } from './helpers';
@@ -609,6 +610,7 @@ describe('Turn Engine & Items', () => {
     const state = createNewGame('unmaking-victory', createRunConfig('extreme', 'brutal'));
     state.floorMap.level = 25;
     state.player.position = { ...state.floorMap.exit };
+    state.entities = [];
 
     dispatchAction(state, { type: 'DESCEND' });
 
@@ -684,6 +686,19 @@ describe('Armor', () => {
 });
 
 describe('Run configuration', () => {
+  it('keeps a boss-floor exit sealed while guardians remain', () => {
+    const state = createNewGame('arena-lock', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('arena-lock-rng'), 5);
+    state.player.position = { ...state.floorMap.exit };
+    const turn = state.turnCount;
+
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.floorMap.level).toBe(5);
+    expect(state.turnCount).toBe(turn);
+    expect(state.isGameOver).toBe(false);
+  });
+
   it('offers four lengths, each a whole number of five-floor regions', () => {
     const floors = Object.values(RUN_LENGTHS).map(l => l.floors);
     expect(floors).toEqual([10, 15, 20, 25]);
@@ -703,6 +718,7 @@ describe('Run configuration', () => {
     state.floorMap.level = 15;
     const { x, y } = state.player.position;
     state.floorMap.tiles[y][x].type = 'stairs_down';
+    state.entities = [];
     dispatchAction(state, { type: 'DESCEND' });
 
     expect(state.isVictory).toBe(true);
@@ -714,6 +730,7 @@ describe('Run configuration', () => {
     state.floorMap.level = 5;
     const { x, y } = state.player.position;
     state.floorMap.tiles[y][x].type = 'stairs_down';
+    state.entities = [];
     dispatchAction(state, { type: 'DESCEND' });
 
     expect(state.isVictory).toBe(false);

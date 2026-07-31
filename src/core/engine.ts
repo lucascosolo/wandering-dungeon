@@ -296,6 +296,27 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
+    if (enemy.enemyType === 'cinder_gatekeeper' && enemy.bossTarget) {
+      const radius =
+        Math.abs(state.player.position.x - enemy.bossTarget.x) +
+        Math.abs(state.player.position.y - enemy.bossTarget.y);
+      if (radius <= 2) {
+        damagePlayer(state, 5, events, enemy.name);
+        events.push(`${enemy.name} seals the exit in a choking ash cloud.`);
+      } else {
+        events.push(`${enemy.name}'s ash interdict disperses harmlessly.`);
+      }
+      enemy.bossTarget = undefined;
+      enemy.bossCooldown = 4;
+      continue;
+    }
+
+    if (enemy.enemyType === 'cinder_gatekeeper' && enemy.bossCooldown === 0 && state.isStasisActive) {
+      enemy.bossTarget = { ...state.floorMap.exit };
+      events.push(`${enemy.name} marks the exit with an ash interdict.`);
+      continue;
+    }
+
     if (
       enemy.enemyType === 'rift_regent' &&
       enemy.bossCooldown === 0 &&

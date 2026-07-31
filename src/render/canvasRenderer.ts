@@ -33,6 +33,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   null_scribe: { glyph: 'N', color: '#c77dff', label: 'Null Scribe' },
   hinge_sovereign: { glyph: 'Q', color: '#ffd166', label: 'Hinge Sovereign' },
   rift_regent: { glyph: 'M', color: '#9d4edd', label: 'Rift Regent' },
+  cinder_gatekeeper: { glyph: 'C', color: '#e09f3e', label: 'Cinder Gatekeeper' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';

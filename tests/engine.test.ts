@@ -26,13 +26,13 @@ function enemyAtDistance(state: ReturnType<typeof createMockGameState>, distance
   throw new Error(`no walkable tile at distance ${distance}`);
 }
 
-function pendingShift() {
+function pendingShift(blocksExit = false) {
   return {
     type: 'room_slide' as const,
     targetGroupId: null,
     changes: [],
     groupMoves: {},
-    blocksExit: false,
+    blocksExit,
   };
 }
 
@@ -232,6 +232,55 @@ describe('Turn Engine & Items', () => {
 
     expect(enemy.position).not.toEqual(before);
     expect(findPath(state.floorMap, enemy.position, state.floorMap.exit)?.length).toBeLessThan(beforePathLength!);
+  });
+
+  it('lets an Ashlock pursue the player without a sealing shift', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'ashlock');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
+  });
+
+  it('sends an Ashlock toward the exit when a shift will seal it', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyWithExitPath(state), 'ashlock');
+    const before = { ...enemy.position };
+    const expectedStep = findPath(state.floorMap, before, state.floorMap.exit)![1];
+    state.entities.push(enemy);
+    state.shiftCountdown = 3;
+    state.pendingShift = pendingShift(true);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(expectedStep);
+  });
+
+  it('keeps a Stasis Scorcher outside its normal aggro range', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'stasis_scorcher');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(before);
+  });
+
+  it('makes a Stasis Scorcher advance while the clock is frozen', () => {
+    const state = createMockGameState();
+    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'stasis_scorcher');
+    const before = { ...enemy.position };
+    state.entities.push(enemy);
+    state.isStasisActive = true;
+    state.stasisTurnsRemaining = 2;
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).not.toEqual(before);
   });
 });
 

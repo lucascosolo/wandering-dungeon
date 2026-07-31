@@ -124,6 +124,18 @@ describe('Full run', () => {
     expect(state.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
   });
 
+  it('spawns only Ashen Warrens species with region-scaled stats on floor 11', () => {
+    const state = createNewGame('ashen-warrens-roster', createRunConfig('extreme', 'brutal'));
+    const allowed = new Set(['ashlock', 'stasis_scorcher']);
+
+    buildFloor(state, new SeededRNG('ashen-warrens-floor'), 11);
+
+    expect(state.entities).toHaveLength(6);
+    expect(state.entities.every(enemy => allowed.has(enemy.enemyType))).toBe(true);
+    expect(state.entities.some(enemy => enemy.maxHp === 52 && enemy.attackPower === 9)).toBe(true);
+    expect(state.entities.some(enemy => enemy.maxHp === 34 && enemy.attackPower === 9)).toBe(true);
+  });
+
   it('gets a player-like bot well past the first region on a long run', () => {
     // A depth regression net, not a win condition: the bot never retreats and
     // never uses the shift items, so it dies deeper than a rush and shallower

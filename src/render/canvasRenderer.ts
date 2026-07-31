@@ -32,6 +32,8 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   seam_skitter: { glyph: 's', color: '#e07a5f', label: 'Seam Skitter' },
   fracture_leech: { glyph: 'L', color: '#b56576', label: 'Fracture Leech' },
   riftbound: { glyph: 'R', color: '#7b68ee', label: 'Riftbound' },
+  ashlock: { glyph: 'A', color: '#9c6644', label: 'Ashlock' },
+  stasis_scorcher: { glyph: 'C', color: '#e76f51', label: 'Stasis Scorcher' },
 };
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';

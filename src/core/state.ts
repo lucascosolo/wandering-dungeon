@@ -120,7 +120,9 @@ export type EnemyType =
   | 'hinge_warden'
   | 'seam_skitter'
   | 'fracture_leech'
-  | 'riftbound';
+  | 'riftbound'
+  | 'ashlock'
+  | 'stasis_scorcher';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

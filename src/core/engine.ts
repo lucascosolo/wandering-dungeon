@@ -354,6 +354,16 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
 
   if (
     state.shiftCountdown === 4 &&
+    regionForFloor(state.floorMap.level).index === 4 &&
+    currentTile.type === 'stairs_down' &&
+    state.player.hp > 0
+  ) {
+    events.push('The Unmaking demands a toll from the stairs.');
+    damagePlayer(state, 2, events, "the Unmaking's stair toll");
+  }
+
+  if (
+    state.shiftCountdown === 4 &&
     regionForFloor(state.floorMap.level).index === 0 &&
     currentTile.type === 'door'
   ) {

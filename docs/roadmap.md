@@ -140,16 +140,16 @@ pool remains in the data table only as a migration fallback for future content.
 Depends on 3a, 3b. Files: `src/core/game.ts`, `src/core/regions.ts`,
 `src/core/state.ts`. Scope: M.
 
-### 4b. Per-region hazards
+### ~~4b. Per-region hazards~~ — shipped
 
 A region-specific environmental threat beyond the three existing shift types.
 
-Four slices shipped: Shifting Halls doors inflict mild, telegraphed hinge
+All five hazards shipped: Shifting Halls doors inflict mild, telegraphed hinge
 stress; a Fracture Deeps shift can shear the targeted group under the player;
 Ashen Warrens corridors vent choking ash before a shift; and Glass Expanse
-shifts can spray shards beside the player. All route through armor, shield,
-difficulty, and run logs; only the Unmaking hazard remains intentionally
-unfired until these contributions are playtested.
+shifts can spray shards beside the player. The Unmaking stairs demand a toll
+before the final descent. All route through armor, shield, difficulty, and run
+logs.
 
 Done when: each region contributes one hazard, and hazard damage routes through
 `damagePlayer` like every other source.

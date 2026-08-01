@@ -1,4 +1,5 @@
 import { GameAction } from '../core/engine';
+import { regionForFloor } from '../core/regions';
 import { GameState, ShiftType } from '../core/state';
 
 const ENDPOINT = '/__runlog';
@@ -30,6 +31,13 @@ export interface TurnRecord {
   sealed?: true;
 }
 
+/** A purse reading taken the turn a region's boss falls and its shop appears. */
+export interface CoinCheckpoint {
+  floor: number;
+  region: number;
+  coins: number;
+}
+
 export interface RunLog {
   id: string;
   seed: string;
@@ -50,6 +58,12 @@ export interface RunLog {
   kills: string[];
   /** Turn on which the player first set foot on each floor. */
   floorEntryTurns: Record<string, number>;
+  /** Coins earned, keyed `<regionIndex>:<source>` (`kill` bounty or `cache` pickup). */
+  coinsEarned: Record<string, number>;
+  /** Coins spent at shops, keyed by the purchased item's name. */
+  coinsSpent: Record<string, number>;
+  /** Purse balance each time a region's boss falls, so income-per-region is readable. */
+  coinCheckpoints: CoinCheckpoint[];
   history: TurnRecord[];
 }
 
@@ -61,6 +75,8 @@ interface Snapshot {
   action: string;
   itemName: string | null;
   liveEnemies: Set<string>;
+  coins: number;
+  clearedRegionCount: number;
 }
 
 function totalEnemyHp(state: GameState): number {
@@ -104,6 +120,9 @@ export class RunRecorder {
       itemsUsed: [],
       kills: [],
       floorEntryTurns: { [state.floorMap.level]: 0 },
+      coinsEarned: {},
+      coinsSpent: {},
+      coinCheckpoints: [],
       history: [],
     };
   }
@@ -123,6 +142,8 @@ export class RunRecorder {
       action: action.type,
       itemName: item?.name ?? null,
       liveEnemies: new Set(state.entities.filter(e => e.hp > 0).map(e => e.name)),
+      coins: state.player.coins,
+      clearedRegionCount: state.clearedRegions.length,
     };
   }
 
@@ -167,10 +188,41 @@ export class RunRecorder {
     }
 
     if (before.itemName) this.log.itemsUsed.push(before.itemName);
+    const region = regionForFloor(state.floorMap.level).index;
     for (const text of events) {
       const pickup = /^You pick up a (.+)\.$/.exec(text);
       if (pickup) this.log.itemsPickedUp.push(pickup[1]);
+
+      const bounty = /You collect (\d+) coins\.$/.exec(text);
+      if (bounty) {
+        const key = `${region}:kill`;
+        this.log.coinsEarned[key] = (this.log.coinsEarned[key] ?? 0) + Number(bounty[1]);
+      }
+
+      const cache = /^You pocket (\d+) coins\.$/.exec(text);
+      if (cache) {
+        const key = `${region}:cache`;
+        this.log.coinsEarned[key] = (this.log.coinsEarned[key] ?? 0) + Number(cache[1]);
+      }
+
+      // BUY_ITEM's event carries no price, so the spend is read off the purse
+      // delta rather than the text — the only other coin sink is a kill/cache
+      // gain, and a purchase turn never advances the world clock to earn one.
+      const purchase = /^You buy the (.+)\.$/.exec(text);
+      if (purchase) {
+        const spent = Math.max(0, before.coins - state.player.coins);
+        this.log.coinsSpent[purchase[1]] = (this.log.coinsSpent[purchase[1]] ?? 0) + spent;
+      }
     }
+
+    if (state.clearedRegions.length > before.clearedRegionCount) {
+      this.log.coinCheckpoints.push({
+        floor: state.floorMap.level,
+        region: state.clearedRegions[state.clearedRegions.length - 1],
+        coins: state.player.coins,
+      });
+    }
+
     for (const name of before.liveEnemies) {
       if (!state.entities.some(e => e.hp > 0 && e.name === name)) {
         // Names repeat across a floor, so this counts a kill only when the last
@@ -198,6 +250,11 @@ export class RunRecorder {
     this.log.outcome = state.isVictory ? 'victory' : 'death';
     this.log.causeOfDeath = state.isVictory ? null : state.lastDamageSource ?? 'unknown';
     this.flush();
+  }
+
+  /** Read-only view of the log recorded so far. Production code never reads this back; it exists for tests. */
+  snapshot(): Readonly<RunLog> {
+    return this.log;
   }
 
   /** Push the current log to disk. Safe to call at any time, including on unload. */

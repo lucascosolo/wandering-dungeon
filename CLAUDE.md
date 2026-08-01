@@ -24,6 +24,23 @@ prefer reading the actual file over guessing.
 Run all three (`tsc`, `npm test`, `npm run build`) before calling a change done.
 None of them verify how something *feels* in the browser — see Verification below.
 
+## Documentation map — load selectively
+
+~1,000 lines of design docs sit outside this file. Load the slice the task
+needs; none of it rewards reading end to end.
+
+| File | Lines | What it is / when to read |
+|---|---|---|
+| `docs/roadmap.md` | 371 | **Start here for feature work.** Ordered tasks, shipped ones struck through. Read the one task you're on plus its epic header — not the whole file. |
+| `project.md` | 165 | The original design brief: core fantasy, the four classes, what the shift system is *for*. Read when a change touches what the game is rather than how it's built. Vision, not spec — it describes four classes and only the Vanguard exists. |
+| `.superpowers/sdd/2026-07-29-wandering-dungeon-mvp/progress.md` | 25 | Where the shift-system bug scars are written down. Read before touching `src/core/shift/`. |
+| `docs/specs/2026-07-29-…-design.md` | 139 | MVP design spec. Historical. |
+| `docs/plans/2026-07-29-…md` | 345 | MVP build plan, with per-task briefs and reports beside it in `.superpowers/sdd/`. Historical. |
+
+The last two describe the MVP as it was planned, not the game as it now is.
+Where they disagree with the code, the code wins and the roadmap is the live
+document.
+
 ## Architecture — read this before touching game logic
 
 - **`dispatchAction(state, action)` in `src/core/engine.ts` is the only way the
@@ -53,11 +70,39 @@ None of them verify how something *feels* in the browser — see Verification be
   `carveRescuePath` as the hard fail-safe. Don't "fix" a sealed exit by adding
   a stricter invariant; that's what caused the floor-locks-permanently
   regression during the last fix (see `.superpowers/sdd/2026-07-29-wandering-dungeon-mvp/progress.md`).
-- Combat/tuning constants live in two places: `ENEMY_TABLE` in `src/core/game.ts`
-  (per-species base HP/attack, scaled by the current region descriptor in
-  `src/core/regions.ts`) and
-  `src/core/engine.ts` (`SHIELD_BASE_FRACTION`, `ENEMY_AGGRO_RADIUS`, the
-  `attackPower + rng.randomInt(-2, 2)` damage roll).
+- **`damagePlayer()` in `src/core/damage.ts` is the only path by which the player
+  loses HP.** It is its own module because `shiftSystem` needs it and `engine.ts`
+  already imports `shiftSystem` — importing back would cycle. Difficulty scaling,
+  armor soak, and shield absorption all live inside it, so a new damage source
+  that doesn't call it silently opts out of all three. Shift fallout kept its own
+  copy once and drifted; that's the scar.
+- **Bosses are ordinary `ENEMY_TABLE` entries flagged `isBoss`** — one per region,
+  with a telegraphed ranged attack driven by `bossCooldown`/`bossTarget`. The
+  arena stays sealed until its guardian dies (`descend()` refuses the stairs).
+  `isBoss` is optional on `Enemy` so older saved runs and test fixtures still
+  decode.
+- **Region hazards are inline `if` blocks in `advanceClock()`**, each keyed on
+  `regionForFloor(...).index`, a specific `shiftCountdown` value, and the tile the
+  player is standing on. There is no hazard table — a new region means a new block.
+- **Shop stock is rolled once, when the region's boss falls** (`awardBossDefeats`
+  → `createShop`), and stored on `state.shop`. Never re-roll it on open: the
+  player could otherwise close and reopen the modal until the stock suited them.
+  `resolvePurchase` returns a result instead of mutating the player, so
+  `dispatchAction` stays the only writer.
+- **Tuning numbers are spread across six files** — check all of them before
+  concluding a knob doesn't exist:
+  - `src/core/game.ts` — `ENEMY_TABLE` (per-species base HP/attack), `ITEM_TABLE`,
+    `ARMOR_TIERS`, `coinsForRegion`, `coinsPerKill`.
+  - `src/core/regions.ts` — `REGIONS[]`: per-region `enemyCount`, `hpMultiplier`,
+    `attackBonus`, enemy pool, palette. **Flat within a region, stepped between
+    them.** Per-floor growth is what put a 114 HP Crawler on floor 25 against a
+    player whose power is flat; don't reintroduce it.
+  - `src/core/runConfig.ts` — `RUN_LENGTHS`, `DIFFICULTIES` (`damageTaken`).
+  - `src/core/engine.ts` — `SHIELD_BASE_FRACTION`, `SHIELD_DURATION`,
+    `ABILITY_COOLDOWN`, `ENEMY_AGGRO_RADIUS`, the
+    `attackPower + rng.randomInt(-2, 2)` damage roll, and the region hazards.
+  - `src/core/shop.ts` — `BASE_PRICES` and the `regionIndex * 0.35` markup.
+  - `src/core/items/itemEffects.ts` — per-consumable magnitudes and durations.
 - `tests/run.test.ts` is the end-to-end completability guard — an `autoPlay`
   bot walks toward the exit every turn. If a change breaks it, the game became
   uncompletable, not "a test needs updating." Treat its failure as load-bearing.
@@ -69,19 +114,22 @@ None of them verify how something *feels* in the browser — see Verification be
 
 ## Project Map
 
-- `src/core/`: game state, deterministic generation, turn resolution, combat,
-  items, saves, and shift simulation. Start with `state.ts`, `game.ts`, and
-  `engine.ts` when tracing a rule or action.
+- `src/core/`: start with `state.ts` (every type, and the single `GameState`
+  shape), `game.ts` (tables, floor population, `createNewGame`), and `engine.ts`
+  (`dispatchAction` and turn resolution) when tracing a rule or action. Beside
+  them: `regions.ts` (region descriptors, floor→region math), `runConfig.ts`
+  (length and difficulty), `damage.ts` (the one HP-loss path), `shop.ts` (the
+  post-boss merchant), `rng.ts`, `save.ts`.
+- `src/core/items/itemEffects.ts`: `useItem` plus one `apply*` per consumable.
 - `src/core/map/`: geometry generation, pathfinding, and fog of war.
 - `src/core/shift/`: cloned-map rehearsal, geometry diffs, telegraphs, and
   shift execution. This is the most invariant-heavy subsystem.
 - `src/render/`: canvas-only ASCII/glyph rendering and transient particles.
 - `src/ui/`: title/settings screens, keybinds, HUD, and DOM event wiring.
+- `src/telemetry/runLog.ts`: the per-run trace writer (see Playtest data above).
 - `src/main.ts`: application bootstrap and the true DOM/input boundary.
 - `tests/`: Vitest coverage by subsystem; `run.test.ts` is the end-to-end
   completability guard.
-- `docs/roadmap.md`: ordered feature work and design decisions; read only the
-  relevant phase for the task.
 
 ## Context Loading Workflow
 
@@ -115,12 +163,14 @@ this limitation, not a rendering bug — don't chase it as one.
 
 For logic/rendering correctness, drive the real Vite modules in-page instead:
 ```js
-const [G, E, R] = await Promise.all([
+const [G, E, R, C] = await Promise.all([
   import('/src/core/game.ts?t=1'),      // ?t= busts Vite's module cache after an edit
   import('/src/core/engine.ts?t=1'),
   import('/src/render/canvasRenderer.ts?t=1'),
+  import('/src/core/runConfig.ts?t=1'),
 ]);
-const s = G.createNewGame('seed');
+// createNewGame takes a RunConfig — there is no default, and no FINAL_FLOOR any more.
+const s = G.createNewGame('seed', C.createRunConfig('short', 'standard'));
 E.dispatchAction(s, { type: 'WAIT' });
 const cv = document.createElement('canvas'); cv.width = 900; cv.height = 600;
 R.renderFrame(cv.getContext('2d'), s, 900, 600);   // then getImageData to check pixels

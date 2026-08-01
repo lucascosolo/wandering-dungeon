@@ -5,3 +5,6 @@ dist
 
 # Playtest run logs written by the dev server (vite/runLogPlugin.ts)
 logs/
+
+# Scoped-delivery ledgers (coordinator state, not project docs)
+.ledger-*.md

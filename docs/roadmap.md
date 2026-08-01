@@ -333,6 +333,44 @@ rush run.
 
 Depends on 10b. Files: `src/core/game.ts`. Scope: S.
 
+### 11. Armor modifiers
+
+Armor is a three-step ladder and then it is over. `ARMOR_TIERS` hands out Padded
+Vest, Scrap Plating, then Warden Carapace by floor, each strictly better than the
+last and each carrying exactly one stat (`defense`). Once the Carapace is on
+around floor 4, armor stops being a decision for the rest of a 25-floor run, and
+every later piece on the ground is an obvious decline.
+
+Give each piece a **rolled modifier** alongside `defense`, so a deeper find is a
+different trade rather than a bigger number — the question becomes "which armor
+suits this region" instead of "is this one higher". Rolling on the piece rather
+than on the tier is the whole point: two Warden Carapaces should not be the same
+Carapace.
+
+Candidates, all expressible against systems that already exist:
+
+- **shift-facing** — reduced fallout damage, or a telegraph that lands a turn earlier
+- **pressure-facing** — slower shift-countdown decay, or immunity to one region hazard
+- **economy-facing** — a coin-find bonus, or cheaper shop stock
+- **risk-facing** — more defense bought against a longer ability cooldown
+
+The comparison prompt is the feature. `pendingArmorOffer` already exists for the
+swap decision, but it currently compares one number; with modifiers it has to
+show what is being *lost* as well as gained, or the roll is invisible.
+
+Done when: armor carries at least one rolled modifier, the swap prompt names what
+is gained and lost, each effect is applied through the system it modifies rather
+than special-cased inside `damagePlayer`, and a rolled modifier survives
+save/resume.
+
+Pairs with 9 — both add depth to the equipment slot and share the comparison
+plumbing. If only one gets built, do 9 first; weapons have no depth at all today,
+whereas armor at least has a ladder.
+
+Depends on 4b for the hazard-facing rolls; the rest depend on nothing unbuilt.
+Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/damage.ts`,
+`src/core/engine.ts`, `src/ui/hud.ts`. Scope: M.
+
 ---
 
 # Independent — feel

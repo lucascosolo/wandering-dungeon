@@ -15,6 +15,7 @@ import {
   PRESSURE_GRACE_TURNS,
   PRESSURE_STEP_TURNS,
   floorPressure,
+  isFloorStabilized,
   shiftInterval,
 } from '../src/core/shift/shiftSystem';
 import { buildFloor, createNewGame } from '../src/core/game';
@@ -524,5 +525,89 @@ describe('Escalating unraveling', () => {
     // The run-long clock keeps its count — that divergence is the whole reason
     // pressure reads floorTurns instead of turnCount.
     expect(state.turnCount).toBe(80);
+  });
+});
+
+/**
+ * Kill the region-5 guardian on its own arena floor, leaving the state one turn
+ * past the boss's death.
+ */
+function clearBossFloor(seed: string) {
+  const state = createNewGame(seed, createRunConfig('short', 'standard'));
+  buildFloor(state, new SeededRNG(`${seed}-rng`), 5);
+  const boss = state.entities[0];
+  boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+  boss.hp = 1;
+  state.player.hp = state.player.maxHp;
+  dispatchAction(state, { type: 'MOVE', dx: 1, dy: 0 });
+  return state;
+}
+
+describe('Stabilization after the guardian falls', () => {
+  it('reads as unstable while the guardian lives and stable once the region is cleared', () => {
+    const state = createNewGame('stabilize-flag', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('stabilize-flag-rng'), 5);
+    expect(isFloorStabilized(state)).toBe(false);
+
+    const cleared = clearBossFloor('stabilize-cleared');
+    expect(cleared.clearedRegions).toEqual([0]);
+    expect(isFloorStabilized(cleared)).toBe(true);
+  });
+
+  it('stops the floor shifting entirely once the guardian is dead', () => {
+    const state = clearBossFloor('stabilize-quiet');
+    const countdown = state.shiftCountdown;
+    const lastShift = state.lastShiftTurn;
+
+    // Far longer than any interval pressure could produce, so a single shift
+    // getting through would show up here.
+    for (let i = 0; i < 60; i++) {
+      state.player.hp = state.player.maxHp;
+      dispatchAction(state, { type: 'WAIT' });
+    }
+
+    expect(state.shiftCountdown).toBe(countdown);
+    expect(state.lastShiftTurn).toBe(lastShift);
+    expect(state.pendingShift).toBeNull();
+    expect(state.turnCount).toBeGreaterThan(60);
+  });
+
+  it('drops a shift already telegraphed when the guardian falls', () => {
+    const state = createNewGame('stabilize-telegraph', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('stabilize-telegraph-rng'), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+
+    state.shiftCountdown = 3;
+    state.player.hp = state.player.maxHp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.pendingShift).not.toBeNull();
+
+    boss.hp = 1;
+    state.player.hp = state.player.maxHp;
+    dispatchAction(state, { type: 'MOVE', dx: 1, dy: 0 });
+    state.player.hp = state.player.maxHp;
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.pendingShift).toBeNull();
+    expect(
+      state.floorMap.tiles.some(row =>
+        row.some(tile => tile.isTelegraphedCollapse || tile.isTelegraphedShift)
+      )
+    ).toBe(false);
+  });
+
+  it('resumes shifting on the next floor down', () => {
+    const state = clearBossFloor('stabilize-descend');
+
+    state.player.position = { ...state.floorMap.exit };
+    dispatchAction(state, { type: 'DESCEND' });
+    expect(state.floorMap.level).toBe(6);
+    expect(isFloorStabilized(state)).toBe(false);
+
+    const countdown = state.shiftCountdown;
+    state.player.hp = state.player.maxHp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.shiftCountdown).toBe(countdown - 1);
   });
 });

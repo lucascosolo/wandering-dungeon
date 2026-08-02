@@ -153,6 +153,16 @@ export interface LevelUpNotice {
   attackGained: number;
 }
 
+/**
+ * A region guardian that fell during the turn just dispatched. Same one-turn
+ * signal as `LevelUpNotice` and cleared on the same schedule.
+ */
+export interface BossDefeatNotice {
+  floor: number;
+  regionName: string;
+  bossName: string;
+}
+
 export type EnemyType =
   | 'crawler'
   | 'sentinel'
@@ -254,6 +264,12 @@ export interface GameState {
    * resumed run must not replay a splash it has already seen.
    */
   lastLevelUp: LevelUpNotice | null;
+  /**
+   * The region guardian killed during the turn just dispatched, for the HUD to
+   * splash. Same discipline as `lastLevelUp`: written only by `awardBossDefeats`,
+   * cleared at the top of every dispatch, and stripped on load.
+   */
+  lastBossDefeat: BossDefeatNotice | null;
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */

@@ -18,6 +18,7 @@ import {
   renderInventory,
   renderLog,
   showArmorOffer,
+  showBossDefeat,
   showEndModal,
   showLevelUp,
   showShop,
@@ -121,6 +122,7 @@ function act(action: GameAction): void {
   // Deliberately not gated on `isTravelStep`: a level earned mid-walk is shown
   // where it happened, and the splash neither dispatches nor stops travel.
   if (state.lastLevelUp) showLevelUp(ui, state.lastLevelUp);
+  if (state.lastBossDefeat) showBossDefeat(ui, state.lastBossDefeat);
   if (!ui.inventorySheet.classList.contains('hidden')) {
     renderInventory(ui, state);
   }
@@ -326,6 +328,7 @@ function enterRun(next: GameState): void {
   ui.modal.classList.add('hidden');
   ui.armorModal.classList.add('hidden');
   showLevelUp(ui, null);
+  showBossDefeat(ui, null);
   // A resumed run's merchant has already been met — reopening is the coin chip's job.
   shopGreetedFloor = next.shop ? next.shop.floor : null;
   closeShop();

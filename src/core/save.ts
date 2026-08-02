@@ -43,9 +43,11 @@ export function decodeRun(raw: unknown): GameState | null {
   const state = saved.state as GameState & { floorTurns?: number };
   state.floorTurns ??= 0;
 
-  // Purely a one-turn signal to the HUD. Resuming is not that turn, so a run saved
-  // on the turn it levelled must not come back with the splash still pending.
+  // Purely one-turn signals to the HUD. Resuming is not that turn, so a run saved
+  // on the turn it levelled — or felled a guardian — must not come back with the
+  // splash still pending.
   saved.state.lastLevelUp = null;
+  saved.state.lastBossDefeat = null;
 
   return saved.state;
 }

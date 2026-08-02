@@ -4,18 +4,20 @@ import { createItem } from './game';
 import { REGIONS } from './regions';
 
 /**
- * Base prices in coins, before the region markup. Tuned against nothing yet —
- * 6c prices these against real income from `logs/<run-id>.json`.
+ * Base prices in coins, before the region markup. Divided by four when floor
+ * piles dropped to 1-3 coins, so a region's clear still buys the same number of
+ * potions it did before. 6c prices these against real income from
+ * `logs/<run-id>.json`.
  */
 const BASE_PRICES: Partial<Record<ItemType, number>> = {
-  health_potion: 25,
-  hourglass_shard: 30,
-  haste_sigil: 28,
-  stasis_flask: 35,
-  rewind_scroll: 40,
-  padded_vest: 60,
-  scrap_plating: 90,
-  warden_carapace: 130,
+  health_potion: 6,
+  hourglass_shard: 8,
+  haste_sigil: 7,
+  stasis_flask: 9,
+  rewind_scroll: 10,
+  padded_vest: 15,
+  scrap_plating: 20,
+  warden_carapace: 30,
 };
 
 const STOCK_POOL: ItemType[] = [
@@ -29,12 +31,14 @@ const STOCK_POOL: ItemType[] = [
 const STOCK_SIZE = 4;
 
 /**
- * Later regions pay more per floor, so the same price list would make the last
+ * Later regions pay more per kill, so the same price list would make the last
  * shop free. The markup keeps a purchase costing roughly the same fraction of a
- * region's income wherever it is bought.
+ * region's income wherever it is bought. Left at 0.35 through the coin rescale:
+ * `coinsPerKill`'s slope was halved to match, rather than steepening this and
+ * putting three-digit prices back on the counter.
  */
 export function priceFor(type: ItemType, regionIndex: number): number {
-  const base = BASE_PRICES[type] ?? 30;
+  const base = BASE_PRICES[type] ?? 8;
   return Math.round(base * (1 + regionIndex * 0.35));
 }
 

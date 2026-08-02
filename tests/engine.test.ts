@@ -9,7 +9,7 @@ import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
 import {
   buildFloor,
-  coinsForRegion,
+  coinsPerPile,
   coinsPerKill,
   createCoinCache,
   createNewGame,
@@ -747,11 +747,13 @@ describe('Coins', () => {
     expect(state.player.coins).toBe(coinsPerKill(0, false));
   });
 
-  it('scales floor income with the region so a later shop stays affordable', () => {
+  it('keeps a floor pile small and region-independent', () => {
     const rng = new SeededRNG('coin-income');
-    const early = coinsForRegion(0, rng);
-    const late = coinsForRegion(4, rng);
-    expect(late).toBeGreaterThan(early);
+    for (let i = 0; i < 200; i++) {
+      const pile = coinsPerPile(rng);
+      expect(pile).toBeGreaterThanOrEqual(1);
+      expect(pile).toBeLessThanOrEqual(3);
+    }
   });
 
   it('accumulates across floors', () => {

@@ -92,7 +92,7 @@ document.
 - **Tuning numbers are spread across six files** — check all of them before
   concluding a knob doesn't exist:
   - `src/core/game.ts` — `ENEMY_TABLE` (per-species base HP/attack), `ITEM_TABLE`,
-    `ARMOR_TIERS`, `coinsForRegion`, `coinsPerKill`.
+    `ARMOR_TIERS`, `coinsPerPile`, `coinsPerKill`.
   - `src/core/regions.ts` — `REGIONS[]`: per-region `enemyCount`, `hpMultiplier`,
     `attackBonus`, enemy pool, palette. **Flat within a region, stepped between
     them.** Per-floor growth is what put a 114 HP Crawler on floor 25 against a

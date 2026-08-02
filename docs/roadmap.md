@@ -412,9 +412,10 @@ stairs. Neither half works alone — small coins with nothing else to look for i
 just a poorer floor.
 
 Done when: chests spawn on a fraction of normal floors, opening one costs a turn
-and yields exactly one rolled reward, contents are fixed at floor build time and
-survive save/resume, and an unopened chest is still unopened after a shift moves
-the geometry around it.
+and yields exactly one rolled reward, an already-looted chest reads as spent at a
+glance on the map — a distinct glyph or colour, not a log line the player has to
+remember — contents are fixed at floor build time and survive save/resume, and an
+unopened chest is still unopened after a shift moves the geometry around it.
 
 Depends on 6a. Pairs with 9 and 11 if the item roll is to include equipment.
 Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/engine.ts`,

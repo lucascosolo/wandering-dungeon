@@ -17,7 +17,7 @@ import {
   xpPerKill,
   xpToNextLevel,
 } from '../src/core/game';
-import { priceFor } from '../src/core/shop';
+import { priceFor, rollShopStock } from '../src/core/shop';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
@@ -937,6 +937,42 @@ describe('Shop', () => {
 
   it('marks the same stock up in later regions', () => {
     expect(priceFor('health_potion', 4)).toBeGreaterThan(priceFor('health_potion', 0));
+  });
+
+  /**
+   * The 6c pricing pass. A region's counter has to keep pace with what that
+   * region pays, or the deepest shops go from a choice to a formality — which is
+   * exactly what a flat-ish markup against a steepening income curve did.
+   *
+   * Modelled the way the pricing pass measured it: a full clear of a region is
+   * every enemy on its four ordinary floors, its boss, and the pile trickle.
+   */
+  it('keeps a stall costing a steady share of the region that pays for it', () => {
+    const ENEMIES_PER_FLOOR = [4, 5, 6, 7, 8];
+    const PILE_INCOME_PER_REGION = 20;
+
+    const shares = ENEMIES_PER_FLOOR.map((count, region) => {
+      const income =
+        count * 4 * coinsPerKill(region, false) +
+        coinsPerKill(region, true) +
+        PILE_INCOME_PER_REGION;
+      const stall = rollShopStock(new SeededRNG(`stall-${region}`), region).reduce(
+        (total, entry) => total + entry.price,
+        0
+      );
+      return income / stall;
+    });
+
+    // Every region's clear buys its own stall over, and none buys it twice —
+    // the failure the pass fixed was region 3 sitting at 1.86x.
+    for (const share of shares) {
+      expect(share).toBeGreaterThan(1);
+      expect(share).toBeLessThan(1.6);
+    }
+
+    // And no region is more than half again as generous as the stingiest, so the
+    // curve is flat rather than merely bounded.
+    expect(Math.max(...shares) / Math.min(...shares)).toBeLessThan(1.5);
   });
 });
 

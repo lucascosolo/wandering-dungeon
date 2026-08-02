@@ -258,7 +258,7 @@ only, since a merchant parked in a corridor could seal the stairs on a floor tha
 has stopped shifting. Bought out, he greys and takes a dashed ring — an empty
 stall is a persistent state, and those read on the map.
 
-### 6c. Shop pricing pass
+### ~~6c. Shop pricing pass~~ — shipped
 
 Price stock against real coin income once 6a/6b are live.
 
@@ -266,6 +266,30 @@ Done when: pricing is grounded in `logs/<run-id>.json` income per region rather
 than guessed.
 
 Depends on 6b. Files: `src/core/shop.ts`. Scope: S.
+
+**Shipped**: the base prices were right and did not move; the region markup was
+wrong and did. It ran at `regionIndex * 0.35`, which raises the counter 2.4x
+from the first region to the last, against an income curve that climbs 3.2x —
+so the stall's share of a region's income drifted from 1.28x in region 0 to
+1.86x in region 3, and the deepest shops, which should be the run's hardest
+spending decision, were the easiest. `REGION_MARKUP` is now 0.55, which lands
+region 4 on 3.2 and holds every region between 1.16x and 1.43x.
+
+Grounded two ways. Seven logs carry coin telemetry, of which the pre-rescale one
+is excluded: two clean runs reached the first shop with **20 and 22 coins**
+against a ~32-coin stall, and a model of a full clear (`enemyCount * 4 floors *
+coinsPerKill`, plus boss bounty and pile trickle) puts the same shop at 41. The
+same model at the logs' observed ~35% clear rate predicts 18 — close enough to
+the measured 20-22 to price the four regions no log has reached yet.
+
+Region 0 is untouched by construction, which is the point: it is the only region
+with observed rather than modelled income, and rushing it still buys two of the
+four while clearing it still buys the stall.
+
+The residual wobble is `coinsPerKill`'s step — it pays the same in regions 1 and
+2, and again in 3 and 4, so income climbs every other region while a linear
+markup climbs every one. No linear slope removes that, and matching it exactly
+would mean pricing off the same step function from two places.
 
 ### ~~7. Escalating unraveling~~ — shipped
 

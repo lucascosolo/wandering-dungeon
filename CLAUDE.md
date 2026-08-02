@@ -79,10 +79,16 @@ are in Architecture below.
   with a telegraphed ranged attack driven by `bossCooldown`/`bossTarget`. The
   arena stays sealed until its guardian dies (`descend()` refuses the stairs).
   `isBoss` is optional on `Enemy` so older saved runs and test fixtures still
-  decode.
-- **Region hazards are inline `if` blocks in `advanceClock()`**, each keyed on
-  `regionForFloor(...).index`, a specific `shiftCountdown` value, and the tile the
-  player is standing on. There is no hazard table — a new region means a new block.
+  decode. Four of the five mark a tile a turn ahead and resolve it on the next;
+  those live in `BOSS_MARKS` (engine.ts), which differ only by radius, damage,
+  and wording — the Null Testament by `inverted`, since its mark is the one safe
+  tile. Sharing one resolution is what keeps them all dodgeable by movement. The
+  Hinge Sovereign is not in the table: it fires immediately rather than marking.
+- **Region hazards are `REGION_HAZARDS` in `engine.ts`**, keyed by region index,
+  each firing on one `shiftCountdown` value against the tile the player stands
+  on. Only one can land per turn, so their order does not matter. Region 3 is
+  deliberately absent — the Glass Expanse sprays from tiles a shift actually
+  changed, so it keys on the executed diff and lives in `shiftSystem.ts`.
 - **Shop stock is rolled once, when the region's boss falls** (`awardBossDefeats`
   → `createShop`), and stored on `state.shop`. Never re-roll it on open: the
   player could otherwise close and reopen the modal until the stock suited them.
@@ -99,8 +105,10 @@ are in Architecture below.
   - `src/core/runConfig.ts` — `RUN_LENGTHS`, `DIFFICULTIES` (`damageTaken`).
   - `src/core/engine.ts` — `SHIELD_BASE_FRACTION`, `SHIELD_DURATION`,
     `ABILITY_COOLDOWN`, `ENEMY_AGGRO_RADIUS`, the
-    `attackPower + rng.randomInt(-2, 2)` damage roll, and the region hazards.
-  - `src/core/shop.ts` — `BASE_PRICES` and the `regionIndex * 0.35` markup.
+    `attackPower + rng.randomInt(-2, 2)` damage roll, `REGION_HAZARDS`, and
+    `BOSS_MARKS`.
+  - `src/core/shop.ts` — `BASE_PRICES` and `REGION_MARKUP`. Both are grounded in
+    playtest logs by roadmap 6c; read that entry before moving either.
   - `src/core/items/itemEffects.ts` — per-consumable magnitudes and durations.
 - `tests/run.test.ts` is the end-to-end completability guard — an `autoPlay`
   bot walks toward the exit every turn. If a change breaks it, the game became
@@ -108,13 +116,22 @@ are in Architecture below.
 - **Playtest data**: `src/telemetry/runLog.ts` + `vite/runLogPlugin.ts` record
   every played run to `logs/<run-id>.json` (git-ignored, dev-server only) — a
   per-turn trace of HP/shield/action/damage plus run totals (damage by source,
-  shifts by type, kills, items). Use this instead of guessing at balance; it's
-  cheap to read and ground-truths what a real run actually experiences.
+  shifts by type, kills, items, and coins and XP broken down by region and
+  source). Use this instead of guessing at balance; it's cheap to read and
+  ground-truths what a real run actually experiences. Two cautions, both learned
+  in the 6c pricing pass: a log written before a balance change describes the old
+  game, so check its date against `git log` before trusting its numbers, and a
+  resumed run only records from the resume, so its early regions look empty
+  rather than unplayed.
 
 ## Project Map
 
-- `src/core/`: start with `state.ts` (every type, and the single `GameState`
-  shape), `game.ts` (tables, floor population, `createNewGame`), and `engine.ts`
+- `src/core/`: start with `state.ts` (every type, the single `GameState` shape,
+  and the two position helpers — `manhattan` and `samePosition`. Movement is
+  cardinal everywhere, so manhattan is distance *in turns* and the only distance
+  worth measuring; use them rather than open-coding `Math.abs(a.x - b.x) + …`
+  again, which is how ten copies accumulated). Then `game.ts` (tables, floor
+  population, `createNewGame`), and `engine.ts`
   (`dispatchAction` and turn resolution) when tracing a rule or action. Beside
   them: `regions.ts` (region descriptors, floor→region math), `runConfig.ts`
   (length and difficulty), `damage.ts` (the one HP-loss path), `shop.ts` (the

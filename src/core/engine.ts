@@ -6,6 +6,7 @@ import {
   clearTelegraphs,
   describePendingShift,
   executeShift,
+  shiftInterval,
 } from './shift/shiftSystem';
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
@@ -562,6 +563,11 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
  */
 function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void {
   state.turnCount++;
+  // Escalating pressure is a tax on lingering, and lingering has to be a choice.
+  // While a region guardian lives the stairs refuse to open, so the player cannot
+  // leave however efficiently they play — the floor clock holds until the arena is
+  // won, and only then starts charging for time spent looting or browsing the shop.
+  if (!state.entities.some(enemy => enemy.isBoss && enemy.hp > 0)) state.floorTurns++;
 
   const { player } = state;
   if (player.shieldTurnsRemaining > 0) {
@@ -625,7 +631,7 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
 
   if (state.shiftCountdown <= 0) {
     events.push(...executeShift(state, rng));
-    state.shiftCountdown = state.nextShiftCountdownMax;
+    state.shiftCountdown = shiftInterval(state);
   } else if (state.shiftCountdown <= 2) {
     const hadPlan = state.pendingShift !== null;
     applyTelegraphs(state, rng);

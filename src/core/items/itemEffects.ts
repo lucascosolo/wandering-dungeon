@@ -1,6 +1,6 @@
 import { GameState } from '../state';
 import { SeededRNG } from '../rng';
-import { executeShift, restorePreShiftSnapshot } from '../shift/shiftSystem';
+import { executeShift, restorePreShiftSnapshot, shiftInterval } from '../shift/shiftSystem';
 
 /**
  * Apply Stasis Flask: pause shift countdown for 6 turns.
@@ -43,7 +43,9 @@ export function applyHasteSigil(state: GameState, rng: SeededRNG): string[] {
   }
 
   state.nextShiftCountdownMax = Math.max(3, state.nextShiftCountdownMax - 2);
-  state.shiftCountdown = state.nextShiftCountdownMax;
+  // Through shiftInterval, not the raw max: on a floor the player has lingered on,
+  // resetting to the base would hand back the turns escalating pressure took.
+  state.shiftCountdown = shiftInterval(state);
   events.push('Instability increases. Next shift will come 2 turns sooner.');
 
   return events;

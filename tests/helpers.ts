@@ -69,6 +69,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     config: createRunConfig('short', 'standard'),
     rngState: rng.serialize(),
     turnCount: 0,
+    floorTurns: 0,
     shiftCountdown: 8,
     nextShiftCountdownMax: 8,
     isStasisActive: false,

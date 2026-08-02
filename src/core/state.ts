@@ -223,6 +223,12 @@ export interface GameState {
     callCount: number;
   };
   turnCount: number;
+  /**
+   * Turns spent on the current floor, reset by `buildFloor`. Escalating pressure
+   * reads this and never `turnCount`: the run-long counter never resets, so
+   * wiring the ramp to it would bill floor-1 dawdling for the rest of the run.
+   */
+  floorTurns: number;
   shiftCountdown: number;
   nextShiftCountdownMax: number;
   isStasisActive: boolean;

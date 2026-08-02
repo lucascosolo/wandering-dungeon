@@ -371,7 +371,7 @@ not interrupt a queued tap-to-travel walk mid-step.
 Depends on 10a. Files: `src/ui/hud.ts`, `src/main.ts`, `src/styles/main.css`.
 Scope: S.
 
-### 10c. XP curve pass
+### ~~10c. XP curve pass~~ — shipped
 
 Tune XP per species and the level curve against real kill counts once 10a/10b
 are live.
@@ -379,6 +379,35 @@ are live.
 Done when: the curve is grounded in `logs/<run-id>.json` kills per region rather
 than guessed, and a full-clear run is measurably stronger at the boss than a
 rush run.
+
+**Shipped**: `xpToNextLevel` moved from `100 + 60 * (level - 1)` to
+`50 + 45 * (level - 1)`. Per-species XP did **not** move — `ENEMY_TABLE`'s
+`hp / 6 + attack` shape holds up against the logs, and `xpPerKill`'s
+`1 + 0.25 * region` already sits just above the 1.6x enemy HP step, so a deeper
+kill stays better value. The defect was where the crossings landed, not what a
+kill was worth.
+
+**What the logs said.** Of 38 traces, seven carry XP and only one is a clean
+floor-1 run that reached a guardian: it banked 118 XP across the whole of
+region 0 — 63% of the 188 its floors held, so nobody sweeps a floor — and
+crossed level 2 *on the Hinge Sovereign's own bounty*. The entire first region
+was fought at level 1, and the reward for beating its guardian arrived after the
+fight it existed to help with. Region 0 was the only region that missed its
+pre-guardian level at `100 + 60`, but it is the region every player sees, and
+the two 10-floor traces confirm the knock-on: a whole victory paid out two
+level-ups.
+
+**What changed.** Nothing about how much XP a run earns — that is set by
+`xpPerKill` — only where the thresholds fall. At the observed 63% rate every
+region now buys a level on its ordinary floors before its arena floor
+(L1→2, 2→4, 4→5, 6→7, 7→8), and a 10-floor victory pays out three.
+
+**The incentive is in the slope.** A run that fights its floors meets the final
+guardian near level 8 — 156 max HP and 19 attack, tracking the 1.6x enemy HP
+and +4 attack it is walking into. One that runs the stairs and fights only
+guardians arrives at level 4, deliberately under-scaled. Two tests in
+`tests/engine.test.ts` score this off `REGIONS` and `xpPerKill` rather than
+typed totals, so changing a species or an enemy count re-scores the curve.
 
 Depends on 10b. Files: `src/core/game.ts`. Scope: S.
 

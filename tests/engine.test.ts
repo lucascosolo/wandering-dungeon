@@ -18,6 +18,7 @@ import {
   xpToNextLevel,
 } from '../src/core/game';
 import { priceFor, rollShopStock } from '../src/core/shop';
+import { FLOORS_PER_REGION, Region, REGIONS } from '../src/core/regions';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
@@ -740,6 +741,71 @@ describe('Experience and levels', () => {
     expect(events).toHaveLength(3);
     expect(state.player.maxHp).toBe(before.maxHp + 3 * HP_PER_LEVEL);
     expect(state.player.attackPower).toBe(before.attack + 3 * ATTACK_PER_LEVEL);
+  });
+
+  /**
+   * The curve is scored against the run it is actually spent on, not against a
+   * hand-typed XP total: both figures below are read off `REGIONS` and
+   * `xpPerKill`, so retuning a species or a region's enemy count re-scores it.
+   */
+  const ORDINARY_FLOORS_PER_REGION = FLOORS_PER_REGION - 1;
+
+  function averageKillXp(region: Region): number {
+    const pool = region.enemyPool;
+    return pool.reduce((total, type) => total + xpPerKill(type, region.index), 0) / pool.length;
+  }
+
+  /** Every ordinary enemy the region holds, if the player kills all of them. */
+  function ordinaryFloorXp(region: Region): number {
+    return ORDINARY_FLOORS_PER_REGION * region.enemyCount * averageKillXp(region);
+  }
+
+  function levelAfter(xp: number): number {
+    let level = 1;
+    let remaining = xp;
+    while (remaining >= xpToNextLevel(level)) {
+      remaining -= xpToNextLevel(level);
+      level++;
+    }
+    return level;
+  }
+
+  /**
+   * Nobody clears a floor completely. The one clean floor-1 trace in `logs/` that
+   * reached a guardian banked 118 XP across region 0 against the 188 its floors
+   * held, so the curve is scored against that rate rather than a perfect sweep.
+   */
+  const OBSERVED_CLEAR_RATE = 0.63;
+
+  it('pays for a level on a region ordinary floors, before its guardian', () => {
+    let xp = 0;
+    for (const region of REGIONS) {
+      const entering = levelAfter(xp);
+      xp += ordinaryFloorXp(region) * OBSERVED_CLEAR_RATE;
+      // The level-up has to land before the arena floor. Paying for it with the
+      // guardian's own bounty hands the player their reward after the fight it
+      // was supposed to help them survive, which is what `100 + 60` did here.
+      expect(levelAfter(xp)).toBeGreaterThan(entering);
+      // The guardian always dies — the region does not open otherwise.
+      xp += xpPerKill(region.boss, region.index);
+    }
+  });
+
+  it('reaches the final guardian measurably stronger for having fought the run', () => {
+    let clearing = 0;
+    let rushing = 0;
+    for (const region of REGIONS) {
+      clearing += ordinaryFloorXp(region) * OBSERVED_CLEAR_RATE;
+      // The last region's guardian is the one both runs are standing in front of,
+      // so neither has banked it yet.
+      if (region.index < REGIONS.length - 1) {
+        const bounty = xpPerKill(region.boss, region.index);
+        clearing += bounty;
+        rushing += bounty;
+      }
+    }
+
+    expect(levelAfter(clearing) - levelAfter(rushing)).toBeGreaterThanOrEqual(3);
   });
 
   it('heals by exactly the max-HP gain rather than to full', () => {

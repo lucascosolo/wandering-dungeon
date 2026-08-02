@@ -491,5 +491,8 @@ so the number exists and simply is not shown. Same for `stasisTurnsRemaining`.
 A revenue path that does not turn the HUD into ad space. One entry point from
 the title screen (1a), nothing on the play surface.
 
-Constraint: the game is an offline PWA with no backend, so anything requiring a
-server or a store account is a much bigger change than it looks.
+Constraint: the game is a PWA with no backend — static files, saves in
+IndexedDB, and a network-first service worker (`public/sw.js`) that keeps a
+cache so the game still opens with no signal once it has been loaded online at
+least once. Anything requiring a server or a store account is a much bigger
+change than it looks.

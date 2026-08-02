@@ -1236,3 +1236,40 @@ html, body {
 }
 
 .error-panel .title-btn small { text-align: center; }
+
+/* The "new build is ready" notice (src/ui/updatePrompt.ts). Sits on `body`
+   above the title screen (z-index 60) but below the crash panel (100), because
+   it must be reachable from the title screen and from a run alike. It is not a
+   backdrop: the game underneath stays playable and tappable, which is the whole
+   point — the player picks the moment to reload. */
+.update-prompt {
+  position: fixed;
+  z-index: 70;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-area-bottom) + var(--thumb-bar-height) + 16px);
+  width: min(calc(100% - 32px), 320px);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-prompt__text {
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.update-prompt__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.update-prompt__actions .title-btn {
+  flex: 1;
+  min-height: 46px;
+}
+
+.update-prompt__actions .title-btn small { text-align: center; }

@@ -27,6 +27,8 @@ import {
   updateHud,
 } from './ui/hud';
 import { RunRecorder } from './telemetry/runLog';
+import { registerServiceWorker } from './pwa/serviceWorker';
+import { showUpdatePrompt } from './ui/updatePrompt';
 
 const particles = new ParticleSystem();
 
@@ -577,6 +579,11 @@ function renderTick(now: number): void {
 // Installed before anything else runs, so a failure during boot itself still has
 // somewhere to land.
 installGlobalErrorHandlers();
+
+// Offline support and the update notice. Registration is fire-and-forget and
+// cannot reject onto this path — a device without service workers simply plays
+// online, and boot below is untouched either way.
+registerServiceWorker(activate => showUpdatePrompt(activate));
 
 /**
  * Both reads must land before the title opens: the settings screen would

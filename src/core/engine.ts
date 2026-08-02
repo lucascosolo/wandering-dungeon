@@ -1,6 +1,7 @@
 import { Enemy, GameState, Item, ItemDrop, LogMessage, Position } from './state';
 import { SeededRNG } from './rng';
 import { damagePlayer } from './damage';
+import { armorMagnitude } from './armorModifiers';
 import {
   applyTelegraphs,
   clearTelegraphs,
@@ -157,38 +158,108 @@ export function grantXp(state: GameState, amount: number, events: string[]): voi
   }
 }
 
-function attack(
-  state: GameState,
-  rng: SeededRNG,
-  attackerName: string,
-  attackPower: number,
-  target: Enemy | null,
-  events: string[]
-): void {
-  const damage = attackPower + rng.randomInt(-2, 2);
-  const dealt = Math.max(1, damage);
+/**
+ * The one path by which an enemy loses HP, and therefore the only place a kill
+ * is paid out. Thorns routes through here rather than subtracting HP itself, so
+ * a thorns kill awards the same XP and the same coins, in the same words, as a
+ * kill by the player's own hand — the run log and the level curve cannot tell
+ * them apart, which is the point.
+ *
+ * Nothing here can start another attack, so a kill mid-attack-resolution
+ * terminates rather than recursing.
+ */
+function damageEnemy(state: GameState, target: Enemy, dealt: number, events: string[]): void {
+  target.hp = Math.max(0, target.hp - dealt);
+  if (target.hp > 0) return;
 
-  if (target) {
-    target.hp = Math.max(0, target.hp - dealt);
-    events.push(`${attackerName} hits ${target.name} for ${dealt} damage.`);
-    if (target.hp <= 0) {
-      // Only the player ever has an enemy as a target, so a kill here is always
-      // theirs. Paid straight to the purse rather than dropped: a coin pile the
-      // next shift buries would tax the player for fighting where the geometry
-      // was about to move.
-      const regionIndex = regionForFloor(state.floorMap.level).index;
-      const bounty = coinsPerKill(regionIndex, target.isBoss === true);
-      const xp = xpPerKill(target.enemyType, regionIndex);
-      state.player.coins += bounty;
-      // XP is named before coins so the run log's coin regex, which anchors on the
-      // trailing "coins.", keeps matching this line.
-      events.push(`${target.name} is destroyed. You gain ${xp} XP and collect ${bounty} coins.`);
-      grantXp(state, xp, events);
-    }
-  } else {
-    events.push(`${attackerName} strikes you.`);
-    damagePlayer(state, dealt, events, attackerName);
+  // Only the player ever damages an enemy, so a kill here is always theirs. Paid
+  // straight to the purse rather than dropped: a coin pile the next shift buries
+  // would tax the player for fighting where the geometry was about to move.
+  const regionIndex = regionForFloor(state.floorMap.level).index;
+  const bounty = coinsPerKill(regionIndex, target.isBoss === true) + coinBonus(state);
+  const xp = xpPerKill(target.enemyType, regionIndex);
+  state.player.coins += bounty;
+  // XP is named before coins so the run log's coin regex, which anchors on the
+  // trailing "coins.", keeps matching this line.
+  events.push(`${target.name} is destroyed. You gain ${xp} XP and collect ${bounty} coins.`);
+  grantXp(state, xp, events);
+}
+
+/** What a `prospecting` roll adds to every coin the player picks up. */
+function coinBonus(state: GameState): number {
+  return armorMagnitude(state.player.armor, 'prospecting');
+}
+
+function playerAttack(state: GameState, rng: SeededRNG, target: Enemy, events: string[]): void {
+  const dealt = Math.max(1, state.player.attackPower + rng.randomInt(-2, 2));
+  events.push(`You hit ${target.name} for ${dealt} damage.`);
+  damageEnemy(state, target, dealt, events);
+}
+
+/**
+ * One enemy's blow, and the armor's answer to it.
+ *
+ * The reactions fire after the hit lands and only while the player is still up:
+ * armor that keeps working after its wearer is down would let a corpse collect
+ * the kill. Thorns resolves before the shove so the attacker is billed for the
+ * hit it actually landed, and a shove is skipped once thorns has killed it.
+ */
+function enemyAttack(state: GameState, rng: SeededRNG, attacker: Enemy, events: string[]): void {
+  const dealt = Math.max(1, attacker.attackPower + rng.randomInt(-2, 2));
+  events.push(`${attacker.name} strikes you.`);
+  damagePlayer(state, dealt, events, attacker.name);
+
+  if (state.player.hp <= 0) return;
+
+  const { armor } = state.player;
+  const thorns = armorMagnitude(armor, 'thorns');
+  if (thorns > 0) {
+    // Worded without "damage" on purpose: the shell sparks red on the player for
+    // any line carrying that word, and this one is damage going the other way.
+    events.push(`${armor!.name} strikes back at ${attacker.name} for ${thorns}.`);
+    state.armorReactions.push({ kind: 'thorns', ...attacker.position });
+    damageEnemy(state, attacker, thorns, events);
   }
+
+  if (attacker.hp <= 0) return;
+
+  const shove = armorMagnitude(armor, 'bulwark');
+  if (shove > 0) {
+    const landed = knockBack(state, attacker, shove);
+    if (landed) {
+      events.push(`${armor!.name} throws ${attacker.name} back.`);
+      state.armorReactions.push({ kind: 'bulwark', ...attacker.position });
+    }
+  }
+}
+
+/**
+ * Shove `target` up to `tiles` steps directly away from the player, one step at a
+ * time, stopping at the first step it cannot take. Wedged against a wall, a
+ * chasm, the map edge, another enemy, or the merchant, it simply does not move —
+ * a shove with nowhere to go is a shove that fails, not one that teleports past
+ * the obstacle or tunnels into it.
+ *
+ * An enemy only ever attacks from an orthogonally adjacent tile, so the two axes
+ * give a cardinal direction and the target can never be pushed onto the player.
+ * Moving an entity cannot start another attack, so this cannot recurse.
+ */
+function knockBack(state: GameState, target: Enemy, tiles: number): boolean {
+  const dx = Math.sign(target.position.x - state.player.position.x);
+  const dy = Math.sign(target.position.y - state.player.position.y);
+  if (dx === 0 && dy === 0) return false;
+
+  let moved = false;
+  for (let step = 0; step < tiles; step++) {
+    const next = { x: target.position.x + dx, y: target.position.y + dy };
+    if (!isWalkableAt(state, next)) break;
+    if (enemyAt(state, next)) break;
+    if (next.x === state.player.position.x && next.y === state.player.position.y) break;
+    if (state.shop && state.shop.position.x === next.x && state.shop.position.y === next.y) break;
+    target.position = next;
+    moved = true;
+  }
+  return moved;
 }
 
 /** Returns whether the action actually happened (a blocked bump is free). */
@@ -197,7 +268,7 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   const occupant = enemyAt(state, target);
 
   if (occupant) {
-    attack(state, rng, 'You', state.player.attackPower, occupant, events);
+    playerAttack(state, rng, occupant, events);
     return true;
   }
 
@@ -252,8 +323,9 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         // Currency never enters the inventory — it is a number on the player, so
         // it cannot be "used", dropped, or take up a hotbar slot.
         drops.splice(index, 1);
-        state.player.coins += drop.item.value ?? 0;
-        events.push(`You pocket ${drop.item.value ?? 0} coins.`);
+        const picked = (drop.item.value ?? 0) + coinBonus(state);
+        state.player.coins += picked;
+        events.push(`You pocket ${picked} coins.`);
       } else {
         drops.splice(index, 1);
         state.player.inventory.push(drop.item);
@@ -334,7 +406,9 @@ function useAbility(state: GameState, events: string[]): boolean {
   const fraction = imminent ? SHIELD_BASE_FRACTION * 1.5 : SHIELD_BASE_FRACTION;
   player.shieldHp = Math.round(player.maxHp * fraction);
   player.shieldTurnsRemaining = SHIELD_DURATION;
-  state.abilityCooldown = ABILITY_COOLDOWN;
+  // A `ponderous` roll's whole cost: the extra defense it already folded into the
+  // piece is paid for here, in turns the shield is not available.
+  state.abilityCooldown = ABILITY_COOLDOWN + armorMagnitude(player.armor, 'ponderous');
 
   events.push(
     imminent
@@ -444,7 +518,7 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       Math.abs(enemy.position.y - state.player.position.y);
 
     if (dist === 1) {
-      attack(state, rng, enemy.name, enemy.attackPower, null, events);
+      enemyAttack(state, rng, enemy, events);
       continue;
     }
 
@@ -769,6 +843,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   // means "gained this dispatch" for every caller, tests included.
   state.lastLevelUp = null;
   state.lastBossDefeat = null;
+  state.armorReactions = [];
   state.shopOpened = false;
 
   const rng = rngFor(state);

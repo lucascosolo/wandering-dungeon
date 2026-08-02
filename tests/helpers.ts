@@ -84,6 +84,7 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
     declinedArmorIds: [],
     lastLevelUp: null,
     lastBossDefeat: null,
+    armorReactions: [],
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastShiftType: null,

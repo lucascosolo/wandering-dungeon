@@ -12,6 +12,7 @@ import {
 } from '../state';
 import { SeededRNG } from '../rng';
 import { damagePlayer } from '../damage';
+import { armorMagnitude } from '../armorModifiers';
 import { hasValidPath } from '../map/pathfinding';
 import { regionForFloor } from '../regions';
 
@@ -231,7 +232,14 @@ export function floorPressure(floorTurns: number): number {
  */
 export function shiftInterval(state: GameState): number {
   const base = state.nextShiftCountdownMax;
-  return Math.max(Math.min(base, MIN_SHIFT_INTERVAL), base - floorPressure(state.floorTurns));
+  // A `ballast` roll blunts the pressure tier rather than the clock, so it can
+  // never hand back more turns than lingering took away, and never lifts the
+  // interval above the base the sigil left behind.
+  const pressure = Math.max(
+    0,
+    floorPressure(state.floorTurns) - armorMagnitude(state.player.armor, 'ballast')
+  );
+  return Math.max(Math.min(base, MIN_SHIFT_INTERVAL), base - pressure);
 }
 
 /**
@@ -880,9 +888,13 @@ const FALLOUT_PRESSURE_BONUS = 0.1;
 function applyFalloutDamage(state: GameState, events: string[]): void {
   const reduction = state.player.classType === 'vanguard' ? 0.5 : 1;
   const severity = 1 + FALLOUT_PRESSURE_BONUS * floorPressure(state.floorTurns);
+  // A `bracing` roll is a percentage off the fallout only. It is applied here
+  // rather than in `damagePlayer` so it cannot quietly become a second, general
+  // damage reduction on top of the piece's own defense.
+  const bracing = 1 - armorMagnitude(state.player.armor, 'bracing') / 100;
   const damage = Math.max(
     1,
-    Math.floor(state.player.maxHp * FALLOUT_FRACTION * reduction * severity)
+    Math.floor(state.player.maxHp * FALLOUT_FRACTION * reduction * severity * bracing)
   );
   events.push('The collapse catches you.');
   damagePlayer(state, damage, events, 'the shift');

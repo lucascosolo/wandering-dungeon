@@ -15,6 +15,7 @@ import { SeededRNG } from './rng';
 import { isRegionEnd, regionForFloor, runProgress } from './regions';
 import { generateFloor } from './map/generator';
 import { computeFOV } from './map/fow';
+import { modifierDefenseBonus, rollArmorModifier } from './armorModifiers';
 
 const STARTING_COUNTDOWN = 10;
 
@@ -144,6 +145,32 @@ const LOOT_POOL: ItemType[] = [
 
 export function createItem(type: ItemType, id: string): Item {
   return { id, ...ITEM_TABLE[type] };
+}
+
+/**
+ * A piece of armor with its modifier rolled. The roll happens here, when the
+ * piece is generated, and never on pickup — the same rule shop stock follows:
+ * a roll the player can re-take by walking away is not a roll.
+ *
+ * It draws from a stream derived from the floor's generator rather than from the
+ * generator itself, so the piece is still a pure function of the run's seed while
+ * the two draws do not re-phase everything the floor rolls after it. Spending
+ * them on the main stream instead moved the completability bot's median depth
+ * from 6 to 5 without changing a single rule — the dungeon it walked was simply a
+ * different dungeon. A side roll should not be able to do that.
+ *
+ * A `ponderous` roll's defense is folded into the piece rather than read live,
+ * because more defense is exactly what `damagePlayer` already does with the
+ * number it finds here.
+ */
+export function createArmor(type: ArmorType, id: string, rng: SeededRNG): Item {
+  const base = createItem(type, id);
+  const modifier = rollArmorModifier(new SeededRNG(`${rng.getSeed()}:${id}`));
+  return {
+    ...base,
+    defense: (base.defense ?? 0) + modifierDefenseBonus(modifier),
+    modifier,
+  };
 }
 
 /** A coin pile worth `value`. The amount is per-pile, so it cannot live in ITEM_TABLE. */
@@ -344,7 +371,7 @@ export function populateFloor(
   const armorPosition = take();
   if (armorPosition) {
     drops.push({
-      item: createItem(armorForLevel(level), `armor_${level}`),
+      item: createArmor(armorForLevel(level), `armor_${level}`, rng),
       position: armorPosition,
     });
   }
@@ -424,6 +451,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     declinedArmorIds: [],
     lastLevelUp: null,
     lastBossDefeat: null,
+    armorReactions: [],
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastShiftType: null,

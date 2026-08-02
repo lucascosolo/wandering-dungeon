@@ -358,7 +358,7 @@ rush run.
 
 Depends on 10b. Files: `src/core/game.ts`. Scope: S.
 
-### 11. Armor modifiers
+### ~~11. Armor modifiers~~ — shipped
 
 Armor is a three-step ladder and then it is over. `ARMOR_TIERS` hands out Padded
 Vest, Scrap Plating, then Warden Carapace by floor, each strictly better than the
@@ -395,6 +395,32 @@ whereas armor at least has a ladder.
 Depends on 4b for the hazard-facing rolls; the rest depend on nothing unbuilt.
 Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/damage.ts`,
 `src/core/engine.ts`, `src/ui/hud.ts`. Scope: M.
+
+**Shipped**: six modifiers in `src/core/armorModifiers.ts`, rolled per piece in
+`createArmor` — Bulwark (shoves an attacker 1-2 tiles back), Thorned (returns 2-5
+damage), Bracing (20-40% off shift fallout), Ballast (holds off 1-2 pressure
+tiers), Prospecting (1-2 extra coins per kill and per pile), Ponderous (2-3
+defense bought with as many turns of Fallout Shield recharge). Each is read by the
+system it modifies — `shiftInterval`, `applyFalloutDamage`, `useAbility`, the
+enemy turn — and `damagePlayer` gained no branch. Thorns routes through the same
+`damageEnemy` the player's own swing uses, so a thorns kill pays the same XP and
+coins in the same words.
+
+The roll draws from a stream derived from the floor generator rather than the
+generator itself. Two draws taken from the main stream re-phase everything the
+floor rolls after them, which moved the completability bot's median depth from 6
+to 5 without changing a rule — see the comment on `createArmor`.
+
+**Not implemented from the candidate list**, so it is not lost: an *earlier
+telegraph* (the shift-facing alternative to reduced fallout — the telegraph is
+plan-time rehearsal keyed on exact `shiftCountdown` values, so moving it a turn
+earlier is a change to the rehearsal schedule, not a modifier read), *immunity to
+one region hazard* (the pressure-facing alternative to slower decay — hazards are
+inline `if` blocks with no table to key an immunity off, and this is the one
+candidate the roadmap marks as depending on 4b), and *cheaper shop stock* (the
+economy-facing alternative to a coin bonus — stock is priced once when it is
+rolled, at boss death, so a piece worn afterwards could not affect it without
+moving pricing to open time).
 
 ### 12. Chests
 

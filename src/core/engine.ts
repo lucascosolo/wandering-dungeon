@@ -1,4 +1,4 @@
-import { Enemy, GameState, LogMessage, Position } from './state';
+import { Enemy, GameState, Item, ItemDrop, LogMessage, Position } from './state';
 import { SeededRNG } from './rng';
 import { damagePlayer } from './damage';
 import {
@@ -31,6 +31,7 @@ export type GameAction =
   | { type: 'DESCEND' }
   | { type: 'EQUIP_ARMOR' }
   | { type: 'DECLINE_ARMOR' }
+  | { type: 'PICK_UP_ARMOR' }
   | { type: 'BUY_ITEM'; offerId: string }
   | { type: 'INSPECT_TILE'; x: number; y: number };
 
@@ -55,6 +56,9 @@ function consumesTurn(action: GameAction): boolean {
     action.type !== 'INSPECT_TILE' &&
     action.type !== 'EQUIP_ARMOR' &&
     action.type !== 'DECLINE_ARMOR' &&
+    // Reopening a prompt the player already answered is not an act in the world
+    // either — it only re-asks the question that EQUIP/DECLINE will answer.
+    action.type !== 'PICK_UP_ARMOR' &&
     // Trading is free. Charging a turn would let the dungeon shift the arena
     // apart while the player reads a price list.
     action.type !== 'BUY_ITEM'
@@ -218,14 +222,28 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
 
   const drops = state.floorMap.drops;
   if (drops) {
-    const index = drops.findIndex(d => d.position.x === target.x && d.position.y === target.y);
+    const here = (d: ItemDrop): boolean => d.position.x === target.x && d.position.y === target.y;
+    const answered = (d: ItemDrop): boolean =>
+      d.item.category === 'armor' && state.declinedArmorIds.includes(d.item.id);
+    // A tile can hold more than one drop — an equip drops the replaced piece
+    // wherever the player is standing. Skip past anything already answered, so a
+    // *new* piece landing on a declined one is still the thing the step finds.
+    const unanswered = drops.findIndex(d => here(d) && !answered(d));
+    const index = unanswered !== -1 ? unanswered : drops.findIndex(here);
     if (index !== -1) {
       const drop = drops[index];
       if (drop.item.category === 'armor' && state.player.armor) {
-        // Leave it on the floor and ask. The swap is destructive — the piece
-        // being replaced falls here — so it is not something to do silently.
-        state.pendingArmorOffer = drop.item;
-        events.push(`A ${drop.item.name} lies here.`);
+        if (state.declinedArmorIds.includes(drop.item.id)) {
+          // Already answered. Re-asking every time the player crosses their own
+          // floor is a modal prompt for a decision they have made, so the offer
+          // demotes to the HUD's pickup hint until they ask for it again.
+          events.push(`The ${drop.item.name} still lies here.`);
+        } else {
+          // Leave it on the floor and ask. The swap is destructive — the piece
+          // being replaced falls here — so it is not something to do silently.
+          state.pendingArmorOffer = drop.item;
+          events.push(`A ${drop.item.name} lies here.`);
+        }
       } else if (drop.item.category === 'armor') {
         drops.splice(index, 1);
         state.player.armor = drop.item;
@@ -252,6 +270,24 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   return true;
 }
 
+/**
+ * The declined piece of armor the player is standing on, if any. The HUD's
+ * pickup hint and PICK_UP_ARMOR both read this one function so the indicator can
+ * never offer a pickup the action would refuse.
+ */
+export function declinedArmorUnderfoot(state: GameState): Item | null {
+  if (state.isGameOver || state.pendingArmorOffer) return null;
+  const { x, y } = state.player.position;
+  const drop = state.floorMap.drops?.find(
+    d =>
+      d.position.x === x &&
+      d.position.y === y &&
+      d.item.category === 'armor' &&
+      state.declinedArmorIds.includes(d.item.id)
+  );
+  return drop ? drop.item : null;
+}
+
 /** Swap the worn armor for the piece underfoot, dropping the old one in its place. */
 function equipOfferedArmor(state: GameState, events: string[]): void {
   const offered = state.pendingArmorOffer;
@@ -267,8 +303,13 @@ function equipOfferedArmor(state: GameState, events: string[]): void {
   drops.splice(index, 1);
   const previous = player.armor;
   player.armor = offered;
+  // Taking a piece is an answer too: the one just replaced falls at the player's
+  // feet, and prompting for it the next time they step back onto this tile would
+  // re-ask the swap they only just made. It stays declined until they ask.
+  state.declinedArmorIds = state.declinedArmorIds.filter(id => id !== offered.id);
   if (previous) {
     drops.push({ item: previous, position: { ...player.position } });
+    if (!state.declinedArmorIds.includes(previous.id)) state.declinedArmorIds.push(previous.id);
   }
   events.push(`You swap into the ${offered.name}.`);
 }
@@ -762,9 +803,21 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     case 'EQUIP_ARMOR':
       equipOfferedArmor(state, events);
       break;
-    case 'DECLINE_ARMOR':
+    case 'DECLINE_ARMOR': {
+      const declined = state.pendingArmorOffer;
       state.pendingArmorOffer = null;
+      // Dismissing the card routes here too, so a backdrop tap is a real "no"
+      // and sticks exactly like the Keep Mine button.
+      if (declined && !state.declinedArmorIds.includes(declined.id)) {
+        state.declinedArmorIds.push(declined.id);
+      }
       break;
+    }
+    case 'PICK_UP_ARMOR': {
+      const underfoot = declinedArmorUnderfoot(state);
+      if (underfoot) state.pendingArmorOffer = underfoot;
+      break;
+    }
     case 'BUY_ITEM':
       buyFromShop(state, action.offerId, events);
       break;

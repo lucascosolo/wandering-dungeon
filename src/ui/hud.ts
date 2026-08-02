@@ -2,6 +2,7 @@ import { BossDefeatNotice, EnemyType, GameState, Item, LevelUpNotice } from '../
 import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
 import { isFloorStabilized } from '../core/shift/shiftSystem';
+import { declinedArmorUnderfoot } from '../core/engine';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 import { DISMISS_HINT } from './modalGate';
 
@@ -35,6 +36,7 @@ export interface HudElements {
   regionBanner: HTMLElement;
   levelSplash: HTMLElement;
   bossSplash: HTMLElement;
+  pickupHint: HTMLButtonElement;
   turnLabel: HTMLElement;
   levelLabel: HTMLElement;
   xpLabel: HTMLElement;
@@ -77,7 +79,11 @@ function enemyLegend(): string {
  * `onUseItem` is bound once here, delegated from the hotbar and inventory
  * containers, so redrawing their contents never has to rebind anything.
  */
-export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void): HudElements {
+export function mountUI(
+  root: HTMLElement,
+  onUseItem: (itemId: string) => void,
+  onPickUpArmor: () => void
+): HudElements {
   root.innerHTML = `
     <header class="hud-header">
       <div class="hud-stat"><span class="hud-stat__label">Floor</span><span id="floor-label">1</span></div>
@@ -108,6 +114,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <div class="region-banner" id="region-banner" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="level-splash" id="level-splash" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="boss-splash" id="boss-splash" role="status" aria-live="polite" aria-atomic="true"></div>
+      <button class="pickup-hint hidden" id="pickup-hint" type="button"></button>
       <canvas id="game-canvas"></canvas>
     </div>
 
@@ -162,12 +169,17 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
   delegateItemUse(byId('hotbar'));
   delegateItemUse(byId('inventory-list'));
 
+  // The hint is the phone's half of the Enter binding — this game is played as an
+  // installed PWA, where a keyboard-only affordance is no affordance at all.
+  byId('pickup-hint').addEventListener('click', onPickUpArmor);
+
   return {
     canvas: byId<HTMLCanvasElement>('game-canvas'),
     floorLabel: byId('floor-label'),
     regionBanner: byId('region-banner'),
     levelSplash: byId('level-splash'),
     bossSplash: byId('boss-splash'),
+    pickupHint: byId<HTMLButtonElement>('pickup-hint'),
     turnLabel: byId('turn-label'),
     levelLabel: byId('level-label'),
     xpLabel: byId('xp-label'),
@@ -251,6 +263,20 @@ export function updateHud(ui: HudElements, state: GameState): void {
 
   const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
   ui.descendBtn.disabled = !onStairs;
+
+  // A hint, not a prompt: it appears while the player stands on armor they have
+  // already refused and goes away the moment they step off, take it, or die —
+  // all three of which are just this predicate going false on the next update.
+  // On the stairs Enter still descends, so the hint drops the key it does not
+  // own rather than printing a binding that would do something else.
+  const pickup = declinedArmorUnderfoot(state);
+  ui.pickupHint.classList.toggle('hidden', pickup === null);
+  if (pickup) {
+    ui.pickupHint.innerHTML = `
+      <span class="pickup-hint__key">${onStairs ? 'TAP TO PICK UP' : 'PRESS [ENTER] TO PICK UP'}</span>
+      <span class="pickup-hint__name">${escapeHtml(pickup.name)} &minus;${pickup.defense ?? 0}</span>
+    `;
+  }
   ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
 }
 

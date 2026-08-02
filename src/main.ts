@@ -1,5 +1,5 @@
 import { createNewGame } from './core/game';
-import { dispatchAction, GameAction } from './core/engine';
+import { declinedArmorUnderfoot, dispatchAction, GameAction } from './core/engine';
 import { FloorMap, GameState, Position } from './core/state';
 import type { HudElements } from './ui/hud';
 import { findPath } from './core/map/pathfinding';
@@ -184,6 +184,23 @@ function dismissModal(): void {
 function resolveArmorOffer(equip: boolean): void {
   ui.armorModal.classList.add('hidden');
   act({ type: equip ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
+}
+
+/** Re-raise the prompt for a piece the player already turned down. */
+function pickUpArmor(): void {
+  act({ type: 'PICK_UP_ARMOR' });
+}
+
+/**
+ * Enter takes the pickup only where it is free to. On the stairs Descend keeps
+ * it, because descending has no other keyboard route the player may have bound
+ * away, while the pickup always keeps the hint button.
+ */
+function armorPickupWantsEnter(): boolean {
+  if (state.floorMap.tiles[state.player.position.y][state.player.position.x].type === 'stairs_down') {
+    return false;
+  }
+  return declinedArmorUnderfoot(state) !== null;
 }
 
 function openShop(): void {
@@ -391,7 +408,7 @@ function bootGameShell(): void {
   const root = document.getElementById('app');
   if (!root) throw new Error('#app container missing');
 
-  ui = mountUI(root, useItem);
+  ui = mountUI(root, useItem, pickUpArmor);
   const context = ui.canvas.getContext('2d');
   if (!context) throw new Error('2D canvas context unavailable');
   ctx = context;
@@ -401,6 +418,8 @@ function bootGameShell(): void {
     wait: () => act({ type: 'WAIT' }),
     ability: () => act({ type: 'ABILITY' }),
     descend: () => act({ type: 'DESCEND' }),
+    pickUpArmor,
+    armorPickupWantsEnter,
     toggleInventory,
     usePotion,
     inputBlocked: () => blocksGameInput(openModals()),

@@ -43,6 +43,14 @@ export function decodeRun(raw: unknown): GameState | null {
   const state = saved.state as GameState & { floorTurns?: number };
   state.floorTurns ??= 0;
 
+  // A run saved before a decline could stick carries no list of refused armor.
+  // Same boundary fix again rather than a SAVE_VERSION bump: an empty list means
+  // the piece underfoot asks once more, which is what that run was already doing.
+  const declines = saved.state as Omit<GameState, 'declinedArmorIds'> & {
+    declinedArmorIds?: string[];
+  };
+  declines.declinedArmorIds ??= [];
+
   // A run saved before the merchant stood on a tile carries a shop with no
   // position. Backfilled to the floor's entrance — a room tile that is never the
   // stairs, so the merchant cannot resume standing where the player has to walk

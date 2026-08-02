@@ -264,6 +264,45 @@ html, body {
   }
 }
 
+/* Pickup hint — persistent while the player stands on armor they declined. It is
+   the only overlay in the viewport that takes pointer events: the phone has no
+   Enter key, so the hint itself has to be the button. Anchored above the thumb
+   bar and narrow, so it covers as little of the board as it can while still
+   being reachable by a thumb. */
+.pickup-hint {
+  position: absolute;
+  bottom: 6%;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: min(84%, 320px);
+  padding: 8px 18px;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 18, 0.92);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 12px;
+  box-shadow: 0 0 18px var(--accent-cyan-glow);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  text-align: center;
+  cursor: pointer;
+}
+
+.pickup-hint__key {
+  color: var(--accent-cyan);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+}
+
+.pickup-hint__name {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
 /* Grid Canvas container */
 .grid-container {
   display: grid;

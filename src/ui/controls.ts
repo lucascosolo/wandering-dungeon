@@ -6,6 +6,13 @@ export interface ControlHandlers {
   wait: () => void;
   ability: () => void;
   descend: () => void;
+  /** Re-raise the swap prompt for a piece of armor underfoot that was declined. */
+  pickUpArmor: () => void;
+  /**
+   * Whether Enter should pick that armor up instead of descending. False on the
+   * stairs, so the two never contend for the key — see the `descend` case below.
+   */
+  armorPickupWantsEnter: () => boolean;
   toggleInventory: () => void;
   /** Drink a Health Potion, bound to its own key rather than a hotbar slot. */
   usePotion: () => void;
@@ -68,7 +75,15 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
         handlers.usePotion();
         break;
       case 'descend':
-        handlers.descend();
+        // Enter is bound to Descend by default and is also the natural key for
+        // "pick that up". Descend wins wherever both apply: it is the only way
+        // forward, whereas the pickup keeps a second route — the hint is itself a
+        // button, which is how the phone reaches it at all. So `>` (and the
+        // Descend button) always descend, and Enter only diverts to the pickup on
+        // a tile that is not the stairs. There is no tile where Enter is the only
+        // way down.
+        if (key === 'enter' && handlers.armorPickupWantsEnter()) handlers.pickUpArmor();
+        else handlers.descend();
         break;
       default:
         handlers.useHotbarSlot(Number(action.slice(-1)));

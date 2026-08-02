@@ -84,6 +84,24 @@ export type ItemType =
 
 export type ArmorType = 'padded_vest' | 'scrap_plating' | 'warden_carapace';
 
+export type ArmorModifierType =
+  | 'bulwark'
+  | 'thorns'
+  | 'bracing'
+  | 'ballast'
+  | 'prospecting'
+  | 'ponderous';
+
+/**
+ * The rolled half of a piece of armor: which trade it offers and how much of it.
+ * Rolled per piece rather than per tier, so two Warden Carapaces are two
+ * different decisions. See `armorModifiers.ts` for what each type does.
+ */
+export interface ArmorModifier {
+  type: ArmorModifierType;
+  magnitude: number;
+}
+
 export interface Item {
   id: string;
   type: ItemType;
@@ -92,6 +110,12 @@ export interface Item {
   category: 'stabilization' | 'destabilization' | 'consumable' | 'armor' | 'currency';
   /** Flat damage soaked per hit. Armor only — see damagePlayer. */
   defense?: number;
+  /**
+   * Armor only, and optional: a run saved before modifiers existed carries pieces
+   * without one, and an unmodified piece is a legal piece rather than a broken
+   * one. Absent means "no modifier", which is what those saves were playing.
+   */
+  modifier?: ArmorModifier;
   /**
    * Coins in the cache. Currency only: it is spent into `player.coins` on pickup
    * and never enters the inventory, so it can never be "used" as a consumable.
@@ -167,6 +191,18 @@ export interface BossDefeatNotice {
   floor: number;
   regionName: string;
   bossName: string;
+}
+
+/**
+ * A reactive armor modifier that fired during the turn just dispatched, and the
+ * tile it fired on, so the shell can spark something there. Same one-turn
+ * discipline as `LevelUpNotice`: cleared at the top of every dispatch and
+ * stripped on load, because a resumed run is not the turn it happened on.
+ */
+export interface ArmorReaction {
+  kind: 'thorns' | 'bulwark';
+  x: number;
+  y: number;
 }
 
 export type EnemyType =
@@ -285,6 +321,11 @@ export interface GameState {
    * cleared at the top of every dispatch, and stripped on load.
    */
   lastBossDefeat: BossDefeatNotice | null;
+  /**
+   * Reactive armor modifiers that fired during the turn just dispatched, for the
+   * shell to spark on the map. Same discipline as the two notices above.
+   */
+  armorReactions: ArmorReaction[];
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */

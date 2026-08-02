@@ -3,6 +3,7 @@ import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
 import { isFloorStabilized } from '../core/shift/shiftSystem';
 import { declinedArmorUnderfoot } from '../core/engine';
+import { describeModifier, modifierLabel } from '../core/armorModifiers';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 import { DISMISS_HINT } from './modalGate';
 
@@ -258,8 +259,13 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.potionBtn.disabled = potions === 0 || player.hp >= player.maxHp;
 
   const { armor } = player;
-  ui.armorName.textContent = armor ? `${armor.name} −${armor.defense}` : 'Unarmoured';
+  // The chip is the only always-visible readout of what the worn piece rolled, so
+  // it names the modifier rather than only the number it soaks — a reactive
+  // effect the player has forgotten about is an effect they cannot play around.
+  ui.armorName.textContent = armor ? armorSummary(armor) : 'Unarmoured';
+  ui.armorChip.title = armor?.modifier ? describeModifier(armor.modifier) : '';
   ui.armorChip.classList.toggle('armor-chip--empty', !armor);
+  ui.armorChip.classList.toggle('armor-chip--modified', Boolean(armor?.modifier));
 
   const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
   ui.descendBtn.disabled = !onStairs;
@@ -274,10 +280,20 @@ export function updateHud(ui: HudElements, state: GameState): void {
   if (pickup) {
     ui.pickupHint.innerHTML = `
       <span class="pickup-hint__key">${onStairs ? 'TAP TO PICK UP' : 'PRESS [ENTER] TO PICK UP'}</span>
-      <span class="pickup-hint__name">${escapeHtml(pickup.name)} &minus;${pickup.defense ?? 0}</span>
+      <span class="pickup-hint__name">${escapeHtml(armorSummary(pickup))}</span>
     `;
   }
   ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
+}
+
+/**
+ * One line naming a piece of armor: what it soaks and what it rolled. Every
+ * surface that names armor in passing goes through this, so a piece cannot read
+ * as a bare number on one screen and as a trade on another.
+ */
+export function armorSummary(armor: Item): string {
+  const soak = `${armor.name} −${armor.defense ?? 0}`;
+  return armor.modifier ? `${soak} · ${modifierLabel(armor.modifier)}` : soak;
 }
 
 /**
@@ -377,16 +393,33 @@ export function renderInventory(ui: HudElements, state: GameState): void {
           .map(
             item => `
       <button class="item-row" data-item-id="${item.id}" type="button">
-        <span class="item-row__name">${escapeHtml(item.name)}</span>
-        <span class="item-row__desc">${escapeHtml(item.description)}</span>
+        <span class="item-row__name">${escapeHtml(itemTitle(item))}</span>
+        <span class="item-row__desc">${escapeHtml(itemDetail(item))}</span>
       </button>`
           )
           .join('');
 }
 
 /**
- * The swap prompt. Worn and offered are shown side by side because the only
- * thing the player needs to decide is which number is bigger.
+ * How an item names itself in a list, and what it says under that name. Armor is
+ * the only thing with a rolled half, and every list that can hold it — the
+ * inventory, the merchant's stock — reads it through these two so a modifier
+ * cannot be visible on one surface and invisible on the next.
+ */
+function itemTitle(item: Item): string {
+  return item.modifier ? `${item.name} · ${modifierLabel(item.modifier)}` : item.name;
+}
+
+function itemDetail(item: Item): string {
+  return item.modifier ? `${item.description} ${describeModifier(item.modifier)}` : item.description;
+}
+
+/**
+ * The swap prompt. Worn and offered are shown side by side, each with what it
+ * rolled: with modifiers the decision is no longer which number is bigger, so a
+ * card that showed only the number would hide the whole choice. What is given up
+ * is spelled out under the worn side, because a modifier the player never reads
+ * is a modifier that does not exist.
  */
 export function showArmorOffer(
   ui: HudElements,
@@ -395,6 +428,13 @@ export function showArmorOffer(
 ): void {
   const offered = state.pendingArmorOffer!;
   const worn = state.player.armor;
+
+  const trait = (armor: Item | null, verb: string): string => {
+    if (!armor?.modifier) return `<span class="armor-compare__mod armor-compare__mod--none">no modifier</span>`;
+    return `
+      <span class="armor-compare__mod">${escapeHtml(verb)} ${escapeHtml(modifierLabel(armor.modifier))}</span>
+      <span class="armor-compare__mod-desc">${escapeHtml(describeModifier(armor.modifier))}</span>`;
+  };
 
   ui.armorModal.classList.remove('hidden');
   ui.armorModal.innerHTML = `
@@ -405,11 +445,13 @@ export function showArmorOffer(
           <span class="armor-compare__label">Worn</span>
           <span class="armor-compare__name">${escapeHtml(worn ? worn.name : 'Nothing')}</span>
           <span class="armor-compare__value">${worn?.defense ?? 0}</span>
+          ${worn ? trait(worn, 'lose') : ''}
         </div>
         <div class="armor-compare__side armor-compare__side--new">
           <span class="armor-compare__label">Found</span>
           <span class="armor-compare__name">${escapeHtml(offered.name)}</span>
           <span class="armor-compare__value">${offered.defense}</span>
+          ${trait(offered, 'gain')}
         </div>
       </div>
       <p class="modal__stats">damage soaked per hit &middot; the old piece drops at your feet</p>
@@ -445,8 +487,8 @@ export function showShop(
       return `
       <button class="shop-row" type="button" data-offer-id="${offer.id}"
               ${offer.sold || !affordable ? 'disabled' : ''}>
-        <span class="shop-row__name">${escapeHtml(offer.item.name)}</span>
-        <span class="shop-row__desc">${escapeHtml(offer.item.description)}</span>
+        <span class="shop-row__name">${escapeHtml(itemTitle(offer.item))}</span>
+        <span class="shop-row__desc">${escapeHtml(itemDetail(offer.item))}</span>
         <span class="shop-row__price${offer.sold ? ' shop-row__price--sold' : ''}">${label}</span>
       </button>`;
     })

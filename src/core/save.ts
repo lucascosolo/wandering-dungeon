@@ -64,6 +64,13 @@ export function decodeRun(raw: unknown): GameState | null {
   saved.state.lastLevelUp = null;
   saved.state.lastBossDefeat = null;
   saved.state.shopOpened = false;
+  // Both a backfill for a run saved before armor had modifiers and the same
+  // one-turn strip as the notices above — an empty list is what a resumed run
+  // wants either way, so the assignment covers both without a `??=`. The rolled
+  // modifier itself rides along on the worn piece: `Item.modifier` is optional,
+  // so a save made before it existed decodes as armor with no modifier, which is
+  // exactly what that run was playing.
+  saved.state.armorReactions = [];
 
   return saved.state;
 }

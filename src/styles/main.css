@@ -575,6 +575,25 @@ html, body {
   color: var(--text-main);
 }
 
+/* The rolled half of a piece, on the chip and on both sides of the swap card. */
+.armor-chip--modified { border-color: rgba(255, 209, 102, 0.55); }
+.armor-chip--modified .armor-chip__glyph { color: #ffd166; }
+
+.armor-compare__mod {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #ffd166;
+}
+
+.armor-compare__mod--none { color: var(--text-dim); font-weight: 400; }
+
+.armor-compare__mod-desc {
+  font-size: 0.62rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--text-dim);
+}
+
 .armor-compare__actions {
   display: flex;
   gap: 10px;

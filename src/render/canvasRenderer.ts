@@ -8,6 +8,7 @@ export const TILE_SIZE = 30;
 const COLOR_PLAYER = '#00f0ff';
 const COLOR_ITEM = '#ffd166';
 const COLOR_ARMOR = '#8fd9c0';
+const COLOR_ARMOR_MODIFIED = '#ffd166';
 const COLOR_COIN = '#f7b32b';
 
 /**
@@ -218,7 +219,17 @@ export function renderFrame(
         : drop.item.category === 'currency'
           ? COLOR_COIN
           : COLOR_ITEM;
-    drawGlyph(ctx, glyph, color, x * TILE_SIZE + offsetX, y * TILE_SIZE + offsetY);
+    const px = x * TILE_SIZE + offsetX;
+    const py = y * TILE_SIZE + offsetY;
+    drawGlyph(ctx, glyph, color, px, py);
+    // A rolled modifier is persistent state on the piece, so it reads off the map
+    // and not only out of the prompt: a ringed `[` is worth the walk, a bare one
+    // is only a number. Same idiom as the bought-out stall's ring.
+    if (drop.item.modifier) {
+      ctx.strokeStyle = COLOR_ARMOR_MODIFIED;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+    }
   }
 
   const { shop } = state;

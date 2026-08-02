@@ -94,6 +94,19 @@ function reactToEvents(events: string[], struck: { x: number; y: number } | null
       particles.burst(x, y, '#9d4edd', 16);
     }
   }
+
+  // A reactive modifier fires on a tile, not in the log, so it sparks there —
+  // orange where the armor bit back, green where it threw something clear. The
+  // engine reports the tile because the log line cannot: by the time a shove has
+  // resolved, the attacker is no longer where the sentence found it.
+  for (const reaction of state.armorReactions) {
+    particles.burst(
+      reaction.x,
+      reaction.y,
+      reaction.kind === 'thorns' ? '#ff7b00' : '#8fd9c0',
+      12
+    );
+  }
 }
 
 function act(action: GameAction): void {

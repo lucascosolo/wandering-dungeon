@@ -19,6 +19,7 @@ import {
   renderLog,
   showArmorOffer,
   showEndModal,
+  showLevelUp,
   showShop,
   updateHud,
 } from './ui/hud';
@@ -117,6 +118,9 @@ function act(action: GameAction): void {
   updateHud(ui, state);
   renderLog(ui, state);
   renderHotbar(ui, state);
+  // Deliberately not gated on `isTravelStep`: a level earned mid-walk is shown
+  // where it happened, and the splash neither dispatches nor stops travel.
+  if (state.lastLevelUp) showLevelUp(ui, state.lastLevelUp);
   if (!ui.inventorySheet.classList.contains('hidden')) {
     renderInventory(ui, state);
   }
@@ -321,6 +325,7 @@ function enterRun(next: GameState): void {
   dirty = true;
   ui.modal.classList.add('hidden');
   ui.armorModal.classList.add('hidden');
+  showLevelUp(ui, null);
   // A resumed run's merchant has already been met — reopening is the coin chip's job.
   shopGreetedFloor = next.shop ? next.shop.floor : null;
   closeShop();

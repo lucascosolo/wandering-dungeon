@@ -383,6 +383,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     preShiftSnapshot: null,
     pendingShift: null,
     pendingArmorOffer: null,
+    lastLevelUp: null,
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastShiftType: null,

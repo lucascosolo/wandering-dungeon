@@ -93,6 +93,16 @@ describe('Run persistence', () => {
     expect(restored.player.attackPower).toBe(levelled.attackPower);
   });
 
+  it('does not bring back a pending level-up splash on resume', () => {
+    const state = playedRun('save-splash', 5);
+    grantXp(state, xpToNextLevel(1), []);
+    expect(state.lastLevelUp).not.toBeNull();
+
+    // The splash belongs to the turn it was earned on. Resuming is not that turn,
+    // so it must arrive spent rather than replayed.
+    expect(roundTrip(state)!.lastLevelUp).toBeNull();
+  });
+
   it('resumes a run saved before levels existed at level 1', () => {
     const state = playedRun('save-pre-xp', 5);
     const saved = structuredClone(encodeRun(state));

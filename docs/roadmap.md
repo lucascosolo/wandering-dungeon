@@ -294,7 +294,7 @@ Depends on 4a. Files: `src/core/state.ts`, `src/core/game.ts`,
 `src/core/engine.ts`, `src/ui/hud.ts`. Scope: L — split ranged from melee if it
 runs long.
 
-### 10a. Experience and levels
+### ~~10a. Experience and levels~~ — shipped
 
 Kills grant XP; XP raises a player level that ramps `maxHp` and `attackPower`.
 The point is incentive, not power: right now nothing rewards clearing a floor
@@ -311,7 +311,7 @@ progress survives save/resume.
 Depends on 3b. Files: `src/core/state.ts`, `src/core/engine.ts`,
 `src/core/game.ts`. Scope: M.
 
-### 10b. Level-up splash
+### ~~10b. Level-up splash~~ — shipped
 
 A brief overlay naming the new level and what it gained. Level-ups are the
 payoff that makes 10a legible — a silent stat bump teaches nothing.

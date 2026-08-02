@@ -143,6 +143,16 @@ export interface Player extends Entity {
   xp: number;
 }
 
+/**
+ * What a level-up this turn was worth. Gains are totals, so several levels landing
+ * on one kill splash once rather than fighting each other for the same corner.
+ */
+export interface LevelUpNotice {
+  level: number;
+  maxHpGained: number;
+  attackGained: number;
+}
+
 export type EnemyType =
   | 'crawler'
   | 'sentinel'
@@ -231,6 +241,13 @@ export interface GameState {
    * no put-back path and re-stepping on the tile simply asks again.
    */
   pendingArmorOffer: Item | null;
+  /**
+   * A level gained during the turn just dispatched, for the HUD to splash. Written
+   * only by `grantXp` and cleared at the top of every dispatch, so it names one
+   * turn's gain and never a stale one. Stripped on load rather than saved — a
+   * resumed run must not replay a splash it has already seen.
+   */
+  lastLevelUp: LevelUpNotice | null;
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */

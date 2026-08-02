@@ -30,8 +30,15 @@ export const COSMETICS: readonly Cosmetic[] = [
   { id: 'ember', label: 'Ember', glyph: '@', color: '#ff6b35', supporter: false },
   { id: 'verdant', label: 'Verdant', glyph: '@', color: '#4ade80', supporter: false },
   { id: 'rift-touched', label: 'Rift-Touched', glyph: '@', color: '#c77dff', supporter: true },
-  { id: 'bone', label: 'Bonewalker', glyph: '&', color: '#e8e6df', supporter: true },
+  { id: 'bone', label: 'Bonewalker', glyph: '@', color: '#e8e6df', supporter: true },
 ];
+
+/**
+ * Every skin keeps `@`. Bonewalker shipped as `&` and had to be pulled back: `&`
+ * is the merchant, so a cosmetic could paint the player as a floor entity the
+ * router treats as a wall and the legend names as someone else. A skin may
+ * recolour the player and may not disguise them as another thing on the map.
+ */
 
 export const DEFAULT_COSMETIC_ID = 'wanderer';
 

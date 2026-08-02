@@ -23,9 +23,13 @@ import {
   showBossDefeat,
   showEndModal,
   showLevelUp,
+  showRunMenu,
   showShop,
   updateHud,
 } from './ui/hud';
+import { showHowToPlay } from './ui/howToPlay';
+import { showGlyphLegend } from './ui/glyphLegend';
+import { showSettingsScreen } from './ui/settingsScreen';
 import { RunRecorder } from './telemetry/runLog';
 import { buildRunReport } from './telemetry/runReport';
 import { loadCosmetic } from './cosmetics';
@@ -198,6 +202,7 @@ function openModals(): ModalSnapshot {
     shop: !ui.shopModal.classList.contains('hidden'),
     end: !ui.modal.classList.contains('hidden'),
     inventory: !ui.inventorySheet.classList.contains('hidden'),
+    menu: !ui.menuModal.classList.contains('hidden'),
   };
 }
 
@@ -217,7 +222,40 @@ function dismissModal(): void {
     case 'inventory':
       closeInventory();
       break;
+    case 'menu':
+      closeMenu();
+      break;
   }
+}
+
+function openMenu(): void {
+  // Any walk in progress is a queued sequence of turns; pausing has to stop it,
+  // or the board would carry on moving behind the panel that froze input.
+  stopTravel();
+  showRunMenu(ui, state, {
+    onHowToPlay: () => showHowToPlay(() => {}),
+    onGlyphKey: () => showGlyphLegend(() => {}),
+    onSettings: () => showSettingsScreen(() => {}),
+    onAbandon: abandonRun,
+    onClose: closeMenu,
+  });
+}
+
+function closeMenu(): void {
+  ui.menuModal.classList.add('hidden');
+}
+
+/**
+ * Give up the run in progress. The save is cleared *before* the title screen
+ * re-reads it, not alongside it: Continue offering the run the player just
+ * abandoned is the one outcome this has to rule out.
+ */
+function abandonRun(): void {
+  closeMenu();
+  // `clearRun` reports storage failure to the console and resolves either way —
+  // same posture as every other read and write in `save.ts` — so there is no
+  // rejection path to handle here.
+  void clearRun().then(returnToTitle);
 }
 
 function resolveArmorOffer(equip: boolean): void {
@@ -446,6 +484,7 @@ function enterRun(next: GameState): void {
   showBossDefeat(ui, null);
   closeShop();
   closeInventory();
+  closeMenu();
   resizeCanvas();
   updateHud(ui, state);
   renderLog(ui, state);
@@ -504,6 +543,8 @@ function bootGameShell(): void {
   root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
   root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
   ui.potionBtn.addEventListener('click', usePotion);
+  ui.menuBtn.addEventListener('click', openMenu);
+  ui.legendBtn.addEventListener('click', () => showGlyphLegend(() => {}));
   root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
 
   // Tapping the backdrop dismisses. `e.target === el` is what keeps a tap on the
@@ -511,7 +552,7 @@ function bootGameShell(): void {
   // press. The backdrop is a sibling of the canvas and covers it, so this never
   // reaches the tap-to-travel handler. The end modal gets no such listener: a
   // dead run is not a prompt you escape.
-  for (const backdrop of [ui.armorModal, ui.shopModal]) {
+  for (const backdrop of [ui.armorModal, ui.shopModal, ui.menuModal]) {
     backdrop.addEventListener('click', e => {
       if (e.target === backdrop) dismissModal();
     });

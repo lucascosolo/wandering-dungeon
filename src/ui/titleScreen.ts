@@ -8,6 +8,7 @@ import {
   RUN_LENGTHS,
 } from '../core/runConfig';
 import { showSettingsScreen } from './settingsScreen';
+import { showHowToPlay } from './howToPlay';
 import { GameState } from '../core/state';
 import { BUILD_LABEL } from '../buildInfo';
 import { openSupportPage, SUPPORT_LABEL } from './support';
@@ -62,6 +63,10 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
                 : 'no run in progress'
             }</small>
           </button>
+          <button class="title-btn" id="btn-how-to-play" type="button">
+            How to Play
+            <small>the goal &middot; controls &middot; the shift</small>
+          </button>
           <button class="title-btn" id="btn-settings" type="button">
             Settings
             <small>controls &middot; appearance</small>
@@ -81,8 +86,11 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
         handlers.onContinue(saved);
       });
     }
-    // Settings stacks on top rather than replacing the menu, so backing out of it
+    // These stack on top rather than replacing the menu, so backing out of one
     // needs no state — this screen is still underneath, untouched.
+    screen.querySelector('#btn-how-to-play')!.addEventListener('click', () =>
+      showHowToPlay(() => {})
+    );
     screen.querySelector('#btn-settings')!.addEventListener('click', () =>
       showSettingsScreen(() => {})
     );

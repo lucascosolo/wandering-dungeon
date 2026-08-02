@@ -41,10 +41,26 @@ export interface DispatchResult {
   events: string[];
 }
 
-/** Fallout Shield: base absorb is 25% of max HP, +50% when a shift is imminent. */
-const SHIELD_BASE_FRACTION = 0.25;
-const SHIELD_DURATION = 3;
-const ABILITY_COOLDOWN = 6;
+/**
+ * Fallout Shield: base absorb is 25% of max HP, +50% when a shift is imminent.
+ *
+ * Exported because the How to Play panel states all four numbers to the player,
+ * and the synergy they describe is the best decision in the game — a panel that
+ * taught a bonus the engine no longer paid would be worse than no panel. Same
+ * contract as `ENEMY_STYLES` feeding the glyph key.
+ */
+export const SHIELD_BASE_FRACTION = 0.25;
+export const SHIELD_DURATION = 3;
+export const ABILITY_COOLDOWN = 6;
+/** The shield brace bonus applies at or below this many turns on the clock. */
+export const SHIELD_BRACE_COUNTDOWN = 2;
+export const SHIELD_BRACE_MULTIPLIER = 1.5;
+/**
+ * How many turns out the floor starts painting warning tiles. The same number as
+ * the shield's brace window today, and deliberately a separate constant: they
+ * are two rules that happen to agree, and the How to Play panel quotes both.
+ */
+export const TELEGRAPH_COUNTDOWN = 2;
 const ENEMY_AGGRO_RADIUS = 8;
 
 /**
@@ -402,8 +418,10 @@ function useAbility(state: GameState, events: string[]): boolean {
     return false;
   }
 
-  const imminent = state.shiftCountdown <= 2;
-  const fraction = imminent ? SHIELD_BASE_FRACTION * 1.5 : SHIELD_BASE_FRACTION;
+  const imminent = state.shiftCountdown <= SHIELD_BRACE_COUNTDOWN;
+  const fraction = imminent
+    ? SHIELD_BASE_FRACTION * SHIELD_BRACE_MULTIPLIER
+    : SHIELD_BASE_FRACTION;
   player.shieldHp = Math.round(player.maxHp * fraction);
   player.shieldTurnsRemaining = SHIELD_DURATION;
   // A `ponderous` roll's whole cost: the extra defense it already folded into the
@@ -789,10 +807,10 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
   if (state.shiftCountdown <= 0) {
     events.push(...executeShift(state, rng));
     state.shiftCountdown = shiftInterval(state);
-  } else if (state.shiftCountdown <= 2) {
+  } else if (state.shiftCountdown <= TELEGRAPH_COUNTDOWN) {
     const hadPlan = state.pendingShift !== null;
     applyTelegraphs(state, rng);
-    if (state.shiftCountdown === 2 && !hadPlan && state.pendingShift) {
+    if (state.shiftCountdown === TELEGRAPH_COUNTDOWN && !hadPlan && state.pendingShift) {
       events.push(describePendingShift(state.pendingShift));
     }
   } else if (state.pendingShift) {

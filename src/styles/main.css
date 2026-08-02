@@ -1359,3 +1359,116 @@ html, body {
   text-align: center;
   color: var(--text-dim);
 }
+
+/* The in-run menu button. Lives in the header rather than the thumb bar: the bar
+   is the four actions that cost a turn, and a pause does not belong among them.
+   The modals cover the header at z-index 40, which is what stops the menu being
+   opened on top of an armour or shop prompt. */
+.menu-btn {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.menu-btn:hover, .menu-btn:active {
+  background: var(--accent-cyan-glow);
+  border-color: var(--border-glow);
+  color: var(--accent-cyan);
+}
+
+/* `.legend` is now a button, so it has to shed the browser's button chrome and
+   keep reading as the quiet strip it was. Touch devices have no hover, so the
+   strip's `title=` names were unreachable on the primary platform — tapping it
+   opens the glyph key instead. */
+.legend {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.legend:hover, .legend:active { color: var(--text-muted); }
+
+/* Reference panels: How to Play and the glyph key. Both reuse the title screen's
+   scrolling column (`.settings__inner`), so nothing here re-states layout. */
+.help__body {
+  margin: 0 0 12px;
+  align-self: flex-start;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.help__body strong { color: var(--text-main); font-weight: 700; }
+
+.help__body--note {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-left: 2px solid var(--accent-purple);
+  border-radius: 8px;
+  background: var(--bg-glass-card);
+}
+
+.help__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.help__keys {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-main);
+  text-align: right;
+}
+
+.glyph-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.glyph-row {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 1px 10px;
+  align-items: baseline;
+  padding: 4px 2px;
+}
+
+.glyph-row__glyph {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.glyph-row__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.glyph-row__note {
+  grid-column: 2;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}

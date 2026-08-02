@@ -29,7 +29,10 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   fracture_leech: { glyph: 'L', color: '#b56576', label: 'Fracture Leech' },
   riftbound: { glyph: 'R', color: '#7b68ee', label: 'Riftbound' },
   ashlock: { glyph: 'A', color: '#9c6644', label: 'Ashlock' },
-  stasis_scorcher: { glyph: 'C', color: '#e76f51', label: 'Stasis Scorcher' },
+  // `Z`, not `C`: the Cinder Gatekeeper owns `C`, and two species drawn as the
+  // same letter is unreadable even on a desktop where the legend has hover text.
+  // Bosses are drawn uppercased, so a glyph has to be free in *both* cases.
+  stasis_scorcher: { glyph: 'Z', color: '#e76f51', label: 'Stasis Scorcher' },
   facet_reaver: { glyph: 'f', color: '#b8c0ff', label: 'Facet Reaver' },
   glass_moth: { glyph: 'm', color: '#80ded9', label: 'Glass Moth' },
   unmaking_hound: { glyph: 'U', color: '#d00000', label: 'Unmaking Hound' },

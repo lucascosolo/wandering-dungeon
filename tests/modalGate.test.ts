@@ -9,7 +9,13 @@ import {
 } from '../src/ui/modalGate';
 import { ACTIONS, DEFAULT_KEYBINDS } from '../src/ui/keybinds';
 
-const NOTHING_OPEN: ModalSnapshot = { armor: false, shop: false, end: false, inventory: false };
+const NOTHING_OPEN: ModalSnapshot = {
+  armor: false,
+  shop: false,
+  end: false,
+  inventory: false,
+  menu: false,
+};
 
 describe('Modal gate', () => {
   it('lets input through when nothing is open', () => {
@@ -18,7 +24,7 @@ describe('Modal gate', () => {
   });
 
   it('blocks input for every prompt, the end modal included', () => {
-    for (const key of ['armor', 'shop', 'end', 'inventory'] as const) {
+    for (const key of ['armor', 'shop', 'end', 'inventory', 'menu'] as const) {
       expect(blocksGameInput({ ...NOTHING_OPEN, [key]: true })).toBe(true);
     }
   });
@@ -31,6 +37,14 @@ describe('Modal gate', () => {
     expect(dismissTarget({ ...NOTHING_OPEN, armor: true })).toBe('armor');
     expect(dismissTarget({ ...NOTHING_OPEN, shop: true })).toBe('shop');
     expect(dismissTarget({ ...NOTHING_OPEN, inventory: true })).toBe('inventory');
+    expect(dismissTarget({ ...NOTHING_OPEN, menu: true })).toBe('menu');
+  });
+
+  // The menu is the one prompt the player opens on purpose, so a dismiss aimed
+  // at it must not close something underneath instead.
+  it('prefers the in-run menu over anything it was opened over', () => {
+    expect(dismissTarget({ ...NOTHING_OPEN, menu: true, inventory: true })).toBe('menu');
+    expect(dismissTarget({ ...NOTHING_OPEN, menu: true, armor: true })).toBe('menu');
   });
 
   it('prefers the armor prompt when it sits over the sheet', () => {

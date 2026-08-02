@@ -1,13 +1,15 @@
-import { BossDefeatNotice, EnemyType, GameState, Item, LevelUpNotice } from '../core/state';
+import { BossDefeatNotice, GameState, Item, LevelUpNotice } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
 import { isFloorStabilized } from '../core/shift/shiftSystem';
 import { declinedArmorUnderfoot } from '../core/engine';
 import { describeModifier, modifierLabel } from '../core/armorModifiers';
-import { ENEMY_STYLES } from '../render/canvasRenderer';
+import { enemySections } from './glyphLegend';
 import { DISMISS_HINT } from './modalGate';
 import { BUILD_LABEL } from '../buildInfo';
 import { openSupportPage, SUPPORT_LABEL } from './support';
+import { escapeHtml } from './escapeHtml';
+import { currentKeybinds } from './keybinds';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
 export const HOTBAR_SIZE = 4;
@@ -55,6 +57,9 @@ export interface HudElements {
   coinCount: HTMLElement;
   armorModal: HTMLElement;
   shopModal: HTMLElement;
+  menuModal: HTMLElement;
+  menuBtn: HTMLButtonElement;
+  legendBtn: HTMLButtonElement;
   logPanel: HTMLElement;
   hotbar: HTMLElement;
   inventorySheet: HTMLElement;
@@ -65,15 +70,15 @@ export interface HudElements {
 }
 
 /**
- * The enemy key, built from the renderer's own glyph table so the legend cannot
- * drift from what is actually drawn. Listed weakest to deadliest.
+ * The at-a-glance enemy strip, in region order so it reads shallowest to
+ * deepest. `title=` is kept for the desktop hover, but it is no longer the only
+ * way to learn a letter — the whole strip is a button onto the glyph key, which
+ * is the half a phone was missing entirely.
  */
 function enemyLegend(): string {
-  return (Object.keys(ENEMY_STYLES) as EnemyType[])
-    .map(type => {
-      const { glyph, color, label } = ENEMY_STYLES[type];
-      return `<span style="color:${color}" title="${label}">${glyph}</span>`;
-    })
+  return enemySections()
+    .flatMap(section => section.entries)
+    .map(({ glyph, color, label }) => `<span style="color:${color}" title="${label}">${glyph}</span>`)
     .join('');
 }
 
@@ -95,18 +100,17 @@ export function mountUI(
       <div class="hud-stat" title="experience toward the next level">
         <span class="hud-stat__label">Lv</span><span id="level-label">1</span><span class="hud-stat__label" id="xp-label">0/100</span>
       </div>
+      <button class="menu-btn" id="btn-menu" type="button" aria-label="Menu" title="Menu">&#9776;</button>
     </header>
 
-    <div class="legend">
+    <button class="legend" id="btn-legend" type="button">
       @ you &middot; * item &middot; [ armor &middot; $ coins &middot; + door &middot; &gt; stairs &middot;
-      foes <span class="legend__foes">${enemyLegend()}</span>
-      <span class="legend__hint">weak&rarr;deadly</span> &middot;
+      <span style="color:#f2e8cf">&amp;</span> merchant &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
       <span class="legend__warn legend__warn--open">violet</span> opening &middot;
-      <span style="color:#d9d0ff">ringed R</span> holds the stairs &middot;
-      <span style="color:#f2e8cf">&amp;</span> merchant
-      <span class="legend__hint">(walk into them; grey&nbsp;&amp; is bought out)</span>
-    </div>
+      foes <span class="legend__foes">${enemyLegend()}</span>
+      <span class="legend__hint">&mdash; tap for names</span>
+    </button>
 
     <div class="vitals">
       <div class="bar bar--hp"><div class="bar__fill" id="hp-fill"></div><span class="bar__label" id="hp-label"></span></div>
@@ -158,6 +162,7 @@ export function mountUI(
 
     <div class="modal hidden" id="armor-modal"></div>
     <div class="modal hidden" id="shop-modal"></div>
+    <div class="modal hidden" id="menu-modal"></div>
     <div class="modal hidden" id="modal"></div>
   `;
 
@@ -198,6 +203,9 @@ export function mountUI(
     coinCount: byId('coin-count'),
     armorModal: byId('armor-modal'),
     shopModal: byId('shop-modal'),
+    menuModal: byId('menu-modal'),
+    menuBtn: byId<HTMLButtonElement>('btn-menu'),
+    legendBtn: byId<HTMLButtonElement>('btn-legend'),
     logPanel: byId('log-panel'),
     hotbar: byId('hotbar'),
     inventorySheet: byId('inventory-sheet'),
@@ -206,6 +214,22 @@ export function mountUI(
     abilityBtn: byId<HTMLButtonElement>('btn-ability'),
     descendBtn: byId<HTMLButtonElement>('btn-descend'),
   };
+}
+
+/**
+ * What the pickup hint calls itself. The old copy said PRESS [ENTER] on a device
+ * with no Enter key, which is most of them — this game is played as an installed
+ * PWA. The element is a button in every case, so tapping is the one instruction
+ * that is true everywhere; Enter is named only where it is genuinely a second
+ * route: a pointer device that hovers, and only while Enter is still bound to
+ * Descend, because `controls.ts` diverts the pickup off that exact key.
+ */
+function pickupHintLabel(onStairs: boolean): string {
+  if (onStairs) return 'TAP TO PICK UP';
+  const hasKeyboard =
+    typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!hasKeyboard || !currentKeybinds().descend.includes('enter')) return 'TAP TO PICK UP';
+  return 'TAP OR [ENTER] TO PICK UP';
 }
 
 export function updateHud(ui: HudElements, state: GameState): void {
@@ -281,7 +305,7 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.pickupHint.classList.toggle('hidden', pickup === null);
   if (pickup) {
     ui.pickupHint.innerHTML = `
-      <span class="pickup-hint__key">${onStairs ? 'TAP TO PICK UP' : 'PRESS [ENTER] TO PICK UP'}</span>
+      <span class="pickup-hint__key">${pickupHintLabel(onStairs)}</span>
       <span class="pickup-hint__name">${escapeHtml(armorSummary(pickup))}</span>
     `;
   }
@@ -554,6 +578,75 @@ function copyReport(button: HTMLButtonElement, host: HTMLElement, text: string):
   );
 }
 
+export interface RunMenuHandlers {
+  onHowToPlay: () => void;
+  onGlyphKey: () => void;
+  onSettings: () => void;
+  /** Clears the save and returns to the title. Called only after the confirm. */
+  onAbandon: () => void;
+  onClose: () => void;
+}
+
+/**
+ * The in-run menu — the only pause this game has, and the only route back to the
+ * title that does not require dying. It is an ordinary `.modal`, so
+ * `blocksGameInput` freezes the board while it is up and Esc/X/backdrop close it
+ * through the same path as every other prompt.
+ *
+ * Abandoning is rendered as a second screen inside the same card rather than a
+ * separate prompt: a mistap on a phone must not be able to end a twenty-floor
+ * run, and the title screen's own overwrite warning already reads this way.
+ */
+export function showRunMenu(ui: HudElements, state: GameState, handlers: RunMenuHandlers): void {
+  ui.menuModal.classList.remove('hidden');
+
+  const renderMenu = (): void => {
+    ui.menuModal.innerHTML = `
+      <div class="modal__card glass-panel">
+        <h2>Paused</h2>
+        <p class="modal__stats">
+          Floor ${state.floorMap.level}/${state.config.finalFloor} &middot; turn ${state.turnCount}
+        </p>
+        <button class="action-btn" id="btn-menu-help" type="button">How to Play</button>
+        <button class="action-btn" id="btn-menu-legend" type="button">Glyph Key</button>
+        <button class="action-btn" id="btn-menu-settings" type="button">Settings</button>
+        <button class="action-btn action-btn--warning" id="btn-menu-abandon" type="button">Abandon Run</button>
+        <p class="modal__seed">${DISMISS_HINT}</p>
+        <div class="modal__actions">
+          <button class="action-btn" id="btn-menu-resume" type="button">Resume</button>
+        </div>
+      </div>
+    `;
+    const on = (id: string, fn: () => void): void =>
+      ui.menuModal.querySelector(`#${id}`)!.addEventListener('click', fn);
+    on('btn-menu-help', handlers.onHowToPlay);
+    on('btn-menu-legend', handlers.onGlyphKey);
+    on('btn-menu-settings', handlers.onSettings);
+    on('btn-menu-abandon', renderAbandonConfirm);
+    on('btn-menu-resume', handlers.onClose);
+  };
+
+  const renderAbandonConfirm = (): void => {
+    ui.menuModal.innerHTML = `
+      <div class="modal__card glass-panel">
+        <h2>Abandon this run?</h2>
+        <p class="modal__stats">
+          Floor ${state.floorMap.level}/${state.config.finalFloor}, turn ${state.turnCount}.
+          There is one save slot, and this erases it.
+        </p>
+        <div class="modal__actions">
+          <button class="action-btn action-btn--warning" id="btn-abandon-yes" type="button">Erase it</button>
+          <button class="action-btn" id="btn-abandon-no" type="button">Keep playing</button>
+        </div>
+      </div>
+    `;
+    ui.menuModal.querySelector('#btn-abandon-yes')!.addEventListener('click', handlers.onAbandon);
+    ui.menuModal.querySelector('#btn-abandon-no')!.addEventListener('click', renderMenu);
+  };
+
+  renderMenu();
+}
+
 export function showEndModal(
   ui: HudElements,
   state: GameState,
@@ -596,8 +689,3 @@ export function showEndModal(
   copyBtn.addEventListener('click', () => copyReport(copyBtn, card, buildReport()));
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
-  );
-}

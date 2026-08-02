@@ -296,18 +296,10 @@ export function populateFloor(
   const progress = runProgress(level, finalFloor);
   const region = regionForFloor(level);
   const isBossFloor = isRegionEnd(level);
-  const bossType: EnemyType | null =
-    level === 5
-      ? 'hinge_sovereign'
-      : level === 10
-        ? 'rift_regent'
-        : level === 15
-          ? 'cinder_gatekeeper'
-          : level === 20
-            ? 'prism_refractor'
-            : level === 25
-              ? 'null_testament'
-            : null;
+  // The ladder this replaced named floors 5/10/15/20/25 one by one, which is
+  // "the arena floor of regions 0-4" written out longhand. Reading it off the
+  // region keeps one copy, which the glyph legend also names its bosses from.
+  const bossType: EnemyType | null = isBossFloor ? region.boss : null;
   const available = region.enemyPool.filter(
     t => ENEMY_TABLE[t].minProgress <= progress
   );

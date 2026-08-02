@@ -1,11 +1,7 @@
-import { FloorMap, Position, TileType } from '../state';
+import { FloorMap, manhattan, Position, samePosition, TileType } from '../state';
 
 function isWalkable(type: TileType): boolean {
   return type === 'floor' || type === 'door' || type === 'stairs_down';
-}
-
-function heuristic(a: Position, b: Position): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 const CARDINAL_STEPS: [number, number][] = [
@@ -35,7 +31,7 @@ export function findPath(map: FloorMap, start: Position, end: Position): Positio
     return null;
   }
 
-  if (start.x === end.x && start.y === end.y) {
+  if (samePosition(start, end)) {
     return [{ x: start.x, y: start.y }];
   }
 
@@ -46,7 +42,7 @@ export function findPath(map: FloorMap, start: Position, end: Position): Positio
   );
 
   gScore[start.y][start.x] = 0;
-  fScore[start.y][start.x] = heuristic(start, end);
+  fScore[start.y][start.x] = manhattan(start, end);
 
   const openSet: Position[] = [{ x: start.x, y: start.y }];
   const openSetKeys = new Set<string>([`${start.x},${start.y}`]);
@@ -66,7 +62,7 @@ export function findPath(map: FloorMap, start: Position, end: Position): Positio
     }
 
     const current = openSet[currentIdx];
-    if (current.x === end.x && current.y === end.y) {
+    if (samePosition(current, end)) {
       // Reconstruct path
       const path: Position[] = [];
       let curr: Position | null = current;
@@ -94,7 +90,7 @@ export function findPath(map: FloorMap, start: Position, end: Position): Positio
           if (tentativeG < gScore[ny][nx]) {
             cameFrom[ny][nx] = { x: current.x, y: current.y };
             gScore[ny][nx] = tentativeG;
-            fScore[ny][nx] = tentativeG + heuristic({ x: nx, y: ny }, end);
+            fScore[ny][nx] = tentativeG + manhattan({ x: nx, y: ny }, end);
 
             const key = `${nx},${ny}`;
             if (!openSetKeys.has(key)) {

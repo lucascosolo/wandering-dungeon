@@ -9,6 +9,8 @@ import {
   Player,
   Position,
   FloorMap,
+  manhattan,
+  samePosition,
 } from './state';
 import { RunConfig } from './runConfig';
 import { SeededRNG } from './rng';
@@ -229,10 +231,6 @@ function walkableTiles(map: FloorMap): Position[] {
   return out;
 }
 
-function manhattan(a: Position, b: Position): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
 /**
  * A free tile for something placed after the floor was built — the merchant, so
  * far. Rooms only: a corridor or door tile is a chokepoint, and the merchant is a
@@ -255,7 +253,7 @@ export function pickSpawnPosition(
       tile.type === 'floor' &&
       group?.type === 'room' &&
       !taken.has(`${p.x},${p.y}`) &&
-      !(p.x === map.exit.x && p.y === map.exit.y)
+      !samePosition(p, map.exit)
     );
   });
   if (open.length === 0) return null;

@@ -5,6 +5,20 @@ export interface Position {
   y: number;
 }
 
+/**
+ * Movement is cardinal everywhere in this game, so this is the distance in turns
+ * and the only distance worth measuring. Both helpers live beside `Position`
+ * rather than in a util module: this file is types only and imports nothing but
+ * `RunConfig`, so every subsystem can reach them without risking a cycle.
+ */
+export function manhattan(a: Position, b: Position): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+export function samePosition(a: Position, b: Position): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
 export type TileType = 'wall' | 'floor' | 'door' | 'stairs_down' | 'chasm';
 
 export interface GridTile {

@@ -1,4 +1,15 @@
-import { Enemy, GameState, Item, ItemDrop, LogMessage, Position } from './state';
+import {
+  Enemy,
+  EnemyType,
+  GameState,
+  GridTile,
+  Item,
+  ItemDrop,
+  LogMessage,
+  manhattan,
+  Position,
+  samePosition,
+} from './state';
 import { SeededRNG } from './rng';
 import { damagePlayer } from './damage';
 import { armorMagnitude } from './armorModifiers';
@@ -92,7 +103,7 @@ function isWalkableAt(state: GameState, pos: Position): boolean {
 }
 
 function enemyAt(state: GameState, pos: Position): Enemy | undefined {
-  return state.entities.find(e => e.hp > 0 && e.position.x === pos.x && e.position.y === pos.y);
+  return state.entities.find(e => e.hp > 0 && samePosition(e.position, pos));
 }
 
 function log(state: GameState, text: string, type: LogMessage['type'] = 'info'): void {
@@ -270,8 +281,8 @@ function knockBack(state: GameState, target: Enemy, tiles: number): boolean {
     const next = { x: target.position.x + dx, y: target.position.y + dy };
     if (!isWalkableAt(state, next)) break;
     if (enemyAt(state, next)) break;
-    if (next.x === state.player.position.x && next.y === state.player.position.y) break;
-    if (state.shop && state.shop.position.x === next.x && state.shop.position.y === next.y) break;
+    if (samePosition(next, state.player.position)) break;
+    if (state.shop && samePosition(state.shop.position, next)) break;
     target.position = next;
     moved = true;
   }
@@ -289,7 +300,7 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   }
 
   const { shop } = state;
-  if (shop && shop.position.x === target.x && shop.position.y === target.y) {
+  if (shop && samePosition(shop.position, target)) {
     // Bumping the merchant trades instead of stepping onto them, the same shape
     // as bumping an enemy attacks. Free, like BUY_ITEM itself: the floor is
     // stabilized by the time a merchant exists, so there is no clock to dodge —
@@ -309,7 +320,7 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
 
   const drops = state.floorMap.drops;
   if (drops) {
-    const here = (d: ItemDrop): boolean => d.position.x === target.x && d.position.y === target.y;
+    const here = (d: ItemDrop): boolean => samePosition(d.position, target);
     const answered = (d: ItemDrop): boolean =>
       d.item.category === 'armor' && state.declinedArmorIds.includes(d.item.id);
     // A tile can hold more than one drop — an equip drops the replaced piece
@@ -518,6 +529,63 @@ function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): v
   events.push(`${state.shop.merchant} sets up a stall in the quiet arena. Walk into them to trade.`);
 }
 
+/**
+ * Every boss but the Hinge Sovereign works the same way: mark a tile one turn
+ * out, resolve it the next. Only the radius, the damage, and the words differ,
+ * so they are a table rather than four near-identical blocks — adding a marking
+ * boss is an entry, and sharing one resolution is what keeps every one of them
+ * dodgeable by the same movement.
+ *
+ * `inverted` is the Null Testament alone: its mark is the one tile that is safe,
+ * so standing on it is the shelter rather than the trap.
+ *
+ * Damage is dealt before the line narrating it, in every entry, so a mark that
+ * kills reads in the same order as any other killing blow.
+ */
+const BOSS_MARK_COOLDOWN = 4;
+
+interface BossMark {
+  /** Manhattan tiles from the mark that still count as caught. 0 is the tile itself. */
+  radius: number;
+  damage: number;
+  inverted?: boolean;
+  caught: (name: string) => string;
+  spared: (name: string) => string;
+}
+
+const BOSS_MARKS: Partial<Record<EnemyType, BossMark>> = {
+  rift_regent: {
+    radius: 0,
+    damage: 6,
+    caught: name => `${name} tears open the marked rift beneath you.`,
+    spared: name => `${name}'s marked rift collapses harmlessly.`,
+  },
+  cinder_gatekeeper: {
+    radius: 2,
+    damage: 5,
+    caught: name => `${name} seals the exit in a choking ash cloud.`,
+    spared: name => `${name}'s ash interdict disperses harmlessly.`,
+  },
+  prism_refractor: {
+    radius: 0,
+    damage: 6,
+    caught: name => `${name} fractures the marked tile into a spray of glass.`,
+    spared: name => `${name}'s refracted fault misses as you move.`,
+  },
+  null_testament: {
+    radius: 0,
+    damage: 7,
+    inverted: true,
+    caught: name => `${name} erases everything beyond the marked refuge.`,
+    spared: name => `${name} watches as you shelter in the marked refuge.`,
+  },
+};
+
+function settleDeaths(state: GameState, rng: SeededRNG, events: string[]): void {
+  awardBossDefeats(state, rng, events);
+  state.entities = state.entities.filter(e => e.hp > 0);
+}
+
 function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
   for (const enemy of state.entities) {
     if (enemy.hp <= 0) continue;
@@ -531,9 +599,7 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       enemy.bossCooldown = (enemy.bossCooldown ?? 1) - 1;
     }
 
-    const dist =
-      Math.abs(enemy.position.x - state.player.position.x) +
-      Math.abs(enemy.position.y - state.player.position.y);
+    const dist = manhattan(enemy.position, state.player.position);
 
     if (dist === 1) {
       enemyAttack(state, rng, enemy, events);
@@ -554,69 +620,23 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       continue;
     }
 
-    if (enemy.enemyType === 'rift_regent' && enemy.bossTarget) {
-      const marked =
-        enemy.bossTarget.x === state.player.position.x &&
-        enemy.bossTarget.y === state.player.position.y;
-      if (marked) {
-        damagePlayer(state, 6, events, enemy.name);
-        events.push(`${enemy.name} tears open the marked rift beneath you.`);
+    const mark = BOSS_MARKS[enemy.enemyType];
+    if (mark && enemy.bossTarget) {
+      const within = manhattan(state.player.position, enemy.bossTarget) <= mark.radius;
+      if (mark.inverted ? !within : within) {
+        damagePlayer(state, mark.damage, events, enemy.name);
+        events.push(mark.caught(enemy.name));
       } else {
-        events.push(`${enemy.name}'s marked rift collapses harmlessly.`);
+        events.push(mark.spared(enemy.name));
       }
       enemy.bossTarget = undefined;
-      enemy.bossCooldown = 4;
-      continue;
-    }
-
-    if (enemy.enemyType === 'cinder_gatekeeper' && enemy.bossTarget) {
-      const radius =
-        Math.abs(state.player.position.x - enemy.bossTarget.x) +
-        Math.abs(state.player.position.y - enemy.bossTarget.y);
-      if (radius <= 2) {
-        damagePlayer(state, 5, events, enemy.name);
-        events.push(`${enemy.name} seals the exit in a choking ash cloud.`);
-      } else {
-        events.push(`${enemy.name}'s ash interdict disperses harmlessly.`);
-      }
-      enemy.bossTarget = undefined;
-      enemy.bossCooldown = 4;
+      enemy.bossCooldown = BOSS_MARK_COOLDOWN;
       continue;
     }
 
     if (enemy.enemyType === 'cinder_gatekeeper' && enemy.bossCooldown === 0 && state.isStasisActive) {
       enemy.bossTarget = { ...state.floorMap.exit };
       events.push(`${enemy.name} marks the exit with an ash interdict.`);
-      continue;
-    }
-
-    if (enemy.enemyType === 'prism_refractor' && enemy.bossTarget) {
-      const marked =
-        enemy.bossTarget.x === state.player.position.x &&
-        enemy.bossTarget.y === state.player.position.y;
-      if (marked) {
-        damagePlayer(state, 6, events, enemy.name);
-        events.push(`${enemy.name} fractures the marked tile into a spray of glass.`);
-      } else {
-        events.push(`${enemy.name}'s refracted fault misses as you move.`);
-      }
-      enemy.bossTarget = undefined;
-      enemy.bossCooldown = 4;
-      continue;
-    }
-
-    if (enemy.enemyType === 'null_testament' && enemy.bossTarget) {
-      const sheltered =
-        enemy.bossTarget.x === state.player.position.x &&
-        enemy.bossTarget.y === state.player.position.y;
-      if (sheltered) {
-        events.push(`${enemy.name} watches as you shelter in the marked refuge.`);
-      } else {
-        damagePlayer(state, 7, events, enemy.name);
-        events.push(`${enemy.name} erases everything beyond the marked refuge.`);
-      }
-      enemy.bossTarget = undefined;
-      enemy.bossCooldown = 4;
       continue;
     }
 
@@ -628,7 +648,7 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
         { x: state.player.position.x, y: state.player.position.y - 1 },
       ] as Position[]).find(position =>
         isWalkableAt(state, position) &&
-        !(position.x === enemy.position.x && position.y === enemy.position.y)
+        !samePosition(position, enemy.position)
       );
       if (refuge) {
         enemy.bossTarget = refuge;
@@ -644,12 +664,12 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
           change.y >= 0 && change.y < state.floorMap.height &&
           state.floorMap.visible[change.y][change.x] &&
           isWalkableAt(state, { x: change.x, y: change.y }) &&
-          !(change.x === state.player.position.x && change.y === state.player.position.y) &&
-          !(change.x === enemy.position.x && change.y === enemy.position.y)
+          !samePosition(change, state.player.position) &&
+          !samePosition(change, enemy.position)
         )
-        .sort((a, b) =>
-          Math.abs(a.x - state.player.position.x) + Math.abs(a.y - state.player.position.y) -
-          (Math.abs(b.x - state.player.position.x) + Math.abs(b.y - state.player.position.y))
+        .sort(
+          (a, b) =>
+            manhattan(a, state.player.position) - manhattan(b, state.player.position)
         );
       const target = candidates[0];
       if (target) {
@@ -712,12 +732,73 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
 
     const step = path[1];
     if (enemyAt(state, step)) continue;
-    if (step.x === state.player.position.x && step.y === state.player.position.y) continue;
+    if (samePosition(step, state.player.position)) continue;
     if (!isWalkableAt(state, step)) continue;
 
     enemy.position = { x: step.x, y: step.y };
   }
 }
+
+/**
+ * The clock-driven region hazards: each fires on a fixed point of the shift
+ * countdown, against the tile the player is standing on, and only in its own
+ * region — so at most one can ever land on a turn and their order does not
+ * matter.
+ *
+ * Region 3's hazard is deliberately absent. The Glass Expanse sprays shards from
+ * the tiles a shift actually changed, so it is keyed on the executed diff and
+ * lives in `shiftSystem.ts` rather than on the countdown.
+ *
+ * Indexed by region so a new region is an entry rather than another `if` block,
+ * and so a hazard can be *named*: the roadmap's hazard-immunity armor modifier
+ * needs something to key an exemption off, which four inline conditions did not
+ * give it.
+ *
+ * Damage routes through `damagePlayer` like every other source, which is what
+ * puts hazards through armor soak, shield absorption, and difficulty scaling.
+ */
+interface RegionHazard {
+  /** The countdown value it strikes on. */
+  countdown: number;
+  damage: number;
+  message: string;
+  /** Named as the killer on the death line and in the run log. */
+  source: string;
+  catches: (state: GameState, tile: GridTile) => boolean;
+}
+
+const REGION_HAZARDS: Partial<Record<number, RegionHazard>> = {
+  0: {
+    countdown: 4,
+    damage: 2,
+    message: 'A stressed hinge tears at your footing.',
+    source: "the Halls' hinge",
+    catches: (_state, tile) => tile.type === 'door',
+  },
+  1: {
+    countdown: 2,
+    damage: 2,
+    message: 'A rift shears open beneath you as the chamber prepares to move.',
+    source: "the Deeps' rift",
+    catches: (state, tile) =>
+      !!state.pendingShift?.targetGroupId &&
+      tile.shiftGroupId === state.pendingShift.targetGroupId,
+  },
+  2: {
+    countdown: 4,
+    damage: 2,
+    message: 'Ash pours through the passage and sears your lungs.',
+    source: "the Warrens' ash",
+    catches: (_state, tile) => tile.shiftGroupId?.startsWith('corridor') === true,
+  },
+  4: {
+    countdown: 4,
+    damage: 2,
+    message: 'The Unmaking demands a toll from the stairs.',
+    source: "the Unmaking's stair toll",
+    catches: (_state, tile) => tile.type === 'stairs_down',
+  },
+};
 
 /**
  * Advance the world clock by one turn: expire buffs, tick the shift countdown,
@@ -765,43 +846,15 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
 
   state.shiftCountdown--;
 
-  const currentTile = state.floorMap.tiles[state.player.position.y][state.player.position.x];
+  const hazard = REGION_HAZARDS[regionForFloor(state.floorMap.level).index];
   if (
-    state.shiftCountdown === 2 &&
-    regionForFloor(state.floorMap.level).index === 1 &&
-    state.pendingShift?.targetGroupId &&
-    currentTile.shiftGroupId === state.pendingShift.targetGroupId
+    hazard &&
+    state.shiftCountdown === hazard.countdown &&
+    state.player.hp > 0 &&
+    hazard.catches(state, state.floorMap.tiles[state.player.position.y][state.player.position.x])
   ) {
-    events.push('A rift shears open beneath you as the chamber prepares to move.');
-    damagePlayer(state, 2, events, "the Deeps' rift");
-  }
-
-  if (
-    state.shiftCountdown === 4 &&
-    regionForFloor(state.floorMap.level).index === 2 &&
-    currentTile.shiftGroupId?.startsWith('corridor')
-  ) {
-    events.push('Ash pours through the passage and sears your lungs.');
-    damagePlayer(state, 2, events, "the Warrens' ash");
-  }
-
-  if (
-    state.shiftCountdown === 4 &&
-    regionForFloor(state.floorMap.level).index === 4 &&
-    currentTile.type === 'stairs_down' &&
-    state.player.hp > 0
-  ) {
-    events.push('The Unmaking demands a toll from the stairs.');
-    damagePlayer(state, 2, events, "the Unmaking's stair toll");
-  }
-
-  if (
-    state.shiftCountdown === 4 &&
-    regionForFloor(state.floorMap.level).index === 0 &&
-    currentTile.type === 'door'
-  ) {
-    events.push('A stressed hinge tears at your footing.');
-    damagePlayer(state, 2, events, "the Halls' hinge");
+    events.push(hazard.message);
+    damagePlayer(state, hazard.damage, events, hazard.source);
   }
 
   if (state.shiftCountdown <= 0) {
@@ -923,12 +976,14 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   }
 
   if (consumesTurn(action) && spentTurn && !state.isGameOver && !changedFloor) {
-    awardBossDefeats(state, rng, events);
-    state.entities = state.entities.filter(e => e.hp > 0);
+    // Bodies are settled either side of the world's response: the player may have
+    // just felled the guardian, and thorns or a hazard may fell one during it.
+    // Order is load-bearing — `awardBossDefeats` looks for a dead boss still on
+    // the floor, so it has to run before the corpses are swept.
+    settleDeaths(state, rng, events);
     enemyTurns(state, rng, events);
     advanceClock(state, rng, events);
-    awardBossDefeats(state, rng, events);
-    state.entities = state.entities.filter(e => e.hp > 0);
+    settleDeaths(state, rng, events);
   }
 
   if (state.player.hp <= 0) {

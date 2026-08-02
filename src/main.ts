@@ -1,6 +1,6 @@
 import { createNewGame } from './core/game';
 import { declinedArmorUnderfoot, dispatchAction, GameAction } from './core/engine';
-import { FloorMap, GameState, Position } from './core/state';
+import { FloorMap, GameState, Position, samePosition } from './core/state';
 import type { HudElements } from './ui/hud';
 import { findPath } from './core/map/pathfinding';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
@@ -150,9 +150,7 @@ function act(action: GameAction): void {
 
   // A MOVE that left the player standing still was a melee swing into that tile.
   const struck =
-    action.type === 'MOVE' &&
-    state.player.position.x === from.x &&
-    state.player.position.y === from.y
+    action.type === 'MOVE' && samePosition(state.player.position, from)
       ? { x: from.x + action.dx, y: from.y + action.dy }
       : null;
   reactToEvents(events, struck);
@@ -381,7 +379,7 @@ function stepTravelOnce(): void {
 function exploredMap(target: Position): FloorMap {
   const { floorMap, shop } = state;
   const blocked =
-    shop && !(shop.position.x === target.x && shop.position.y === target.y) ? shop.position : null;
+    shop && !samePosition(shop.position, target) ? shop.position : null;
   return {
     ...floorMap,
     tiles: floorMap.tiles.map((row, y) =>

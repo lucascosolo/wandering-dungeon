@@ -66,6 +66,7 @@ export interface HudElements {
   inventoryList: HTMLElement;
   modal: HTMLElement;
   abilityBtn: HTMLButtonElement;
+  abilityLabel: HTMLElement;
   descendBtn: HTMLButtonElement;
 }
 
@@ -150,7 +151,7 @@ export function mountUI(
 
     <div class="thumb-action-bar">
       <button class="action-btn" id="btn-wait" type="button">Wait<small>space</small></button>
-      <button class="action-btn" id="btn-ability" type="button">Shield<small>q</small></button>
+      <button class="action-btn" id="btn-ability" type="button"><span id="ability-label">Shield</span><small>q</small></button>
       <button class="action-btn" id="btn-inventory" type="button">Items<small>i</small></button>
       <button class="action-btn action-btn--warning" id="btn-descend" type="button">Descend<small>&gt;</small></button>
     </div>
@@ -212,6 +213,7 @@ export function mountUI(
     inventoryList: byId('inventory-list'),
     modal: byId('modal'),
     abilityBtn: byId<HTMLButtonElement>('btn-ability'),
+    abilityLabel: byId('ability-label'),
     descendBtn: byId<HTMLButtonElement>('btn-descend'),
   };
 }
@@ -309,7 +311,28 @@ export function updateHud(ui: HudElements, state: GameState): void {
       <span class="pickup-hint__name">${escapeHtml(armorSummary(pickup))}</span>
     `;
   }
-  ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
+  // Both of these were already in the state and simply not shown, which left the
+  // best decision in the game — bracing into an imminent shift — as something the
+  // player had to count in their head. They are both turn counts and they mean
+  // opposite things, so the number alone would read as one counter: the colour is
+  // what separates "holding for N more" from "N away from ready".
+  const holding = player.shieldTurnsRemaining;
+  const cooling = state.abilityCooldown;
+  ui.abilityLabel.textContent =
+    holding > 0 ? `Shield ${holding}` : cooling > 0 ? `Shield ${cooling}` : 'Shield';
+  ui.abilityBtn.title =
+    holding > 0
+      ? `Fallout Shield holds for ${turnsLabel(holding)}.`
+      : cooling > 0
+        ? `Ready in ${turnsLabel(cooling)}.`
+        : 'Fallout Shield ready.';
+  ui.abilityBtn.classList.toggle('action-btn--holding', holding > 0);
+  ui.abilityBtn.classList.toggle('action-btn--cooling', holding === 0 && cooling > 0);
+  ui.abilityBtn.disabled = cooling > 0 || holding > 0;
+}
+
+function turnsLabel(turns: number): string {
+  return `${turns} turn${turns === 1 ? '' : 's'}`;
 }
 
 /**

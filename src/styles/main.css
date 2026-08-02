@@ -739,6 +739,24 @@ html, body {
   pointer-events: none;
 }
 
+/* Both states are disabled and both print a turn count, so opacity alone would
+   make them the same button. Colour is what says which number you are reading:
+   cyan while the shield is up, amber while it is coming back. Raised above the
+   0.35 disabled fade so the count stays legible — doubled selectors because
+   `.action-btn:disabled` matches at the same weight and both states are
+   disabled, so a single class would lose the opacity to it. */
+.action-btn.action-btn--holding {
+  opacity: 0.75;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.action-btn.action-btn--cooling {
+  opacity: 0.6;
+  border-color: rgba(255, 179, 77, 0.5);
+  color: #ffb74d;
+}
+
 .sheet {
   position: absolute;
   left: 50%;

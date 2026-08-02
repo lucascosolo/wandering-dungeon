@@ -13,11 +13,15 @@ Everything is seeded, so a run can be replayed exactly.
 
 ## For alpha testers
 
-**Play at:** `https://<DOMAIN-NOT-YET-POINTED>` — the domain is not live yet;
-this line gets the real URL when it is.
+**Play at:** http://162.35.172.112:8420/
 
-Nothing to install and no account. It runs in the browser, saves your run on the
-device, and works offline after the first load.
+Nothing to install and no account. It runs in the browser and saves your run on
+the device.
+
+> **While it is on a bare address, two things do not work yet:** you cannot install
+> it to your home screen, and it will not run offline. Browsers only allow that on
+> an HTTPS domain, and one is not pointed at it yet. Gameplay is unaffected — this
+> is about the wrapper, not the game. See [docs/deploying.md](docs/deploying.md).
 
 ### Put it on your home screen
 

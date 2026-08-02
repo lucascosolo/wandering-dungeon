@@ -19,14 +19,104 @@ export function encodeRun(state: GameState): SavedRun {
   return { version: SAVE_VERSION, state };
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPosition(value: unknown): boolean {
+  return isObject(value) && isNumber(value.x) && isNumber(value.y);
+}
+
+/** A rectangular grid of exactly the dimensions the map claims for itself. */
+function isGrid(value: unknown, width: number, height: number): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length === height &&
+    value.every(row => Array.isArray(row) && row.length === width)
+  );
+}
+
+/**
+ * Every field the shell dereferences before the player can do anything: the HUD
+ * and the title screen read the player, the map and the run config on sight, and
+ * the renderer indexes the three grids by the map's own width/height.
+ *
+ * This is deliberately not a schema for `GameState`, and deliberately not a
+ * migration ladder. It exists so that a truncated, half-written or foreign value
+ * in IndexedDB decodes as "no save" instead of throwing a TypeError deep inside
+ * the boot chain, where there is no screen yet to be told about it on.
+ */
+function looksLikeRun(value: unknown): boolean {
+  if (!isObject(value)) return false;
+
+  const { player, floorMap, rngState, config } = value;
+
+  if (
+    !isObject(player) ||
+    !isNumber(player.hp) ||
+    !isNumber(player.maxHp) ||
+    !isPosition(player.position) ||
+    !Array.isArray(player.inventory)
+  ) {
+    return false;
+  }
+
+  if (!isObject(floorMap) || !isNumber(floorMap.level)) return false;
+  const { width, height } = floorMap;
+  if (!isNumber(width) || !isNumber(height) || width <= 0 || height <= 0) return false;
+  if (!isPosition(floorMap.entrance) || !isPosition(floorMap.exit)) return false;
+  if (
+    !isGrid(floorMap.tiles, width, height) ||
+    !isGrid(floorMap.explored, width, height) ||
+    !isGrid(floorMap.visible, width, height)
+  ) {
+    return false;
+  }
+  // A right-shaped grid of the wrong stuff still crashes the renderer, so one
+  // tile is sampled for the field every tile is read through.
+  const sample = (floorMap.tiles as unknown[][])[0]?.[0];
+  if (!isObject(sample) || typeof sample.type !== 'string') return false;
+
+  if (!isObject(rngState) || typeof rngState.seed !== 'string' || !isNumber(rngState.callCount)) {
+    return false;
+  }
+  if (!isObject(config) || !isNumber(config.finalFloor)) return false;
+  if (!Array.isArray(value.entities) || !isNumber(value.turnCount)) return false;
+  // Absent is legal — a run that has not met a merchant yet.
+  if (value.shop != null && !isObject(value.shop)) return false;
+
+  return true;
+}
+
 /**
  * A finished run is refused here rather than only being cleared on death, so a
  * save that outlives its run — a tab killed on the death screen, a clear that
  * never landed — still cannot be resumed.
+ *
+ * **This function must never throw.** It runs inside the boot chain, before any
+ * screen exists, so an exception here is a black page with no way out of it. A
+ * value it cannot make sense of is reported as "no save": the player loses a run
+ * that was not resumable anyway, rather than losing the whole game.
  */
 export function decodeRun(raw: unknown): GameState | null {
-  const saved = raw as SavedRun | undefined;
-  if (!saved || saved.version !== SAVE_VERSION || !saved.state) return null;
+  try {
+    return decodeChecked(raw);
+  } catch (error) {
+    // Belt and braces for whatever the structural check cannot anticipate — a
+    // throwing getter, an exotic clone. Loud in the console, harmless on screen.
+    console.error('Discarding an unreadable save', error);
+    return null;
+  }
+}
+
+function decodeChecked(raw: unknown): GameState | null {
+  if (!isObject(raw) || raw.version !== SAVE_VERSION || !looksLikeRun(raw.state)) return null;
+
+  const saved = raw as unknown as SavedRun;
   if (saved.state.isGameOver) return null;
 
   // A run saved before levels existed carries no level/xp. Filling them in at the
@@ -76,20 +166,40 @@ export function decodeRun(raw: unknown): GameState | null {
 }
 
 /**
- * `GameState` is plain data end to end, so idb-keyval's structured clone is the
- * whole serializer. `rngState` rides along with it, which is what keeps a
- * resumed run on the same roll sequence as the one that was saved.
+ * IndexedDB is a true boundary, not an engine guarantee. It is absent outright in
+ * Safari Private Browsing and iOS Lockdown Mode, blocked in some embedded
+ * webviews, and can reject on quota or a corrupted database. Every entry point
+ * below therefore reports failure rather than rejecting: `saveRun` is called as
+ * `void saveRun(state)` once per turn, so a rejection would otherwise raise the
+ * global error panel eleven times a second during a walk, and `loadRun` sits in
+ * the boot chain, where a rejection is a black screen.
+ *
+ * The cost of swallowing is an unsaved run, which is playable. The cost of not
+ * swallowing is a game that will not start.
  */
 export async function saveRun(state: GameState): Promise<void> {
-  await set(STORAGE_KEY, encodeRun(state));
+  try {
+    await set(STORAGE_KEY, encodeRun(state));
+  } catch (error) {
+    console.error('Could not save the run', error);
+  }
 }
 
 export async function loadRun(): Promise<GameState | null> {
-  return decodeRun(await get(STORAGE_KEY));
+  try {
+    return decodeRun(await get(STORAGE_KEY));
+  } catch (error) {
+    console.error('Could not read the saved run', error);
+    return null;
+  }
 }
 
 export async function clearRun(): Promise<void> {
-  await del(STORAGE_KEY);
+  try {
+    await del(STORAGE_KEY);
+  } catch (error) {
+    console.error('Could not clear the saved run', error);
+  }
 }
 
 export async function hasSavedRun(): Promise<boolean> {

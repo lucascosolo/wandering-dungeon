@@ -8,6 +8,7 @@ import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
 import { blocksGameInput, dismissTarget, ModalSnapshot } from './ui/modalGate';
 import { showTitleScreen } from './ui/titleScreen';
+import { installGlobalErrorHandlers, showErrorPanel } from './ui/errorPanel';
 import { loadKeybinds } from './ui/keybinds';
 import { clearRun, loadRun, saveRun } from './core/save';
 import { RunConfig } from './core/runConfig';
@@ -117,7 +118,26 @@ function act(action: GameAction): void {
   const from = { ...state.player.position };
 
   recorder.beginTurn(state, action);
-  const { events } = dispatchAction(state, action);
+
+  let events: string[];
+  try {
+    events = dispatchAction(state, action).events;
+  } catch (error) {
+    // The engine mutates one shared `GameState` in place, so a throw part-way
+    // through a turn leaves that object half-applied — the enemy may have moved
+    // without its damage landing, the shift may be half-executed. There is no
+    // rollback to make here, and none is being claimed.
+    //
+    // What we can guarantee is that the *save* is not corrupted: the autosave at
+    // the bottom of this function is skipped, so what is on disk is still the
+    // last turn that completed in full, and Reload on the panel resumes from
+    // there. Overwriting it with the half-applied object is the one move that
+    // would turn a recoverable crash into a lost run.
+    stopTravel();
+    showErrorPanel('The turn could not be completed. Your last completed turn is still saved.', error);
+    return;
+  }
+
   recorder.endTurn(state, events);
 
   // A MOVE that left the player standing still was a melee swing into that tile.
@@ -261,6 +281,22 @@ function enemyInSight(): boolean {
 }
 
 function stepTravel(): void {
+  try {
+    stepTravelOnce();
+  } catch (error) {
+    // This runs on a 90ms interval that only `stopTravel` clears. A throw that
+    // escaped would re-fire eleven times a second, forever, with the player
+    // unable to act — so the walk is abandoned first and the failure reported
+    // second. `isTravelStep` is reset with it: left true, every later keypress
+    // would look like a step of a walk that no longer exists, and would stop
+    // interrupting travel.
+    isTravelStep = false;
+    stopTravel();
+    showErrorPanel('The walk could not continue.', error);
+  }
+}
+
+function stepTravelOnce(): void {
   const next = travelPath.shift();
   if (!next) {
     stopTravel();
@@ -361,13 +397,15 @@ function returnToTitle(): void {
  * may have cleared it — Continue must not offer a run that is over.
  */
 function openTitleScreen(): void {
-  void loadRun().then(saved => {
-    showTitleScreen({
-      saved,
-      onNewGame: config => startRun(randomSeed(), config),
-      onContinue: resumeRun,
-    });
-  });
+  loadRun()
+    .then(saved => {
+      showTitleScreen({
+        saved,
+        onNewGame: config => startRun(randomSeed(), config),
+        onContinue: resumeRun,
+      });
+    })
+    .catch(error => showErrorPanel('The title screen could not be opened.', error));
 }
 
 /** Resume a saved run. The state is the save itself, so nothing is re-derived. */
@@ -489,7 +527,39 @@ function bootGameShell(): void {
 
 let lastFrame = performance.now();
 
+/**
+ * How many frames in a row may fail before the loop gives up. A frame that
+ * throws almost always throws on the next one too — at 60fps an unbounded retry
+ * is a console filling with thousands of identical stacks and a phone burning
+ * its battery on it. Small enough to stop fast, above 1 so a genuinely transient
+ * failure (a resize landing mid-draw) does not end the run.
+ */
+const MAX_FRAME_FAILURES = 5;
+let frameFailures = 0;
+let renderStopped = false;
+
 function loop(now: number): void {
+  if (renderStopped) return;
+  // Scheduled *before* the work, not after: with the reschedule as the last
+  // statement, a single throw in `renderFrame` ended the loop permanently and
+  // froze the canvas with no error anywhere the player could see it.
+  requestAnimationFrame(loop);
+
+  try {
+    renderTick(now);
+    frameFailures = 0;
+  } catch (error) {
+    frameFailures++;
+    if (frameFailures >= MAX_FRAME_FAILURES) {
+      renderStopped = true;
+      showErrorPanel('The game stopped drawing.', error);
+    } else {
+      console.error('Frame failed to render', error);
+    }
+  }
+}
+
+function renderTick(now: number): void {
   const dt = Math.min(3, (now - lastFrame) / 16.67);
   lastFrame = now;
 
@@ -502,21 +572,34 @@ function loop(now: number): void {
     renderFrame(ctx, state, viewWidth, viewHeight, particles);
     dirty = false;
   }
-
-  requestAnimationFrame(loop);
 }
 
-// Both reads must land before the title opens: the settings screen would
-// otherwise show default bindings over a saved set, and Continue would offer
-// nothing while a run sat on disk.
-void loadKeybinds().then(() =>
-  loadRun().then(saved => {
-    showTitleScreen({
-      saved,
-      // ?seed= only applies to a new run started from a cold load; a resumed run
-      // carries the seed it was created with.
-      onNewGame: config => startRun(readSeed(), config),
-      onContinue: resumeRun,
-    });
-  })
-);
+// Installed before anything else runs, so a failure during boot itself still has
+// somewhere to land.
+installGlobalErrorHandlers();
+
+/**
+ * Both reads must land before the title opens: the settings screen would
+ * otherwise show default bindings over a saved set, and Continue would offer
+ * nothing while a run sat on disk.
+ *
+ * Neither read can reject — `save.ts` and `keybinds.ts` report storage failure as
+ * "nothing stored" — so a device with no usable IndexedDB (Safari Private
+ * Browsing, iOS Lockdown Mode, a locked-down webview) reaches the title screen
+ * with Continue greyed out. A run they cannot resume is a bad session; a title
+ * screen that never draws is a dead install.
+ */
+async function boot(): Promise<void> {
+  await loadKeybinds();
+  const saved = await loadRun();
+
+  showTitleScreen({
+    saved,
+    // ?seed= only applies to a new run started from a cold load; a resumed run
+    // carries the seed it was created with.
+    onNewGame: config => startRun(readSeed(), config),
+    onContinue: resumeRun,
+  });
+}
+
+boot().catch(error => showErrorPanel('The game could not start.', error));

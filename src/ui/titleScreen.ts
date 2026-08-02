@@ -9,6 +9,8 @@ import {
 } from '../core/runConfig';
 import { showSettingsScreen } from './settingsScreen';
 import { GameState } from '../core/state';
+import { BUILD_LABEL } from '../buildInfo';
+import { openSupportPage, SUPPORT_LABEL } from './support';
 
 export interface TitleScreenHandlers {
   onNewGame: (config: RunConfig) => void;
@@ -62,10 +64,15 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
           </button>
           <button class="title-btn" id="btn-settings" type="button">
             Settings
-            <small>controls</small>
+            <small>controls &middot; appearance</small>
+          </button>
+          <button class="title-btn" id="btn-support" type="button">
+            ${SUPPORT_LABEL}
+            <small>opens in a new tab &middot; nothing is gated</small>
           </button>
         </div>
       </div>
+      <p class="title-screen__build">${BUILD_LABEL}</p>
     `;
     screen.querySelector('#btn-new-game')!.addEventListener('click', renderSetup);
     if (saved) {
@@ -79,6 +86,7 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
     screen.querySelector('#btn-settings')!.addEventListener('click', () =>
       showSettingsScreen(() => {})
     );
+    screen.querySelector('#btn-support')!.addEventListener('click', openSupportPage);
   }
 
   function renderSetup(): void {

@@ -1,4 +1,5 @@
 import { clearRun } from '../core/save';
+import { clearCosmetic } from '../cosmetics';
 import { clearKeybinds } from './keybinds';
 
 /**
@@ -25,10 +26,11 @@ function describe(cause: unknown): string {
 }
 
 async function resetSave(): Promise<void> {
-  // Both stores, because either one can be what is wedging the boot. Neither of
-  // these rejects — they report through the console — so the reload always runs.
+  // Every store, because any one of them can be what is wedging the boot. None
+  // of these reject — they report through the console — so the reload always runs.
   await clearRun();
   await clearKeybinds();
+  await clearCosmetic();
   window.location.reload();
 }
 

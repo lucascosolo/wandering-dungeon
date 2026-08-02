@@ -6,6 +6,8 @@ import { declinedArmorUnderfoot } from '../core/engine';
 import { describeModifier, modifierLabel } from '../core/armorModifiers';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 import { DISMISS_HINT } from './modalGate';
+import { BUILD_LABEL } from '../buildInfo';
+import { openSupportPage, SUPPORT_LABEL } from './support';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
 export const HOTBAR_SIZE = 4;
@@ -514,11 +516,51 @@ export function showShop(
   ui.shopModal.querySelector('#btn-shop-close')!.addEventListener('click', onClose);
 }
 
+/**
+ * Copy `text`, and say so on the button. `navigator.clipboard` is undefined on
+ * an insecure origin — which is exactly how a tester reaches a LAN address — and
+ * can reject even where it exists, so the failure path is not decorative: it
+ * drops the report into a selected textarea the player can copy by hand. A
+ * button that silently does nothing is the one outcome worth ruling out.
+ */
+function copyReport(button: HTMLButtonElement, host: HTMLElement, text: string): void {
+  const fallback = (): void => {
+    button.textContent = 'Copy failed — select and copy';
+    // A second tap on a still-broken clipboard must not stack a second box.
+    const existing = host.querySelector<HTMLTextAreaElement>('.report-fallback');
+    if (existing) {
+      existing.select();
+      return;
+    }
+    const area = document.createElement('textarea');
+    area.className = 'report-fallback';
+    area.readOnly = true;
+    area.value = text;
+    host.appendChild(area);
+    area.focus();
+    area.select();
+  };
+
+  if (!navigator.clipboard) {
+    fallback();
+    return;
+  }
+
+  navigator.clipboard.writeText(text).then(
+    () => {
+      button.textContent = 'Report copied';
+    },
+    fallback
+  );
+}
+
 export function showEndModal(
   ui: HudElements,
   state: GameState,
   onRestart: () => void,
-  onMainMenu: () => void
+  onMainMenu: () => void,
+  /** The pasteable run report, built lazily — most deaths never ask for it. */
+  buildReport: () => string
 ): void {
   const won = state.isVictory;
   const cause = state.lastDamageSource;
@@ -534,15 +576,24 @@ export function showEndModal(
       <h2 class="${won ? 'modal__title--win' : 'modal__title--lose'}">${won ? 'You Escaped' : 'You Fell'}</h2>
       ${causeLine ? `<p class="modal__cause">${escapeHtml(causeLine)}</p>` : ''}
       <p class="modal__stats">Floor ${state.floorMap.level} &middot; ${state.turnCount} turns</p>
-      <p class="modal__seed">seed: ${escapeHtml(state.seed)}</p>
+      <p class="modal__seed">seed: ${escapeHtml(state.seed)} &middot; ${escapeHtml(BUILD_LABEL)}</p>
       <div class="modal__actions">
         <button class="action-btn" id="btn-main-menu" type="button">Main Menu</button>
         <button class="action-btn" id="btn-restart" type="button">New Run</button>
       </div>
+      <button class="action-btn" id="btn-copy-report" type="button">Copy Report</button>
+      <button class="action-btn action-btn--quiet" id="btn-support" type="button">
+        ${SUPPORT_LABEL}
+      </button>
     </div>
   `;
   ui.modal.querySelector<HTMLButtonElement>('#btn-restart')!.addEventListener('click', onRestart);
   ui.modal.querySelector<HTMLButtonElement>('#btn-main-menu')!.addEventListener('click', onMainMenu);
+  ui.modal.querySelector<HTMLButtonElement>('#btn-support')!.addEventListener('click', openSupportPage);
+
+  const copyBtn = ui.modal.querySelector<HTMLButtonElement>('#btn-copy-report')!;
+  const card = ui.modal.querySelector<HTMLElement>('.modal__card')!;
+  copyBtn.addEventListener('click', () => copyReport(copyBtn, card, buildReport()));
 }
 
 function escapeHtml(text: string): string {

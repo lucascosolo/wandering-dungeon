@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { dispatchAction, grantXp } from '../src/core/engine';
 import {
   buildFloor,
@@ -129,5 +129,90 @@ describe('RunRecorder XP telemetry', () => {
     ]);
     expect(log.levelReached).toBe(state.player.level);
     expect(log.xpEarned['0:kill']).toBe(xpPerKill(boss.enemyType, 0));
+  });
+});
+
+/**
+ * The POST path only ever existed for the dev server's `/__runlog`. These pin
+ * the two ways it must go quiet, because the failure they replace was silent and
+ * expensive: a hosted build re-sending the whole growing log every 25 turns, plus
+ * a beacon on every backgrounding, over a tester's mobile data, forever.
+ */
+describe('RunRecorder POST kill-switch', () => {
+  function recorderWithHistory() {
+    const state = createMockGameState();
+    const recorder = new RunRecorder(state);
+    const { dx, dy } = step(state);
+    act(recorder, state, { type: 'MOVE', dx, dy });
+    return recorder;
+  }
+
+  const original = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = original;
+  });
+
+  it('stops posting after an HTTP error status, which never rejects the promise', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = ((url: string) => {
+      calls.push(url);
+      return Promise.resolve({ ok: false, status: 404 } as Response);
+    }) as typeof fetch;
+
+    const recorder = recorderWithHistory();
+    recorder.flush();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(calls).toHaveLength(1);
+    expect(recorder.posting).toBe(false);
+
+    recorder.flush();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('stops posting after a network failure', async () => {
+    let calls = 0;
+    globalThis.fetch = (() => {
+      calls++;
+      return Promise.reject(new Error('offline'));
+    }) as typeof fetch;
+
+    const recorder = recorderWithHistory();
+    recorder.flush();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(recorder.posting).toBe(false);
+    recorder.flush();
+    expect(calls).toBe(1);
+  });
+
+  it('keeps posting while the endpoint answers', async () => {
+    let calls = 0;
+    globalThis.fetch = (() => {
+      calls++;
+      return Promise.resolve({ ok: true, status: 204 } as Response);
+    }) as typeof fetch;
+
+    const recorder = recorderWithHistory();
+    recorder.flush();
+    await Promise.resolve();
+    await Promise.resolve();
+    recorder.flush();
+
+    expect(calls).toBe(2);
+    expect(recorder.posting).toBe(true);
+  });
+
+  it('never posts an empty log', () => {
+    let calls = 0;
+    globalThis.fetch = (() => {
+      calls++;
+      return Promise.resolve({ ok: true } as Response);
+    }) as typeof fetch;
+
+    new RunRecorder(createMockGameState()).flush();
+    expect(calls).toBe(0);
   });
 });

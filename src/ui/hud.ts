@@ -1,5 +1,6 @@
 import { EnemyType, GameState, Item } from '../core/state';
 import { regionForFloor } from '../core/regions';
+import { xpToNextLevel } from '../core/game';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
@@ -31,6 +32,8 @@ export interface HudElements {
   floorLabel: HTMLElement;
   regionBanner: HTMLElement;
   turnLabel: HTMLElement;
+  levelLabel: HTMLElement;
+  xpLabel: HTMLElement;
   shiftPill: HTMLElement;
   hpFill: HTMLElement;
   hpLabel: HTMLElement;
@@ -76,6 +79,9 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <div class="hud-stat"><span class="hud-stat__label">Floor</span><span id="floor-label">1</span></div>
       <div class="shift-pill" id="shift-pill">SHIFT IN —</div>
       <div class="hud-stat"><span class="hud-stat__label">Turn</span><span id="turn-label">0</span></div>
+      <div class="hud-stat" title="experience toward the next level">
+        <span class="hud-stat__label">Lv</span><span id="level-label">1</span><span class="hud-stat__label" id="xp-label">0/100</span>
+      </div>
     </header>
 
     <div class="legend">
@@ -152,6 +158,8 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     floorLabel: byId('floor-label'),
     regionBanner: byId('region-banner'),
     turnLabel: byId('turn-label'),
+    levelLabel: byId('level-label'),
+    xpLabel: byId('xp-label'),
     shiftPill: byId('shift-pill'),
     hpFill: byId('hp-fill'),
     hpLabel: byId('hp-label'),
@@ -179,6 +187,8 @@ export function updateHud(ui: HudElements, state: GameState): void {
 
   ui.floorLabel.textContent = `${floorMap.level}/${state.config.finalFloor}`;
   ui.turnLabel.textContent = String(state.turnCount);
+  ui.levelLabel.textContent = String(player.level);
+  ui.xpLabel.textContent = `${player.xp}/${xpToNextLevel(player.level)}`;
 
   const region = regionForFloor(floorMap.level);
   const regionChanged = ui.regionBanner.dataset.region !== String(region.index);

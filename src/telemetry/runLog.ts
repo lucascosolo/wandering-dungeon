@@ -38,6 +38,19 @@ export interface CoinCheckpoint {
   coins: number;
 }
 
+/**
+ * The player's progression the turn a region's boss falls. 10c tunes the XP curve
+ * against these: they are what say whether a region's worth of fighting bought a
+ * level, and how much of the next one was banked.
+ */
+export interface LevelCheckpoint {
+  floor: number;
+  region: number;
+  level: number;
+  /** XP banked toward the next level, so a near-miss is visible as one. */
+  xp: number;
+}
+
 export interface RunLog {
   id: string;
   seed: string;
@@ -64,6 +77,12 @@ export interface RunLog {
   coinsSpent: Record<string, number>;
   /** Purse balance each time a region's boss falls, so income-per-region is readable. */
   coinCheckpoints: CoinCheckpoint[];
+  /** XP earned, keyed `<regionIndex>:<source>`. Kills are the only source today. */
+  xpEarned: Record<string, number>;
+  /** Highest level reached, so a run that dies mid-region still reports its power. */
+  levelReached: number;
+  /** Level and banked XP each time a region's boss falls. */
+  levelCheckpoints: LevelCheckpoint[];
   history: TurnRecord[];
 }
 
@@ -123,6 +142,9 @@ export class RunRecorder {
       coinsEarned: {},
       coinsSpent: {},
       coinCheckpoints: [],
+      xpEarned: {},
+      levelReached: state.player.level,
+      levelCheckpoints: [],
       history: [],
     };
   }
@@ -193,10 +215,16 @@ export class RunRecorder {
       const pickup = /^You pick up a (.+)\.$/.exec(text);
       if (pickup) this.log.itemsPickedUp.push(pickup[1]);
 
-      const bounty = /You collect (\d+) coins\.$/.exec(text);
+      const bounty = /collect (\d+) coins\.$/.exec(text);
       if (bounty) {
         const key = `${region}:kill`;
         this.log.coinsEarned[key] = (this.log.coinsEarned[key] ?? 0) + Number(bounty[1]);
+      }
+
+      const xp = /You gain (\d+) XP and collect \d+ coins\.$/.exec(text);
+      if (xp) {
+        const key = `${region}:kill`;
+        this.log.xpEarned[key] = (this.log.xpEarned[key] ?? 0) + Number(xp[1]);
       }
 
       const cache = /^You pocket (\d+) coins\.$/.exec(text);
@@ -216,10 +244,17 @@ export class RunRecorder {
     }
 
     if (state.clearedRegions.length > before.clearedRegionCount) {
+      const cleared = state.clearedRegions[state.clearedRegions.length - 1];
       this.log.coinCheckpoints.push({
         floor: state.floorMap.level,
-        region: state.clearedRegions[state.clearedRegions.length - 1],
+        region: cleared,
         coins: state.player.coins,
+      });
+      this.log.levelCheckpoints.push({
+        floor: state.floorMap.level,
+        region: cleared,
+        level: state.player.level,
+        xp: state.player.xp,
       });
     }
 
@@ -238,6 +273,7 @@ export class RunRecorder {
     this.log.history.push(row);
     this.log.turns = state.turnCount;
     this.log.floorReached = Math.max(this.log.floorReached, state.floorMap.level);
+    this.log.levelReached = state.player.level;
 
     if (state.isGameOver) {
       this.finish(state);

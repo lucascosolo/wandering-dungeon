@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { dispatchAction } from '../src/core/engine';
-import { buildFloor, coinsPerKill, createCoinCache, createNewGame } from '../src/core/game';
+import { dispatchAction, grantXp } from '../src/core/engine';
+import {
+  buildFloor,
+  coinsPerKill,
+  createCoinCache,
+  createNewGame,
+  xpPerKill,
+  xpToNextLevel,
+} from '../src/core/game';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig } from '../src/core/runConfig';
 import { RunRecorder } from '../src/telemetry/runLog';
@@ -78,5 +85,49 @@ describe('RunRecorder coin telemetry', () => {
     act(recorder, state, { type: 'BUY_ITEM', offerId: offer.id });
 
     expect(recorder.snapshot().coinsSpent[offer.item.name]).toBe(offer.price);
+  });
+});
+
+describe('RunRecorder XP telemetry', () => {
+  it('attributes kill XP to region 0 without disturbing the coin bounty', () => {
+    const state = createMockGameState();
+    const recorder = new RunRecorder(state);
+    const target = step(state);
+    const enemy = createMockEnemy({ x: target.x, y: target.y });
+    enemy.hp = 1;
+    state.entities = [enemy];
+
+    act(recorder, state, { type: 'MOVE', dx: target.dx, dy: target.dy });
+
+    const log = recorder.snapshot();
+    expect(log.xpEarned['0:kill']).toBe(xpPerKill('crawler', 0));
+    // The kill line carries both numbers now — the coin figure must still parse.
+    expect(log.coinsEarned['0:kill']).toBe(coinsPerKill(0, false));
+  });
+
+  it('checkpoints the level a region was cleared at and tracks the level reached', () => {
+    const state = createNewGame('runlog-xp-boss', createRunConfig('short', 'standard'));
+    const recorder = new RunRecorder(state);
+    buildFloor(state, new SeededRNG('runlog-xp-boss-rng'), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+    boss.hp = 1;
+    // The boss alone is not a level, so give the run the fight history a real
+    // clear would have arrived with.
+    grantXp(state, xpToNextLevel(1) + xpToNextLevel(2), []);
+
+    act(recorder, state, { type: 'MOVE', dx: 1, dy: 0 });
+
+    const log = recorder.snapshot();
+    expect(log.levelCheckpoints).toEqual([
+      {
+        floor: 5,
+        region: 0,
+        level: state.player.level,
+        xp: state.player.xp,
+      },
+    ]);
+    expect(log.levelReached).toBe(state.player.level);
+    expect(log.xpEarned['0:kill']).toBe(xpPerKill(boss.enemyType, 0));
   });
 });

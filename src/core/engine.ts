@@ -10,7 +10,7 @@ import {
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
-import { buildFloor, coinsPerKill, createItem } from './game';
+import { buildFloor, coinsPerKill, createItem, xpPerKill, xpToNextLevel } from './game';
 import { isRegionEnd, regionForFloor } from './regions';
 import { createShop, resolvePurchase } from './shop';
 
@@ -102,6 +102,40 @@ function classify(text: string): LogMessage['type'] {
 
 export { damagePlayer };
 
+/**
+ * Everything a level is worth. Kept as constants beside the one function that
+ * spends them so 10c retunes the payout in a single place.
+ */
+export const HP_PER_LEVEL = 8;
+export const ATTACK_PER_LEVEL = 1;
+
+/**
+ * The only place levelling changes the player's stats. Nothing else in the engine
+ * may touch `maxHp` or `attackPower` for progression reasons — 10c retunes the
+ * curve here and in `xpToNextLevel`, and a second `maxHp +=` anywhere would make
+ * that impossible to reason about.
+ *
+ * Loops rather than levelling once, because a boss can be worth more than a whole
+ * level at the top of the curve.
+ */
+export function grantXp(state: GameState, amount: number, events: string[]): void {
+  const { player } = state;
+  player.xp += amount;
+
+  while (player.xp >= xpToNextLevel(player.level)) {
+    player.xp -= xpToNextLevel(player.level);
+    player.level++;
+    player.maxHp += HP_PER_LEVEL;
+    // Healed by exactly the gain, not to full: a level-up should reward fighting,
+    // not quietly replace the potion economy.
+    player.hp += HP_PER_LEVEL;
+    player.attackPower += ATTACK_PER_LEVEL;
+    events.push(
+      `You reach level ${player.level}. +${HP_PER_LEVEL} max HP, +${ATTACK_PER_LEVEL} attack.`
+    );
+  }
+}
+
 function attack(
   state: GameState,
   rng: SeededRNG,
@@ -121,9 +155,14 @@ function attack(
       // theirs. Paid straight to the purse rather than dropped: a coin pile the
       // next shift buries would tax the player for fighting where the geometry
       // was about to move.
-      const bounty = coinsPerKill(regionForFloor(state.floorMap.level).index, target.isBoss === true);
+      const regionIndex = regionForFloor(state.floorMap.level).index;
+      const bounty = coinsPerKill(regionIndex, target.isBoss === true);
+      const xp = xpPerKill(target.enemyType, regionIndex);
       state.player.coins += bounty;
-      events.push(`${target.name} is destroyed. You collect ${bounty} coins.`);
+      // XP is named before coins so the run log's coin regex, which anchors on the
+      // trailing "coins.", keeps matching this line.
+      events.push(`${target.name} is destroyed. You gain ${xp} XP and collect ${bounty} coins.`);
+      grantXp(state, xp, events);
     }
   } else {
     events.push(`${attackerName} strikes you.`);

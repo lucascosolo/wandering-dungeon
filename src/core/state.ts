@@ -137,6 +137,10 @@ export interface Player extends Entity {
   inventory: Item[];
   /** Spending money for the post-boss merchant. Carries across floors. */
   coins: number;
+  /** Raised by kills. Every stat point it buys is applied by `grantXp`. */
+  level: number;
+  /** XP banked toward the next level only — `grantXp` spends it down on each level-up. */
+  xp: number;
 }
 
 export type EnemyType =

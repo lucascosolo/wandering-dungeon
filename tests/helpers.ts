@@ -100,6 +100,19 @@ export function createMockGameState(seed = 'test-seed-42'): GameState {
 }
 
 /**
+ * Walkable neighbour of the player, so a test moves rather than bumps a wall.
+ * Every drop/pickup/kill test needs one, and a hand-rolled copy per file drifts.
+ */
+export function walkableStep(state: GameState) {
+  const { x, y } = state.player.position;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
+    if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
+  }
+  throw new Error('player is walled in');
+}
+
+/**
  * Create a mock enemy at a given position.
  */
 export function createMockEnemy(

@@ -29,6 +29,7 @@ import {
 } from './ui/hud';
 import { showHowToPlay } from './ui/howToPlay';
 import { showGlyphLegend } from './ui/glyphLegend';
+import { showOpeningSplash } from './ui/openingSplash';
 import { showSettingsScreen } from './ui/settingsScreen';
 import { RunRecorder } from './telemetry/runLog';
 import { buildRunReport } from './telemetry/runReport';
@@ -459,6 +460,11 @@ function startRun(seed: string, config: RunConfig): void {
   enterRun(createNewGame(seed, config));
   // Save at turn 0 too, so a run abandoned before its first move is still there.
   void saveRun(state);
+  // New runs only. A resumed run is one the player is already inside, and
+  // re-reading the premise on the way back in would be a lecture, not framing.
+  showOpeningSplash(() => {
+    dirty = true;
+  });
 }
 
 /**

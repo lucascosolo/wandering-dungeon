@@ -3,6 +3,7 @@ import {
   EnemyType,
   GameState,
   GridTile,
+  isUnkillable,
   Item,
   ItemDrop,
   LogMessage,
@@ -18,6 +19,7 @@ import {
   clearTelegraphs,
   describePendingShift,
   executeShift,
+  floorPressure,
   isFloorStabilized,
   shiftInterval,
 } from './shift/shiftSystem';
@@ -29,6 +31,7 @@ import {
   coinsPerKill,
   createItem,
   pickSpawnPosition,
+  PURSUER_TEMPLATE,
   xpPerKill,
   xpToNextLevel,
 } from './game';
@@ -196,6 +199,8 @@ export function grantXp(state: GameState, amount: number, events: string[]): voi
  * terminates rather than recursing.
  */
 function damageEnemy(state: GameState, target: Enemy, dealt: number, events: string[]): void {
+  if (isUnkillable(target)) return;
+
   target.hp = Math.max(0, target.hp - dealt);
   if (target.hp > 0) return;
 
@@ -218,6 +223,14 @@ function coinBonus(state: GameState): number {
 }
 
 function playerAttack(state: GameState, rng: SeededRNG, target: Enemy, events: string[]): void {
+  // Answered before the roll, so the log never reports a number that was never
+  // taken. The swing still spends the turn — that is what makes trading blows
+  // with it the wrong move rather than merely a fruitless one.
+  if (isUnkillable(target)) {
+    events.push(`Your blow closes over ${target.name}. It does not slow.`);
+    return;
+  }
+
   const dealt = Math.max(1, state.player.attackPower + rng.randomInt(-2, 2));
   events.push(`You hit ${target.name} for ${dealt} damage.`);
   damageEnemy(state, target, dealt, events);
@@ -240,7 +253,7 @@ function enemyAttack(state: GameState, rng: SeededRNG, attacker: Enemy, events: 
 
   const { armor } = state.player;
   const thorns = armorMagnitude(armor, 'thorns');
-  if (thorns > 0) {
+  if (thorns > 0 && !isUnkillable(attacker)) {
     // Worded without "damage" on purpose: the shell sparks red on the player for
     // any line carrying that word, and this one is damage going the other way.
     events.push(`${armor!.name} strikes back at ${attacker.name} for ${thorns}.`);
@@ -586,6 +599,44 @@ function settleDeaths(state: GameState, rng: SeededRNG, events: string[]): void 
   state.entities = state.entities.filter(e => e.hp > 0);
 }
 
+/**
+ * What the Pursuer does when a shift has severed every route to the player — the
+ * one situation a hunter must not simply stop in, because a hunter that can be
+ * walled off is a hunter that has been solved.
+ *
+ * It goes through instead: one tile along whichever axis it is furthest out on,
+ * walls included, and then it stands still for a turn. So geometry costs it
+ * time — half speed through rock, which is slower than a player who has
+ * somewhere to run — and never costs it the hunt. The stall is `staggeredTurns`,
+ * which the renderer already dims, so the state it leaves behind is one the
+ * screen already tells.
+ */
+function phaseTowardPlayer(state: GameState, enemy: Enemy, events: string[]): void {
+  const dx = state.player.position.x - enemy.position.x;
+  const dy = state.player.position.y - enemy.position.y;
+  const step =
+    Math.abs(dx) >= Math.abs(dy)
+      ? { x: enemy.position.x + Math.sign(dx), y: enemy.position.y }
+      : { x: enemy.position.x, y: enemy.position.y + Math.sign(dy) };
+
+  if (
+    step.x < 0 ||
+    step.x >= state.floorMap.width ||
+    step.y < 0 ||
+    step.y >= state.floorMap.height ||
+    samePosition(step, state.player.position) ||
+    enemyAt(state, step)
+  ) {
+    return;
+  }
+
+  enemy.position = step;
+  enemy.staggeredTurns = 1;
+  if (state.floorMap.visible[step.y][step.x]) {
+    events.push(`${enemy.name} comes through the wall.`);
+  }
+}
+
 function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
   for (const enemy of state.entities) {
     if (enemy.hp <= 0) continue;
@@ -724,11 +775,18 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       aggroRadius = state.isStasisActive ? 9 : 5;
     } else if (enemy.enemyType === 'glass_moth') {
       aggroRadius = 10;
+    } else if (enemy.enemyType === 'pursuer') {
+      // It knows where the player is from the moment it arrives. Losing it is a
+      // matter of distance and the stairs, never of breaking line of sight.
+      aggroRadius = Infinity;
     }
     if (dist > aggroRadius) continue;
 
     const path = findPath(state.floorMap, enemy.position, target);
-    if (!path || path.length < 2) continue;
+    if (!path || path.length < 2) {
+      if (enemy.enemyType === 'pursuer') phaseTowardPlayer(state, enemy, events);
+      continue;
+    }
 
     const step = path[1];
     if (enemyAt(state, step)) continue;
@@ -801,6 +859,84 @@ const REGION_HAZARDS: Partial<Record<number, RegionHazard>> = {
 };
 
 /**
+ * Pressure tier at which the Pursuer arrives — two, so it lands one step after
+ * the ramp starts biting rather than with it. A floor is cleared in 40-90 turns
+ * at a normal pace, and `PRESSURE_GRACE_TURNS + 2 * PRESSURE_STEP_TURNS` is 70,
+ * so an efficient floor is finished before it appears and a picked-over one is
+ * not.
+ */
+const PURSUER_PRESSURE_TIER = 2;
+
+export const PURSUER_NAME = 'The Long Patience';
+
+/**
+ * The visible face of escalating pressure, and there is exactly one of it.
+ *
+ * Arena floors are exempt. Their stairs stay shut until the guardian falls, and
+ * the merchant who arrives afterwards is meant to be read at leisure — billing
+ * either wait would punish the player for a delay the game itself imposed.
+ * Relying on `floorTurns` freezing is not enough: it freezes only while the
+ * guardian lives, and starts running again over the shop.
+ */
+/**
+ * The walkable tile furthest from the player: it comes in from the far end of
+ * the floor, which is both the most warning the geometry can give and the only
+ * anchor that survives a shift.
+ *
+ * The entrance would read better and does not work. By the time a floor has been
+ * lingered on long enough to summon this, the door the player came in by has
+ * often collapsed into wall or chasm — three of the six seeds this was first
+ * written against ended with exactly that — and an arrival point that can stop
+ * existing is an arrival that silently never happens. Camping the doorway must
+ * not be a way to keep the floor to yourself either.
+ *
+ * Never the player's own tile: an entity standing on them is at distance 0, and
+ * the entire hunt is written in terms of distance 1.
+ */
+function pursuerArrival(state: GameState): Position | null {
+  const { width, height } = state.floorMap;
+  let arrival: Position | null = null;
+  let furthest = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const candidate = { x, y };
+      if (samePosition(candidate, state.player.position)) continue;
+      if (!isWalkableAt(state, candidate) || enemyAt(state, candidate)) continue;
+
+      const distance = manhattan(candidate, state.player.position);
+      if (distance > furthest) {
+        furthest = distance;
+        arrival = candidate;
+      }
+    }
+  }
+
+  return arrival;
+}
+
+function wakePursuer(state: GameState, events: string[]): void {
+  if (isRegionEnd(state.floorMap.level)) return;
+  if (floorPressure(state.floorTurns) < PURSUER_PRESSURE_TIER) return;
+  if (state.entities.some(enemy => enemy.enemyType === 'pursuer')) return;
+
+  const arrival = pursuerArrival(state);
+  if (!arrival) return;
+
+  state.entities.push({
+    id: `pursuer_${state.floorMap.level}`,
+    name: PURSUER_NAME,
+    enemyType: 'pursuer',
+    position: { x: arrival.x, y: arrival.y },
+    hp: PURSUER_TEMPLATE.hp,
+    maxHp: PURSUER_TEMPLATE.hp,
+    attackPower: PURSUER_TEMPLATE.attackPower + regionForFloor(state.floorMap.level).attackBonus,
+    staggeredTurns: 0,
+  });
+  events.push(`${PURSUER_NAME} steps onto the far side of the floor. It does not hurry.`);
+}
+
+/**
  * Advance the world clock by one turn: expire buffs, tick the shift countdown,
  * telegraph an imminent shift, and execute a shift when the countdown expires.
  */
@@ -812,6 +948,7 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
   // won. After it is won the floor is stabilized and stops shifting entirely, so
   // the counter keeps running here only for the ordinary floors it actually bills.
   if (!state.entities.some(enemy => enemy.isBoss && enemy.hp > 0)) state.floorTurns++;
+  wakePursuer(state, events);
 
   const { player } = state;
   if (player.shieldTurnsRemaining > 0) {

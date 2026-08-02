@@ -42,6 +42,10 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   cinder_gatekeeper: { glyph: 'C', color: '#e09f3e', label: 'Cinder Gatekeeper' },
   prism_refractor: { glyph: 'P', color: '#b8c0ff', label: 'Prism Refractor' },
   null_testament: { glyph: 'T', color: '#c77dff', label: 'Null Testament' },
+  // Bone rather than a threat colour, and the one glyph on the board that is not
+  // a letter of a name: it is not a species, and it should not read as one more
+  // thing to fight.
+  pursuer: { glyph: 'X', color: '#dcd6cc', label: 'The Long Patience' },
 };
 const COLOR_RIFTBOUND_GUARD = '#d9d0ff';
 /** Ivory, so the merchant reads as neither loot nor a foe. White is the boss
@@ -256,7 +260,12 @@ export function renderFrame(
   for (const enemy of state.entities) {
     if (enemy.hp <= 0) continue;
     const { x, y } = enemy.position;
-    if (!floorMap.visible[y][x]) continue;
+    const seen = floorMap.visible[y][x];
+    // The Pursuer is drawn through the dark, and it is the only thing that is.
+    // Everything else on the board is something you find; this is something that
+    // finds you, and a hunter you cannot watch closing is just a sudden death.
+    const hunting = enemy.enemyType === 'pursuer';
+    if (!seen && !hunting) continue;
 
     const px = x * TILE_SIZE + offsetX;
     const py = y * TILE_SIZE + offsetY;
@@ -275,7 +284,9 @@ export function renderFrame(
 
     // Staggered enemies are dimmed rather than lowercased — the glyph's letter
     // now identifies the species, so case is no longer free to carry state.
-    ctx.globalAlpha = enemy.staggeredTurns > 0 ? 0.45 : 1;
+    // Out of sight it is drawn faded: you are told where it is, not what it is
+    // doing. Staggered wins over that — losing a turn is the more useful fact.
+    ctx.globalAlpha = enemy.staggeredTurns > 0 ? 0.45 : seen ? 1 : 0.6;
     const guarding = isGuardingExit(enemy, floorMap.exit);
     const glyphColor = enemy.isBoss ? '#ffffff' : guarding ? COLOR_RIFTBOUND_GUARD : style.color;
     drawGlyph(ctx, enemy.isBoss ? style.glyph.toUpperCase() : style.glyph, glyphColor, px, py);
@@ -288,12 +299,22 @@ export function renderFrame(
       ctx.setLineDash([]);
     }
 
-    // HP pip under the glyph.
-    const ratio = enemy.hp / enemy.maxHp;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(px + 4, py + TILE_SIZE - 5, TILE_SIZE - 8, 3);
-    ctx.fillStyle = style.color;
-    ctx.fillRect(px + 4, py + TILE_SIZE - 5, (TILE_SIZE - 8) * ratio, 3);
+    if (hunting) {
+      // A closed ring instead of a health bar. It has no health to report, and a
+      // bar pinned at full for a whole floor reads as a bug rather than a rule.
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // HP pip under the glyph.
+      const ratio = enemy.hp / enemy.maxHp;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(px + 4, py + TILE_SIZE - 5, TILE_SIZE - 8, 3);
+      ctx.fillStyle = style.color;
+      ctx.fillRect(px + 4, py + TILE_SIZE - 5, (TILE_SIZE - 8) * ratio, 3);
+    }
     ctx.globalAlpha = 1;
   }
 

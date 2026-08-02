@@ -304,7 +304,7 @@ telegraph fidelity guard in `tests/shift.test.ts` stays green.
 Depends on 3a. Files: `src/core/state.ts`, `src/core/engine.ts`,
 `src/core/shift/shiftSystem.ts`. Scope: M.
 
-### 8. Pursuer
+### ~~8. Pursuer~~ — shipped
 
 An entity that hunts the player across a floor and cannot be killed, only
 outrun. Pairs with 7 as the visible face of rising pressure.
@@ -326,9 +326,64 @@ Done when: it tracks the player through the map, is escapable via the exit, does
 not deadlock on a floor whose geometry just shifted, and a new run opens on
 framing that explains it before it is first seen.
 
+**Shipped** as **The Long Patience**, glyph `X`, in `src/core/engine.ts`
+(`wakePursuer`, `pursuerArrival`, `phaseTowardPlayer`) with
+`tests/pursuer.test.ts` as its guard.
+
+**The rules.** It arrives once per floor at `PURSUER_PRESSURE_TIER` — pressure
+tier 2, so `PRESSURE_GRACE_TURNS + 2 * PRESSURE_STEP_TURNS` = 70 turns of
+lingering, which an efficiently-cleared floor never reaches. It hunts with
+`aggroRadius = Infinity`, so line of sight is not how you lose it. Nothing takes
+its HP. Descending leaves it behind; that is the only answer to it.
+
+**Three things the build had to correct, and each is a rule now:**
+
+- **It arrives at the walkable tile furthest from the player, not at the
+  entrance.** The entrance is the better story and does not work: by 70 turns the
+  door the player came in by has often collapsed to wall or chasm — three of the
+  six seeds this was first written against — and an arrival point that can stop
+  existing is a spawn that silently never fires.
+- **`applyEntityFallout` in `shiftSystem.ts` writes `entity.hp` directly**, so a
+  collapse killed the unkillable thing outright. `isUnkillable` therefore lives
+  in `state.ts`, not in the engine, and *both* HP writers ask it. A third writer
+  must too, or "cannot be killed" quietly becomes "cannot be killed by the
+  player".
+- **Arena floors are exempt explicitly**, not by relying on `floorTurns`
+  freezing — that freeze only holds while the guardian lives and starts running
+  again over the merchant. Without the exemption `autoPlay` in `tests/run.test.ts`
+  attacks an unkillable enemy until its turn budget runs out.
+
+**Geometry costs it time, never the hunt.** With no route it comes through the
+wall — one tile toward the player, then a turn standing still (`staggeredTurns`,
+which the renderer already dims). Half speed through rock, slower than a player
+with somewhere to run.
+
+**It moves at exactly the player's speed, and that is the design.** A pure chase
+across open floor never closes, so a player who keeps walking is safe and a
+player who stops is not — which is the whole point, since it exists to price
+lingering. It kills you in a dead end, when a shift walls your route, or when
+you stand and trade blows with it. What no log has priced yet is whether that
+makes it toothless in practice; the two levers are `PURSUER_PRESSURE_TIER` and
+`PURSUER_TEMPLATE.attackPower`, and the run logs now name it as a damage source
+and a cause of death, so the next balance pass has the evidence.
+
+**The tells.** It is the only thing on the board drawn outside the FOV, faded
+rather than hidden, because a hunter you cannot watch closing is just a sudden
+death. It carries a ring instead of a health bar — a bar pinned at full for a
+whole floor reads as a bug rather than a rule — and the glyph key names it by
+hand, since no region pool contains it.
+
+**The framing** is `src/ui/openingSplash.ts`, a hold-until-dismissed prompt on
+`showOverlayScreen` (which gained an optional button label), shown from
+`startRun` and never from `resumeRun`. It lands the three facts the board cannot
+teach in time: the floor moves, something is following, the stairs are the
+answer. It is shown on every new run, restarts included — if that wears thin on
+testers, gating it behind a persisted "seen it" flag is the smaller change.
+
 Depends on 7 (shipped). Files: `src/core/state.ts`, `src/core/engine.ts`,
-`src/core/map/pathfinding.ts`, `src/ui/titleScreen.ts`, `src/ui/hud.ts`,
-`src/styles/main.css`. Scope: L.
+`src/core/shift/shiftSystem.ts`, `src/render/canvasRenderer.ts`,
+`src/ui/openingSplash.ts`, `src/ui/overlayScreen.ts`, `src/ui/glyphLegend.ts`,
+`src/main.ts`, `src/styles/main.css`. Scope: L.
 
 ### 9. Weapon types
 

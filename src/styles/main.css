@@ -1472,3 +1472,26 @@ html, body {
   line-height: 1.4;
   color: var(--text-dim);
 }
+
+/* The run-opening splash (`src/ui/openingSplash.ts`). Left-aligned and looser
+   than the reference panels it shares a shell with: this one is read once, in
+   order, rather than scanned for a row. */
+.opening {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.opening p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-main);
+}
+
+.opening__charge {
+  font-weight: 700;
+  color: var(--accent-cyan);
+}

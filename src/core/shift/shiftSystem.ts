@@ -2,6 +2,7 @@ import {
   Enemy,
   GameState,
   FloorMap,
+  isUnkillable,
   PendingShift,
   Position,
   PreShiftSnapshot,
@@ -920,12 +921,18 @@ function applyEntityFallout(state: GameState, events: string[]): void {
       occupied(p, entity)
     );
     if (!safeTile) {
+      // The Pursuer is not billed by the geometry, and the void is geometry. It
+      // stays where the collapse left it and comes back out through the rock.
+      if (isUnkillable(entity)) continue;
       entity.hp = 0;
       events.push(`${entity.name} falls into the void!`);
       continue;
     }
 
     entity.position = safeTile;
+    // Shunted like everything else — an embedded hunter is the bug this function
+    // exists to prevent — but not charged for it.
+    if (isUnkillable(entity)) continue;
     const damage = Math.max(1, Math.floor(entity.maxHp * FALLOUT_FRACTION));
     entity.hp = Math.max(0, entity.hp - damage);
     events.push(`${entity.name} takes ${damage} shift fallout damage!`);

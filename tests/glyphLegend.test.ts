@@ -3,7 +3,7 @@ import { EnemyType } from '../src/core/state';
 import { REGIONS } from '../src/core/regions';
 import { ENEMY_STYLES } from '../src/render/canvasRenderer';
 import { COSMETICS } from '../src/cosmetics';
-import { enemySections, TERRAIN_LEGEND } from '../src/ui/glyphLegend';
+import { enemySections, glyphLegendHtml, TERRAIN_LEGEND } from '../src/ui/glyphLegend';
 
 /**
  * The Stasis Scorcher and the Cinder Gatekeeper shipped sharing `C`, which no
@@ -48,6 +48,16 @@ describe('Map glyphs', () => {
     for (const type of spawnable()) {
       expect(named.has(ENEMY_STYLES[type].label), type).toBe(true);
     }
+  });
+
+  /**
+   * The Pursuer is in no region pool, so `enemySections` cannot reach it and the
+   * key has to name it by hand. A hunter that cannot be killed is precisely the
+   * glyph a player will look up.
+   */
+  it('names the Pursuer even though no region spawns it', () => {
+    expect(REGIONS.flatMap(r => [...r.enemyPool, r.boss])).not.toContain('pursuer');
+    expect(glyphLegendHtml()).toContain(ENEMY_STYLES.pursuer.label);
   });
 
   it('lists one section per region, guardian last', () => {

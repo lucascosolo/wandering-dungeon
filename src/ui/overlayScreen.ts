@@ -1,4 +1,5 @@
 import { isDismissKey } from './modalGate';
+import { escapeHtml } from './escapeHtml';
 
 /**
  * A full-screen reference panel, mounted on `document.body` like the title and
@@ -12,7 +13,11 @@ import { isDismissKey } from './modalGate';
  * underneath already blocks input through `modalGate`, but this screen also
  * opens straight off the title, where there is no modal to do it.
  */
-export function showOverlayScreen(bodyHtml: string, onBack: () => void): void {
+export function showOverlayScreen(
+  bodyHtml: string,
+  onBack: () => void,
+  backLabel = 'Back'
+): void {
   const screen = document.createElement('div');
   screen.className = 'title-screen';
   document.body.appendChild(screen);
@@ -21,7 +26,7 @@ export function showOverlayScreen(bodyHtml: string, onBack: () => void): void {
     <div class="title-screen__inner settings__inner">
       ${bodyHtml}
       <div class="title-screen__menu">
-        <button class="title-btn title-btn--primary" data-overlay-back type="button">Back</button>
+        <button class="title-btn title-btn--primary" data-overlay-back type="button">${escapeHtml(backLabel)}</button>
       </div>
     </div>
   `;

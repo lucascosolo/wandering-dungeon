@@ -1,8 +1,22 @@
+import { get, set } from 'idb-keyval';
 import { GameAction } from '../core/engine';
 import { regionForFloor } from '../core/regions';
 import { GameState, ShiftType } from '../core/state';
 
 const ENDPOINT = '/__runlog';
+
+/**
+ * `/__runlog` is served by `vite/runLogPlugin.ts`, which is `apply: 'serve'` —
+ * it exists on the dev server and nowhere else. A deployed build posting to it
+ * is not "one request that fails", it is the whole growing log re-sent every 25
+ * turns plus a beacon on every backgrounding, over a tester's mobile data,
+ * against a URL that will never answer. Vite substitutes this to `false` at
+ * build time, so the POST path becomes dead code the bundler drops.
+ */
+const CAN_POST = import.meta.env.DEV;
+
+/** Where the log is kept so it outlives the run — the same store as `save.ts`. */
+const STORAGE_KEY = 'run-log';
 
 /** Post a partial log every this many recorded turns, so a crash still leaves data. */
 const FLUSH_EVERY_TURNS = 25;
@@ -119,7 +133,7 @@ export class RunRecorder {
   private pending: Snapshot | null = null;
   private sinceFlush = 0;
   /** Silence the endpoint after the first failure — a built game has no server. */
-  private enabled = true;
+  private enabled = CAN_POST;
 
   constructor(state: GameState) {
     const startedAt = new Date().toISOString();
@@ -293,11 +307,26 @@ export class RunRecorder {
     return this.log;
   }
 
-  /** Push the current log to disk. Safe to call at any time, including on unload. */
+  /** True while the dev-server POST path is still worth attempting. */
+  get posting(): boolean {
+    return this.enabled;
+  }
+
+  /** Push the current log to storage, and — on the dev server — to `logs/`. */
   flush(useBeacon = false): void {
-    if (!this.enabled || this.log.history.length === 0) return;
+    if (this.log.history.length === 0) return;
     this.sinceFlush = 0;
     this.log.updatedAt = new Date().toISOString();
+
+    // Deliberately outside the `enabled` gate: persistence is what makes the log
+    // reachable in a built game, where the POST below never runs at all.
+    void storeRunLog(this.log);
+
+    // `CAN_POST` first, and as a literal rather than through `this.enabled`: it
+    // is what lets the bundler prove the rest of this method is unreachable in a
+    // production build and drop the endpoint, the beacon and the fetch entirely.
+    // Gating only on the instance field left all three in the shipped bundle.
+    if (!CAN_POST || !this.enabled) return;
 
     const body = JSON.stringify(this.log);
 
@@ -312,8 +341,50 @@ export class RunRecorder {
       headers: { 'Content-Type': 'application/json' },
       body,
       keepalive: true,
-    }).catch(() => {
-      this.enabled = false;
-    });
+    })
+      .then(res => {
+        // `.catch` alone never fires for a 404 or a 500 — fetch only rejects on a
+        // network failure. Without this check a host that answers "not found" on
+        // every POST looked like success and the log kept being re-sent forever.
+        if (!res.ok) this.enabled = false;
+      })
+      .catch(() => {
+        this.enabled = false;
+      });
+  }
+}
+
+/**
+ * IndexedDB is a true boundary, exactly as in `save.ts` — absent in Safari
+ * Private Browsing, blocked in some webviews, and able to reject on quota. A run
+ * log that cannot be written must not take the turn (or the unload handler) with
+ * it, so failure is reported to the console and nowhere else.
+ */
+async function storeRunLog(log: RunLog): Promise<void> {
+  // Checked rather than caught: `flush` runs every 25 turns, so an environment
+  // with no IndexedDB at all (the Vitest node runner, a locked-down webview)
+  // would otherwise print the same stack dozens of times per run and bury the
+  // failures worth reading. A caught rejection below still reports — that one is
+  // a real fault in a store that does exist.
+  if (typeof indexedDB === 'undefined') return;
+  try {
+    await set(STORAGE_KEY, log);
+  } catch (error) {
+    console.error('Could not store the run log', error);
+  }
+}
+
+/**
+ * The read side of the store: the last log written by any run in this browser,
+ * or null if there is none. This is what makes persistence worth doing — the
+ * Copy Report button covers the run you are in, and this covers the run whose
+ * tab was closed, reloaded, or killed by the OS before anyone pressed it.
+ */
+export async function loadStoredRunLog(): Promise<RunLog | null> {
+  try {
+    return ((await get(STORAGE_KEY)) as RunLog | undefined) ?? null;
+  } catch (error) {
+    console.error('Could not read the stored run log', error);
+    return null;
   }
 }

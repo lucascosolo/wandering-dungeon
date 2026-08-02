@@ -2,10 +2,10 @@ import { Enemy, EnemyType, GameState, Position } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { isSoldOut } from '../core/shop';
 import { ParticleSystem } from './particles';
+import { currentCosmetic } from '../cosmetics';
 
 export const TILE_SIZE = 30;
 
-const COLOR_PLAYER = '#00f0ff';
 const COLOR_ITEM = '#ffd166';
 const COLOR_ARMOR = '#8fd9c0';
 const COLOR_ARMOR_MODIFIED = '#ffd166';
@@ -303,7 +303,10 @@ export function renderFrame(
     ctx.arc(ppx + TILE_SIZE / 2, ppy + TILE_SIZE / 2, TILE_SIZE * 0.5, 0, Math.PI * 2);
     ctx.stroke();
   }
-  drawGlyph(ctx, '@', COLOR_PLAYER, ppx, ppy);
+  // Read per frame rather than captured at module load: the settings screen can
+  // change it mid-run, and the next frame is expected to show it.
+  const skin = currentCosmetic();
+  drawGlyph(ctx, skin.glyph, skin.color, ppx, ppy);
 
   particles?.draw(ctx, TILE_SIZE, offsetX, offsetY);
 }

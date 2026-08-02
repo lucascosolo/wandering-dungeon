@@ -27,6 +27,8 @@ import {
   updateHud,
 } from './ui/hud';
 import { RunRecorder } from './telemetry/runLog';
+import { buildRunReport } from './telemetry/runReport';
+import { loadCosmetic } from './cosmetics';
 import { registerServiceWorker } from './pwa/serviceWorker';
 import { showUpdatePrompt } from './ui/updatePrompt';
 
@@ -178,7 +180,9 @@ function act(action: GameAction): void {
   else void saveRun(state);
 
   if (state.isGameOver) {
-    showEndModal(ui, state, restart, returnToTitle);
+    // Built at the tap rather than here: most deaths never ask for a report, and
+    // this runs on the same frame the run ends.
+    showEndModal(ui, state, restart, returnToTitle, () => buildRunReport(recorder.snapshot()));
   }
 }
 
@@ -586,11 +590,12 @@ installGlobalErrorHandlers();
 registerServiceWorker(activate => showUpdatePrompt(activate));
 
 /**
- * Both reads must land before the title opens: the settings screen would
- * otherwise show default bindings over a saved set, and Continue would offer
- * nothing while a run sat on disk.
+ * All three reads must land before the title opens: the settings screen would
+ * otherwise show default bindings and the default skin over a saved set, and
+ * Continue would offer nothing while a run sat on disk.
  *
- * Neither read can reject — `save.ts` and `keybinds.ts` report storage failure as
+ * None of them can reject — `save.ts`, `keybinds.ts` and `cosmetics.ts` all
+ * report storage failure as
  * "nothing stored" — so a device with no usable IndexedDB (Safari Private
  * Browsing, iOS Lockdown Mode, a locked-down webview) reaches the title screen
  * with Continue greyed out. A run they cannot resume is a bad session; a title
@@ -598,6 +603,7 @@ registerServiceWorker(activate => showUpdatePrompt(activate));
  */
 async function boot(): Promise<void> {
   await loadKeybinds();
+  await loadCosmetic();
   const saved = await loadRun();
 
   showTitleScreen({

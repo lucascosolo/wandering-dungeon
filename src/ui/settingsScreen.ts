@@ -8,6 +8,7 @@ import {
   KEYS_PER_ACTION,
   resetKeybinds,
 } from './keybinds';
+import { COSMETICS, currentCosmetic, selectCosmetic } from '../cosmetics';
 
 /**
  * Mounted on `document.body` like the title screen, for the same reason —
@@ -23,10 +24,11 @@ export function showSettingsScreen(onBack: () => void): void {
 
   function render(): void {
     const binds = currentKeybinds();
+    const skin = currentCosmetic();
 
     screen.innerHTML = `
       <div class="title-screen__inner settings__inner">
-        <h2 class="setup__heading">Controls</h2>
+        <h2 class="setup__heading">Settings</h2>
         <p class="settings__hint">
           ${
             capturing
@@ -35,6 +37,7 @@ export function showSettingsScreen(onBack: () => void): void {
           }
         </p>
 
+        <span class="setup__label">Controls</span>
         <div class="keybinds">
           ${ACTIONS.map(
             ({ id, label }) => `
@@ -55,8 +58,28 @@ export function showSettingsScreen(onBack: () => void): void {
           ).join('')}
         </div>
 
+        <span class="setup__label">Appearance</span>
+        <p class="settings__hint settings__hint--left">
+          Cosmetic only — the glyph you play as. Nothing here touches the game.
+        </p>
+        <div class="cosmetics">
+          ${COSMETICS.map(
+            c => `
+            <button class="cosmetic ${c.id === skin.id ? 'cosmetic--on' : ''}"
+                    data-cosmetic="${c.id}" type="button">
+              <span class="cosmetic__glyph" style="color: ${c.color}">${c.glyph}</span>
+              <span class="cosmetic__label">${c.label}</span>
+              ${
+                c.supporter
+                  ? '<span class="cosmetic__tag">supporter cosmetic — free during alpha</span>'
+                  : ''
+              }
+            </button>`
+          ).join('')}
+        </div>
+
         <div class="title-screen__menu">
-          <button class="title-btn" id="btn-reset-keys" type="button">Reset to defaults</button>
+          <button class="title-btn" id="btn-reset-keys" type="button">Reset keys to defaults</button>
           <button class="title-btn title-btn--primary" id="btn-settings-back" type="button">Back</button>
         </div>
       </div>
@@ -77,6 +100,12 @@ export function showSettingsScreen(onBack: () => void): void {
         e.preventDefault();
         clearKey(btn.dataset.action as ActionId, Number(btn.dataset.slot));
         capturing = null;
+        render();
+      })
+    );
+    screen.querySelectorAll<HTMLButtonElement>('[data-cosmetic]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        selectCosmetic(btn.dataset.cosmetic!);
         render();
       })
     );

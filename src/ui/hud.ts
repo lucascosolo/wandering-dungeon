@@ -3,6 +3,7 @@ import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
 import { isFloorStabilized } from '../core/shift/shiftSystem';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
+import { DISMISS_HINT } from './modalGate';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
 export const HOTBAR_SIZE = 4;
@@ -141,7 +142,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     </div>
 
     <div class="sheet hidden" id="inventory-sheet">
-      <div class="sheet__header"><h2>Inventory</h2><button class="sheet__close" id="btn-close-inventory" type="button">✕</button></div>
+      <div class="sheet__header"><h2>Inventory</h2><span class="modal__seed">${DISMISS_HINT}</span><button class="sheet__close" id="btn-close-inventory" type="button">✕</button></div>
       <div class="sheet__list" id="inventory-list"></div>
     </div>
 
@@ -390,6 +391,7 @@ export function showArmorOffer(
         <button class="action-btn" id="btn-armor-decline" type="button">Keep Mine</button>
         <button class="action-btn action-btn--warning" id="btn-armor-equip" type="button">Wear It</button>
       </div>
+      <p class="modal__seed">${DISMISS_HINT} &middot; keeps what you wear</p>
     </div>
   `;
   ui.armorModal.querySelector('#btn-armor-equip')!.addEventListener('click', () => onDecide(true));
@@ -430,7 +432,7 @@ export function showShop(
       <h2>${escapeHtml(shop.merchant)}</h2>
       <p class="modal__stats">Your purse: <span class="shop-purse">$${coins}</span></p>
       <div class="shop-list">${rows}</div>
-      <p class="modal__seed">the merchant stays until you descend</p>
+      <p class="modal__seed">the merchant stays until you descend &middot; ${DISMISS_HINT}</p>
       <div class="modal__actions">
         <button class="action-btn" id="btn-shop-close" type="button">Leave</button>
       </div>

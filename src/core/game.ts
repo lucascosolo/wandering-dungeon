@@ -212,11 +212,28 @@ export function xpPerKill(enemyType: EnemyType, regionIndex: number): number {
 /**
  * XP from `level` to the next one. Near-linear on purpose: a steeply convex curve
  * compresses a full clear and a straight run to the stairs into the same level or
- * two, and that gap is the entire incentive this system exists to create. 10c
- * retunes this against real `logs/<run-id>.json` kill counts.
+ * two, and that gap is the entire incentive this system exists to create.
+ *
+ * 10c ground the numbers in `logs/<run-id>.json`. The one clean floor-1 trace
+ * that reached a guardian earned 118 XP over the whole of region 0 — 63% of the
+ * 188 on the floor — and crossed level 2 *on the Hinge Sovereign's bounty*. So
+ * the first region was fought start to finish at level 1 and the reward for
+ * beating its guardian arrived after the fight it was meant to help with. At
+ * `100 + 60`, region 0 was the only region that missed its pre-guardian level,
+ * but it is the region every player sees.
+ *
+ * `50 + 45` costs the same XP over a run — the totals are set by `xpPerKill`,
+ * not here — and only moves where the crossings land: at that observed 63% rate
+ * every region now gains a level on its ordinary floors, before the arena floor,
+ * and a 10-floor victory pays out three level-ups instead of two.
+ *
+ * The slope is what keeps the incentive. A run that clears its floors reaches
+ * the final guardian around level 8 (156 max HP, 19 attack, close to the 1.6x
+ * enemy HP step it is walking into); one that runs the stairs and fights only
+ * guardians arrives at level 4, under-scaled on purpose.
  */
 export function xpToNextLevel(level: number): number {
-  return 100 + 60 * (level - 1);
+  return 50 + 45 * (level - 1);
 }
 
 /** All walkable tiles, used as the spawn candidate pool. */

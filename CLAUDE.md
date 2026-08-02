@@ -97,7 +97,10 @@ are in Architecture below.
 - **Tuning numbers are spread across six files** — check all of them before
   concluding a knob doesn't exist:
   - `src/core/game.ts` — `ENEMY_TABLE` (per-species base HP/attack), `ITEM_TABLE`,
-    `ARMOR_TIERS`, `coinsPerPile`, `coinsPerKill`.
+    `ARMOR_TIERS`, `coinsPerPile`, `coinsPerKill`, `xpPerKill`, and
+    `xpToNextLevel` — the curve is grounded in playtest logs by roadmap 10c and
+    scored by two tests that read `REGIONS` rather than typed totals; read that
+    entry before moving it.
   - `src/core/regions.ts` — `REGIONS[]`: per-region `enemyCount`, `hpMultiplier`,
     `attackBonus`, enemy pool, palette. **Flat within a region, stepped between
     them.** Per-floor growth is what put a 114 HP Crawler on floor 25 against a

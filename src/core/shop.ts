@@ -6,8 +6,12 @@ import { REGIONS } from './regions';
 /**
  * Base prices in coins, before the region markup. Divided by four when floor
  * piles dropped to 1-3 coins, so a region's clear still buys the same number of
- * potions it did before. 6c prices these against real income from
- * `logs/<run-id>.json`.
+ * potions it did before.
+ *
+ * These are the region-0 counter, and playtest logs left them alone: a rushed
+ * region 0 arrives with ~20 coins and a full clear with ~41, against a ~32-coin
+ * stall. That is the intended shape — rushing buys two of the four, clearing
+ * buys the stall — so the pricing pass moved the slope above, not these.
  */
 const BASE_PRICES: Partial<Record<ItemType, number>> = {
   health_potion: 6,
@@ -32,14 +36,33 @@ const STOCK_SIZE = 4;
 
 /**
  * Later regions pay more per kill, so the same price list would make the last
- * shop free. The markup keeps a purchase costing roughly the same fraction of a
- * region's income wherever it is bought. Left at 0.35 through the coin rescale:
- * `coinsPerKill`'s slope was halved to match, rather than steepening this and
- * putting three-digit prices back on the counter.
+ * shop free. The markup exists to keep a purchase costing roughly the same
+ * fraction of a region's income wherever it is bought.
+ *
+ * At 0.35 it did not. A region's income is `enemyCount * 4 floors * coinsPerKill`
+ * plus the boss bounty and the pile trickle, and that runs 41 / 70 / 78 / 119 /
+ * 131 coins for a full clear — 3.2x from the first region to the last — while a
+ * 0.35 slope raised the counter only 2.4x. The stall's share of the purse
+ * drifted from 1.28x income in region 0 to 1.86x in region 3, so the deepest
+ * shops were the cheapest in real terms and stopped being a choice at all.
+ *
+ * 0.55 lands the region-4 multiplier on 3.2, matching the income growth, and
+ * holds the ratio between 1.16x and 1.43x across all five. The residual wobble
+ * is `coinsPerKill`'s step: it pays the same in regions 1 and 2, and again in 3
+ * and 4, so income climbs every other region while a linear markup climbs every
+ * one. No linear slope removes that, and matching it exactly would mean pricing
+ * off the same step function from two places.
+ *
+ * Region 0 is deliberately untouched — `regionIndex * anything` is zero there,
+ * and it is the only region with observed rather than modelled income (two
+ * logged runs reached the first shop with 20 and 22 coins against a ~32-coin
+ * stall, which is the intended "afford two of the four").
  */
+const REGION_MARKUP = 0.55;
+
 export function priceFor(type: ItemType, regionIndex: number): number {
   const base = BASE_PRICES[type] ?? 8;
-  return Math.round(base * (1 + regionIndex * 0.35));
+  return Math.round(base * (1 + regionIndex * REGION_MARKUP));
 }
 
 /**

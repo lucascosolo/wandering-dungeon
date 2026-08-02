@@ -1,0 +1,12 @@
+services:
+  wandering-dungeon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wandering-dungeon:latest
+    container_name: wandering-dungeon
+    # 8420 is this project's port on the shared box. Nothing else listens on it;
+    # 22 was the only listener before this deploy.
+    ports:
+      - "8420:80"
+    restart: unless-stopped

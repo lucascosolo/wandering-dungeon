@@ -1,0 +1,10 @@
+{
+  "app": "wandering-dungeon",
+  "strategy": "compose-systemd",
+  "target": "/srv/wandering-dungeon",
+  "branch": "main",
+  "unit": "wandering-dungeon",
+  "build": "npm run build",
+  "healthcheck": "curl -fsS http://127.0.0.1:8420/ -o /dev/null",
+  "hostPorts": [8420]
+}

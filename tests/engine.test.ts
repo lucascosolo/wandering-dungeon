@@ -7,7 +7,7 @@ import {
   HP_PER_LEVEL,
 } from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
-import { GameState, Item, Position } from '../src/core/state';
+import { EnemyType, GameState, Item, Position } from '../src/core/state';
 import {
   buildFloor,
   coinsPerPile,
@@ -21,7 +21,7 @@ import { priceFor } from '../src/core/shop';
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig, RUN_LENGTHS } from '../src/core/runConfig';
 import { findPath } from '../src/core/map/pathfinding';
-import { createMockGameState, createMockEnemy } from './helpers';
+import { createMockGameState, createMockEnemy, walkableStep } from './helpers';
 
 function enemyAtDistance(state: ReturnType<typeof createMockGameState>, distance: number) {
   const { player, floorMap } = state;
@@ -231,266 +231,97 @@ describe('Turn Engine & Items', () => {
     expect(state.eventLog.some(m => m.type === 'shift')).toBe(true);
   });
 
-  it('lets a Hinge Warden hold position during a shift telegraph', () => {
+  /**
+   * Per-species AI. Every species reads the shift telegraph differently — some go
+   * dormant, some rush, some abandon the player for the exit — but the shape of the
+   * check never varies: place the enemy, set the world, WAIT one turn, read where it
+   * ended up. One row per rule, so a new species is a row rather than a copy.
+   */
+  const manhattan = (a: Position, b: Position) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+  const aiCases: {
+    name: string;
+    type: EnemyType;
+    place: { at: number } | 'exitPath' | 'diverging';
+    shift?: Parameters<typeof pendingShift>;
+    stasis?: true;
+    outcome: 'holds' | 'moves' | 'closes' | 'closesOnExit' | 'playerStep' | 'exitStep';
+  }[] = [
+    { name: 'lets a Hinge Warden hold position during a shift telegraph', type: 'hinge_warden', place: { at: 4 }, shift: ['room_slide'], outcome: 'holds' },
+    { name: 'lets a Hinge Warden resume pursuit outside a telegraph', type: 'hinge_warden', place: { at: 4 }, outcome: 'moves' },
+    { name: 'keeps a Seam Skitter outside its normal aggro range', type: 'seam_skitter', place: { at: 7 }, outcome: 'holds' },
+    { name: 'lets a Seam Skitter rush during a shift telegraph', type: 'seam_skitter', place: { at: 7 }, shift: ['room_slide'], outcome: 'closes' },
+    { name: 'keeps a Fracture Leech dormant until a shift is telegraphed', type: 'fracture_leech', place: { at: 4 }, outcome: 'holds' },
+    { name: 'lets a Fracture Leech pursue during a shift telegraph', type: 'fracture_leech', place: { at: 4 }, shift: ['room_slide'], outcome: 'moves' },
+    { name: 'draws a Riftbound toward the exit route', type: 'riftbound', place: 'exitPath', outcome: 'closesOnExit' },
+    { name: 'lets an Ashlock pursue the player without a sealing shift', type: 'ashlock', place: { at: 4 }, outcome: 'moves' },
+    { name: 'sends an Ashlock toward the exit when a shift will seal it', type: 'ashlock', place: 'exitPath', shift: ['room_slide', true], outcome: 'exitStep' },
+    { name: 'keeps a Stasis Scorcher outside its normal aggro range', type: 'stasis_scorcher', place: { at: 7 }, outcome: 'holds' },
+    { name: 'makes a Stasis Scorcher advance while the clock is frozen', type: 'stasis_scorcher', place: { at: 7 }, stasis: true, outcome: 'moves' },
+    { name: 'lets a Facet Reaver pursue the player on stable geometry', type: 'facet_reaver', place: 'diverging', outcome: 'playerStep' },
+    { name: 'redirects a Facet Reaver to the exit during a telegraph', type: 'facet_reaver', place: 'diverging', shift: ['room_slide'], outcome: 'exitStep' },
+    { name: 'keeps a Glass Moth dormant until a shift is telegraphed', type: 'glass_moth', place: { at: 7 }, outcome: 'holds' },
+    { name: 'lets a Glass Moth pursue during a telegraph', type: 'glass_moth', place: { at: 7 }, shift: ['room_slide'], outcome: 'moves' },
+    { name: 'keeps a Glass Moth outside its telegraph aggro range', type: 'glass_moth', place: { at: 11 }, shift: ['room_slide'], outcome: 'holds' },
+    { name: 'keeps an Unmaking Hound just outside its normal aggro range', type: 'unmaking_hound', place: { at: 8 }, outcome: 'holds' },
+    { name: 'makes an Unmaking Hound pursue during localized collapse', type: 'unmaking_hound', place: { at: 8 }, shift: ['localized_collapse'], outcome: 'moves' },
+    { name: 'keeps a Null Scribe outside its normal aggro range', type: 'null_scribe', place: { at: 6 }, outcome: 'holds' },
+    { name: 'sends a Null Scribe toward the exit during a room slide', type: 'null_scribe', place: 'diverging', shift: ['room_slide'], outcome: 'exitStep' },
+    { name: 'keeps a Null Scribe player-focused during a corridor reconnect', type: 'null_scribe', place: { at: 4 }, shift: ['corridor_reconnect'], outcome: 'moves' },
+  ];
+
+  it.each(aiCases)('$name', ({ type, place, shift, stasis, outcome }) => {
     const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'hinge_warden');
-    const before = { ...enemy.position };
+    const before =
+      place === 'exitPath'
+        ? enemyWithExitPath(state)
+        : place === 'diverging'
+          ? enemyWithDivergingPaths(state).position
+          : enemyAtDistance(state, place.at);
+
+    // Routes are read off the geometry before the turn, so the expectation is the
+    // step the enemy *should* take rather than a hardcoded tile.
+    const playerStep = findPath(state.floorMap, before, state.player.position)?.[1];
+    const exitStep = findPath(state.floorMap, before, state.floorMap.exit)?.[1];
+    const exitPathLength = findPath(state.floorMap, before, state.floorMap.exit)?.length;
+    const startDistance = manhattan(before, state.player.position);
+
+    const enemy = createMockEnemy(before, type);
     state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
+    if (shift) {
+      state.shiftCountdown = 3;
+      state.pendingShift = pendingShift(...shift);
+    }
+    if (stasis) {
+      state.isStasisActive = true;
+      state.stasisTurnsRemaining = 2;
+    }
 
     dispatchAction(state, { type: 'WAIT' });
 
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('lets a Hinge Warden resume pursuit outside a telegraph', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'hinge_warden');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('keeps a Seam Skitter outside its normal aggro range', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'seam_skitter');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('lets a Seam Skitter rush during a shift telegraph', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'seam_skitter');
-    const beforeDistance =
-      Math.abs(enemy.position.x - state.player.position.x) +
-      Math.abs(enemy.position.y - state.player.position.y);
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    const afterDistance =
-      Math.abs(enemy.position.x - state.player.position.x) +
-      Math.abs(enemy.position.y - state.player.position.y);
-    expect(afterDistance).toBeLessThan(beforeDistance);
-  });
-
-  it('keeps a Fracture Leech dormant until a shift is telegraphed', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'fracture_leech');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('lets a Fracture Leech pursue during a shift telegraph', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'fracture_leech');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('draws a Riftbound toward the exit route', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyWithExitPath(state), 'riftbound');
-    const before = { ...enemy.position };
-    const beforePathLength = findPath(state.floorMap, before, state.floorMap.exit)?.length;
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-    expect(findPath(state.floorMap, enemy.position, state.floorMap.exit)?.length).toBeLessThan(beforePathLength!);
-  });
-
-  it('lets an Ashlock pursue the player without a sealing shift', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 4), 'ashlock');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('sends an Ashlock toward the exit when a shift will seal it', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyWithExitPath(state), 'ashlock');
-    const before = { ...enemy.position };
-    const expectedStep = findPath(state.floorMap, before, state.floorMap.exit)![1];
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift('room_slide', true);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(expectedStep);
-  });
-
-  it('keeps a Stasis Scorcher outside its normal aggro range', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'stasis_scorcher');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('makes a Stasis Scorcher advance while the clock is frozen', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'stasis_scorcher');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.isStasisActive = true;
-    state.stasisTurnsRemaining = 2;
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('lets a Facet Reaver pursue the player on stable geometry', () => {
-    const state = createMockGameState();
-    const route = enemyWithDivergingPaths(state);
-    const enemy = createMockEnemy(route.position, 'facet_reaver');
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(route.playerStep);
-  });
-
-  it('redirects a Facet Reaver to the exit during a telegraph', () => {
-    const state = createMockGameState();
-    const route = enemyWithDivergingPaths(state);
-    const enemy = createMockEnemy(route.position, 'facet_reaver');
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(route.exitStep);
-  });
-
-  it('keeps a Glass Moth dormant until a shift is telegraphed', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'glass_moth');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('lets a Glass Moth pursue during a telegraph', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 7), 'glass_moth');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('keeps a Glass Moth outside its telegraph aggro range', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 11), 'glass_moth');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift();
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('keeps an Unmaking Hound just outside its normal aggro range', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 8), 'unmaking_hound');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('makes an Unmaking Hound pursue during localized collapse', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 8), 'unmaking_hound');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift('localized_collapse');
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
-  });
-
-  it('keeps a Null Scribe outside its normal aggro range', () => {
-    const state = createMockGameState();
-    const enemy = createMockEnemy(enemyAtDistance(state, 6), 'null_scribe');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(before);
-  });
-
-  it('sends a Null Scribe toward the exit during a room slide', () => {
-    const state = createMockGameState();
-    const route = enemyWithDivergingPaths(state);
-    const enemy = createMockEnemy(route.position, 'null_scribe');
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift('room_slide');
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).toEqual(route.exitStep);
-  });
-
-  it('keeps a Null Scribe player-focused during a corridor reconnect', () => {
-    const state = createMockGameState();
-    const position = enemyAtDistance(state, 4);
-    const enemy = createMockEnemy(position, 'null_scribe');
-    const before = { ...enemy.position };
-    state.entities.push(enemy);
-    state.shiftCountdown = 3;
-    state.pendingShift = pendingShift('corridor_reconnect');
-
-    dispatchAction(state, { type: 'WAIT' });
-
-    expect(enemy.position).not.toEqual(before);
+    switch (outcome) {
+      case 'holds':
+        expect(enemy.position).toEqual(before);
+        break;
+      case 'moves':
+        expect(enemy.position).not.toEqual(before);
+        break;
+      case 'closes':
+        expect(manhattan(enemy.position, state.player.position)).toBeLessThan(startDistance);
+        break;
+      case 'closesOnExit':
+        expect(enemy.position).not.toEqual(before);
+        expect(findPath(state.floorMap, enemy.position, state.floorMap.exit)?.length).toBeLessThan(
+          exitPathLength!
+        );
+        break;
+      case 'playerStep':
+        expect(enemy.position).toEqual(playerStep);
+        break;
+      case 'exitStep':
+        expect(enemy.position).toEqual(exitStep);
+        break;
+    }
   });
 
   it('damages a player standing on a Shifting Halls door before a shift', () => {
@@ -647,15 +478,7 @@ describe('Armor', () => {
     defense,
   });
 
-  /** Walkable neighbour of the player, so the test moves rather than bumps a wall. */
-  function stepTarget(state: ReturnType<typeof createMockGameState>) {
-    const { x, y } = state.player.position;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
-      if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
-    }
-    throw new Error('player is walled in');
-  }
+  const stepTarget = walkableStep;
 
   it('soaks damage but never all of it', () => {
     const state = createMockGameState();
@@ -785,15 +608,7 @@ describe('Armor', () => {
 });
 
 describe('Coins', () => {
-  /** Walkable neighbour of the player, so the test moves rather than bumps a wall. */
-  function step(state: ReturnType<typeof createMockGameState>) {
-    const { x, y } = state.player.position;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
-      if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
-    }
-    throw new Error('player is walled in');
-  }
+  const step = walkableStep;
 
   it('banks a cache instead of putting it in the inventory', () => {
     const state = createMockGameState();
@@ -859,15 +674,7 @@ describe('Coins', () => {
 });
 
 describe('Experience and levels', () => {
-  /** Walkable neighbour of the player, so the test moves rather than bumps a wall. */
-  function step(state: ReturnType<typeof createMockGameState>) {
-    const { x, y } = state.player.position;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
-      if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
-    }
-    throw new Error('player is walled in');
-  }
+  const step = walkableStep;
 
   it('pays more XP for a deadlier species, a deeper region, and a boss', () => {
     expect(xpPerKill('riftbound', 0)).toBeGreaterThan(xpPerKill('seam_skitter', 0));

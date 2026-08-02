@@ -11,17 +11,7 @@ import {
 import { SeededRNG } from '../src/core/rng';
 import { createRunConfig } from '../src/core/runConfig';
 import { RunRecorder } from '../src/telemetry/runLog';
-import { createMockGameState, createMockEnemy } from './helpers';
-
-/** Walkable neighbour of the player, so a test moves rather than bumps a wall. */
-function step(state: ReturnType<typeof createMockGameState>) {
-  const { x, y } = state.player.position;
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
-    if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
-  }
-  throw new Error('player is walled in');
-}
+import { createMockGameState, createMockEnemy, walkableStep as step } from './helpers';
 
 /** Drive one action through the same beginTurn/dispatch/endTurn sequence main.ts uses. */
 function act(

@@ -201,6 +201,69 @@ html, body {
   }
 }
 
+/* Boss-defeat splash — pinned to the bottom of the viewport because a boss kill
+   usually levels the player on the same turn, and the level splash owns the upper
+   third. Anchoring them to opposite ends is what keeps the pair apart at any
+   viewport height; nudging this one's `top` would only postpone the collision. */
+.boss-splash {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: min(88%, 420px);
+  padding: 12px 24px;
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(10, 10, 18, 0.92);
+  border: 1px solid var(--accent-purple);
+  border-radius: 14px;
+  box-shadow: 0 0 26px var(--accent-purple-glow);
+  font-family: var(--font-mono);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.boss-splash__title {
+  color: var(--accent-purple);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.boss-splash__line {
+  color: var(--text-main);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+}
+
+.boss-splash__line--muted {
+  color: var(--text-muted);
+}
+
+.boss-splash--enter {
+  animation: boss-splash-enter 3.4s ease-out both;
+}
+
+@keyframes boss-splash-enter {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.94); }
+  10%, 78% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boss-splash--enter {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* Grid Canvas container */
 .grid-container {
   display: grid;
@@ -305,6 +368,12 @@ html, body {
   background: var(--warning-red-glow);
   border-color: var(--warning-red);
   animation: pulse-danger 0.9s ease-in-out infinite;
+}
+
+.shift-pill--stable {
+  color: var(--text-muted);
+  background: rgba(139, 146, 176, 0.15);
+  border-color: var(--text-muted);
 }
 
 .shift-pill--stasis {

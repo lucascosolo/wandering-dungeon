@@ -103,6 +103,26 @@ describe('Run persistence', () => {
     expect(roundTrip(state)!.lastLevelUp).toBeNull();
   });
 
+  it('does not bring back a pending boss-defeat splash on resume', () => {
+    const state = playedRun('save-boss-splash', 5);
+    state.lastBossDefeat = {
+      floor: 5,
+      regionName: 'The Shifting Halls',
+      bossName: 'Hinge Sovereign',
+    };
+
+    // Same one-turn contract as the level-up splash: the guardian falls once, and
+    // a resumed run is not that turn.
+    expect(roundTrip(state)!.lastBossDefeat).toBeNull();
+  });
+
+  it('keeps a cleared region across a resume, so the floor stays stabilized', () => {
+    const state = playedRun('save-stabilized', 5);
+    state.clearedRegions = [0];
+
+    expect(roundTrip(state)!.clearedRegions).toEqual([0]);
+  });
+
   it('resumes a run saved before levels existed at level 1', () => {
     const state = playedRun('save-pre-xp', 5);
     const saved = structuredClone(encodeRun(state));

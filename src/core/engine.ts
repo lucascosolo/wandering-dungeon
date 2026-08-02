@@ -6,6 +6,7 @@ import {
   clearTelegraphs,
   describePendingShift,
   executeShift,
+  isFloorStabilized,
   shiftInterval,
 } from './shift/shiftSystem';
 import { useItem } from './items/itemEffects';
@@ -353,6 +354,11 @@ function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): v
   state.shop = createShop(rng, region.index, state.floorMap.level);
   const reward = createItem('hourglass_shard', `boss_reward_${state.floorMap.level}`);
   state.player.inventory.push(reward);
+  state.lastBossDefeat = {
+    floor: state.floorMap.level,
+    regionName: region.name,
+    bossName: defeatedBosses[0].name,
+  };
   events.push(`${defeatedBosses[0].name} falls. ${region.name} is cleared; you claim a ${reward.name}.`);
 }
 
@@ -566,7 +572,8 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
   // Escalating pressure is a tax on lingering, and lingering has to be a choice.
   // While a region guardian lives the stairs refuse to open, so the player cannot
   // leave however efficiently they play — the floor clock holds until the arena is
-  // won, and only then starts charging for time spent looting or browsing the shop.
+  // won. After it is won the floor is stabilized and stops shifting entirely, so
+  // the counter keeps running here only for the ordinary floors it actually bills.
   if (!state.entities.some(enemy => enemy.isBoss && enemy.hp > 0)) state.floorTurns++;
 
   const { player } = state;
@@ -584,6 +591,18 @@ function advanceClock(state: GameState, rng: SeededRNG, events: string[]): void 
     if (state.stasisTurnsRemaining <= 0) {
       state.isStasisActive = false;
       events.push('The Stasis Flask wears off. The dungeon stirs again.');
+    }
+    return;
+  }
+
+  // A cleared floor holds still: the countdown stops here, before the telegraph
+  // and hazard blocks below, so the one choke point covers all three. A shift
+  // already rehearsed when the guardian fell is dropped rather than left painted
+  // on the map — same reason the Hourglass Shard branch below drops one.
+  if (isFloorStabilized(state)) {
+    if (state.pendingShift) {
+      state.pendingShift = null;
+      clearTelegraphs(state.floorMap);
     }
     return;
   }
@@ -685,6 +704,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   // Last turn's splash is spent. Cleared here rather than by the HUD so the flag
   // means "gained this dispatch" for every caller, tests included.
   state.lastLevelUp = null;
+  state.lastBossDefeat = null;
 
   const rng = rngFor(state);
   let changedFloor = false;

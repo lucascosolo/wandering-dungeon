@@ -234,6 +234,20 @@ export function shiftInterval(state: GameState): number {
   return Math.max(Math.min(base, MIN_SHIFT_INTERVAL), base - floorPressure(state.floorTurns));
 }
 
+/**
+ * Whether this floor has stopped unravelling.
+ *
+ * The complement of the rule pressure already encodes: `floorTurns` is frozen
+ * while a guardian lives because the player cannot leave, and once the guardian
+ * falls the floor stops moving entirely because the player is *meant* to stay —
+ * the merchant arrives with the region's fall, and a shop that has to be browsed
+ * between shifts is a shop that punishes reading it. Nothing else clears a region,
+ * so only a boss floor can be stabilized, and descending leaves it behind.
+ */
+export function isFloorStabilized(state: GameState): boolean {
+  return state.clearedRegions.includes(regionForFloor(state.floorMap.level).index);
+}
+
 /** Clone the geometry a shift can touch, so a shift can be rehearsed safely. */
 function cloneGeometry(map: FloorMap): FloorMap {
   return {

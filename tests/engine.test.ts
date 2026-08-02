@@ -1015,6 +1015,44 @@ describe('Run configuration', () => {
     expect(state.floorMap.level).toBe(6);
   });
 
+  it('signals the boss defeat for the splash and clears it on the next turn', () => {
+    const state = createNewGame('boss-splash', createRunConfig('short', 'standard'));
+    buildFloor(state, new SeededRNG('boss-splash-rng'), 5);
+    const boss = state.entities[0];
+    boss.position = { x: state.player.position.x + 1, y: state.player.position.y };
+    boss.hp = 1;
+    const bossName = boss.name;
+
+    dispatchAction(state, { type: 'MOVE', dx: 1, dy: 0 });
+
+    expect(state.lastBossDefeat).toEqual({
+      floor: 5,
+      regionName: 'The Shifting Halls',
+      bossName,
+    });
+
+    state.player.hp = state.player.maxHp;
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.lastBossDefeat).toBeNull();
+  });
+
+  it('leaves no boss signal on a turn that killed an ordinary enemy', () => {
+    const state = createMockGameState();
+    const spot = enemyAtDistance(state, 1);
+    const enemy = createMockEnemy(spot);
+    enemy.hp = 1;
+    state.entities = [enemy];
+
+    dispatchAction(state, {
+      type: 'MOVE',
+      dx: spot.x - state.player.position.x,
+      dy: spot.y - state.player.position.y,
+    });
+
+    expect(state.entities).toHaveLength(0);
+    expect(state.lastBossDefeat).toBeNull();
+  });
+
   it('gives the Hinge Sovereign a shift-synchronized signature attack', () => {
     const state = createNewGame('hinge-sovereign', createRunConfig('short', 'standard'));
     buildFloor(state, new SeededRNG('hinge-sovereign-rng'), 5);

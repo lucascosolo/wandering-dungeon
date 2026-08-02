@@ -1,6 +1,7 @@
-import { EnemyType, GameState, Item, LevelUpNotice } from '../core/state';
+import { BossDefeatNotice, EnemyType, GameState, Item, LevelUpNotice } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
+import { isFloorStabilized } from '../core/shift/shiftSystem';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
 
 /** How many quick-use slots the hotbar exposes, bound to keys 1-4. */
@@ -32,6 +33,7 @@ export interface HudElements {
   floorLabel: HTMLElement;
   regionBanner: HTMLElement;
   levelSplash: HTMLElement;
+  bossSplash: HTMLElement;
   turnLabel: HTMLElement;
   levelLabel: HTMLElement;
   xpLabel: HTMLElement;
@@ -101,6 +103,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     <div class="game-viewport">
       <div class="region-banner" id="region-banner" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="level-splash" id="level-splash" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="boss-splash" id="boss-splash" role="status" aria-live="polite" aria-atomic="true"></div>
       <canvas id="game-canvas"></canvas>
     </div>
 
@@ -160,6 +163,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     floorLabel: byId('floor-label'),
     regionBanner: byId('region-banner'),
     levelSplash: byId('level-splash'),
+    bossSplash: byId('boss-splash'),
     turnLabel: byId('turn-label'),
     levelLabel: byId('level-label'),
     xpLabel: byId('xp-label'),
@@ -207,7 +211,12 @@ export function updateHud(ui: HudElements, state: GameState): void {
   }
   ui.regionBanner.textContent = regionLabel;
 
-  if (state.isStasisActive) {
+  if (isFloorStabilized(state)) {
+    // The countdown is frozen on a cleared floor, so printing it would read as a
+    // stuck HUD rather than as calm.
+    ui.shiftPill.textContent = 'STABLE';
+    ui.shiftPill.className = 'shift-pill shift-pill--stable';
+  } else if (state.isStasisActive) {
     ui.shiftPill.textContent = `STASIS ${state.stasisTurnsRemaining}`;
     ui.shiftPill.className = 'shift-pill shift-pill--stasis';
   } else {
@@ -263,6 +272,32 @@ export function showLevelUp(ui: HudElements, notice: LevelUpNotice | null): void
   `;
   void ui.levelSplash.offsetWidth;
   ui.levelSplash.classList.add('level-splash--enter');
+}
+
+/**
+ * The boss-defeat splash. Same contract as `showLevelUp` — notification only,
+ * `pointer-events: none`, no dispatch, `null` clears it.
+ *
+ * A boss is worth 60-100 XP, so it very often levels the player on the same turn
+ * and both splashes are up at once. They are kept apart by anchor rather than by
+ * suppressing one: the banner owns the top of the viewport, the level splash its
+ * upper third, and this one is pinned to the bottom, so no viewport height can
+ * bring them into contact.
+ */
+export function showBossDefeat(ui: HudElements, notice: BossDefeatNotice | null): void {
+  ui.bossSplash.classList.remove('boss-splash--enter');
+  if (!notice) {
+    ui.bossSplash.innerHTML = '';
+    return;
+  }
+
+  ui.bossSplash.innerHTML = `
+    <span class="boss-splash__title">Floor ${notice.floor} Stabilized</span>
+    <span class="boss-splash__line">${escapeHtml(notice.bossName)} falls. ${escapeHtml(notice.regionName)} settles into alignment.</span>
+    <span class="boss-splash__line boss-splash__line--muted">The decay resumes when you descend.</span>
+  `;
+  void ui.bossSplash.offsetWidth;
+  ui.bossSplash.classList.add('boss-splash--enter');
 }
 
 /** Only the last few lines show, older ones fading out — a HUD log, not a scrollback. */

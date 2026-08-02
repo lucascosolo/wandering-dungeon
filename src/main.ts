@@ -6,6 +6,7 @@ import { findPath } from './core/map/pathfinding';
 import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
 import { attachControls } from './ui/controls';
+import { blocksGameInput, dismissTarget, ModalSnapshot } from './ui/modalGate';
 import { showTitleScreen } from './ui/titleScreen';
 import { loadKeybinds } from './ui/keybinds';
 import { clearRun, loadRun, saveRun } from './core/save';
@@ -143,6 +144,40 @@ function act(action: GameAction): void {
 
   if (state.isGameOver) {
     showEndModal(ui, state, restart, returnToTitle);
+  }
+}
+
+/**
+ * What is open right now, read from the DOM rather than mirrored in a variable —
+ * the elements' `hidden` class is already the truth every other path writes to,
+ * and a second copy would go stale the first time one of them was toggled
+ * without updating it.
+ */
+function openModals(): ModalSnapshot {
+  return {
+    armor: !ui.armorModal.classList.contains('hidden'),
+    shop: !ui.shopModal.classList.contains('hidden'),
+    end: !ui.modal.classList.contains('hidden'),
+    inventory: !ui.inventorySheet.classList.contains('hidden'),
+  };
+}
+
+/**
+ * Close whatever prompt is up. Declining the armor offer goes through the engine
+ * rather than just hiding the card: `pendingArmorOffer` would otherwise stay set
+ * and the prompt would reopen on the next dispatch.
+ */
+function dismissModal(): void {
+  switch (dismissTarget(openModals())) {
+    case 'armor':
+      resolveArmorOffer(false);
+      break;
+    case 'shop':
+      closeShop();
+      break;
+    case 'inventory':
+      closeInventory();
+      break;
   }
 }
 
@@ -368,6 +403,8 @@ function bootGameShell(): void {
     descend: () => act({ type: 'DESCEND' }),
     toggleInventory,
     usePotion,
+    inputBlocked: () => blocksGameInput(openModals()),
+    dismissModal,
     useHotbarSlot: (slot) => {
       const item = hotbarItems(state)[slot - 1];
       if (item) useItem(item.id);
@@ -392,6 +429,17 @@ function bootGameShell(): void {
   root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
   ui.potionBtn.addEventListener('click', usePotion);
   root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
+
+  // Tapping the backdrop dismisses. `e.target === el` is what keeps a tap on the
+  // card — or on a button inside it — from closing the prompt out from under the
+  // press. The backdrop is a sibling of the canvas and covers it, so this never
+  // reaches the tap-to-travel handler. The end modal gets no such listener: a
+  // dead run is not a prompt you escape.
+  for (const backdrop of [ui.armorModal, ui.shopModal]) {
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) dismissModal();
+    });
+  }
 
   // The viewport is flex-sized, so its box is only known after layout — observe it
   // rather than measuring once at startup.

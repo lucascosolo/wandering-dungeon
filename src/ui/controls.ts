@@ -1,4 +1,5 @@
 import { actionForKey, currentKeybinds, MOVE_DELTAS } from './keybinds';
+import { isDismissKey } from './modalGate';
 
 export interface ControlHandlers {
   move: (dx: number, dy: number) => void;
@@ -12,6 +13,10 @@ export interface ControlHandlers {
   tapTile: (x: number, y: number) => void;
   /** 1-based hotbar slot index, from number keys 1-4. */
   useHotbarSlot: (slot: number) => void;
+  /** True while a modal prompt owns input; see `modalGate`. */
+  inputBlocked: () => boolean;
+  /** A dismiss key was pressed while a prompt was up. No-op if it is the end modal. */
+  dismissModal: () => void;
 }
 
 const SWIPE_THRESHOLD = 24;
@@ -25,7 +30,20 @@ const SWIPE_THRESHOLD = 24;
  */
 export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandlers): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
-    const action = actionForKey(currentKeybinds(), e.key.toLowerCase());
+    const key = e.key.toLowerCase();
+
+    // A prompt owns the keyboard entirely: the dismiss keys are the only thing
+    // it answers, and every game key is swallowed rather than falling through to
+    // the engine, which would advance the turn under an open prompt.
+    if (handlers.inputBlocked()) {
+      if (isDismissKey(key)) {
+        e.preventDefault();
+        handlers.dismissModal();
+      }
+      return;
+    }
+
+    const action = actionForKey(currentKeybinds(), key);
     if (!action) return;
 
     const move = MOVE_DELTAS[action];
@@ -68,6 +86,9 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
 
   const onTouchEnd = (e: TouchEvent) => {
     lastTouchAt = performance.now();
+    // Still recorded above, so the synthetic click this touch produces is
+    // suppressed either way; only the action is dropped.
+    if (handlers.inputBlocked()) return;
     const touch = e.changedTouches[0];
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
@@ -89,6 +110,7 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
   let lastTouchAt = 0;
   const onClick = (e: MouseEvent) => {
     if (performance.now() - lastTouchAt < 700) return;
+    if (handlers.inputBlocked()) return;
     emitTap(e.clientX, e.clientY);
   };
 

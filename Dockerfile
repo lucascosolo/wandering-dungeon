@@ -8,6 +8,13 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
+
+# .git is not in the build context, so vite.config's git lookup would fall back
+# to a timestamp. The deploy passes the real sha so the stamp a tester copies
+# names a commit.
+ARG BUILD_ID=""
+ENV BUILD_ID=$BUILD_ID
+
 # `npm run build` is tsc --noEmit && vite build, so a type error fails the image
 # rather than shipping a broken bundle.
 RUN npm run build

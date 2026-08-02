@@ -89,6 +89,21 @@ are in Architecture below.
   on. Only one can land per turn, so their order does not matter. Region 3 is
   deliberately absent — the Glass Expanse sprays from tiles a shift actually
   changed, so it keys on the executed diff and lives in `shiftSystem.ts`.
+- **The Pursuer is not a species.** No region pool contains it; `wakePursuer`
+  (engine.ts) places one per floor once `floorPressure` reaches
+  `PURSUER_PRESSURE_TIER`, and only on non-arena floors. Three rules it is easy
+  to break:
+  - **`isUnkillable` lives in `state.ts`, not the engine**, because HP is taken
+    in two places — `damageEnemy` and `applyEntityFallout` in `shiftSystem.ts`,
+    which bills the geometry directly. A shift killed it outright before that
+    second caller asked. Any third writer of `enemy.hp` must ask too.
+  - **Its arrival tile is the furthest walkable tile from the player, not the
+    entrance.** By the 70 turns it takes to summon it the entrance has often
+    collapsed, and an arrival that can stop existing is a spawn that silently
+    never fires.
+  - **Arena floors are excluded explicitly.** `floorTurns` freezes only while the
+    guardian lives and runs again over the merchant, and `tests/run.test.ts`'s
+    bot attacks the first live enemy on an arena floor until it dies.
 - **Shop stock is rolled once, when the region's boss falls** (`awardBossDefeats`
   → `createShop`), and stored on `state.shop`. Never re-roll it on open: the
   player could otherwise close and reopen the modal until the stock suited them.
@@ -108,8 +123,8 @@ are in Architecture below.
   - `src/core/runConfig.ts` — `RUN_LENGTHS`, `DIFFICULTIES` (`damageTaken`).
   - `src/core/engine.ts` — `SHIELD_BASE_FRACTION`, `SHIELD_DURATION`,
     `ABILITY_COOLDOWN`, `ENEMY_AGGRO_RADIUS`, the
-    `attackPower + rng.randomInt(-2, 2)` damage roll, `REGION_HAZARDS`, and
-    `BOSS_MARKS`.
+    `attackPower + rng.randomInt(-2, 2)` damage roll, `REGION_HAZARDS`,
+    `BOSS_MARKS`, and `PURSUER_PRESSURE_TIER`.
   - `src/core/shop.ts` — `BASE_PRICES` and `REGION_MARKUP`. Both are grounded in
     playtest logs by roadmap 6c; read that entry before moving either.
   - `src/core/items/itemEffects.ts` — per-consumable magnitudes and durations.
@@ -130,10 +145,12 @@ are in Architecture below.
 ## Project Map
 
 - `src/core/`: start with `state.ts` (every type, the single `GameState` shape,
-  and the two position helpers — `manhattan` and `samePosition`. Movement is
-  cardinal everywhere, so manhattan is distance *in turns* and the only distance
-  worth measuring; use them rather than open-coding `Math.abs(a.x - b.x) + …`
-  again, which is how ten copies accumulated). Then `game.ts` (tables, floor
+  and the shared predicates — `manhattan` and `samePosition`, plus
+  `isUnkillable`. Movement is cardinal everywhere, so manhattan is distance *in
+  turns* and the only distance worth measuring; use them rather than open-coding
+  `Math.abs(a.x - b.x) + …` again, which is how ten copies accumulated. They
+  live in a types-only file precisely so every subsystem can reach them without
+  risking a cycle). Then `game.ts` (tables, floor
   population, `createNewGame`), and `engine.ts`
   (`dispatchAction` and turn resolution) when tracing a rule or action. Beside
   them: `regions.ts` (region descriptors, floor→region math), `runConfig.ts`
@@ -145,6 +162,10 @@ are in Architecture below.
   shift execution. This is the most invariant-heavy subsystem.
 - `src/render/`: canvas-only ASCII/glyph rendering and transient particles.
 - `src/ui/`: title/settings screens, keybinds, HUD, and DOM event wiring.
+  `overlayScreen.ts` is the hold-until-dismissed full-screen prompt behind the
+  glyph key, How to Play, and the run-opening splash (`openingSplash.ts`) — use
+  it rather than the fire-and-forget notifications in `hud.ts` for anything the
+  player has to read.
 - `src/telemetry/runLog.ts`: the per-run trace writer (see Playtest data above).
 - `src/main.ts`: application bootstrap and the true DOM/input boundary.
 - `tests/`: Vitest coverage by subsystem; `run.test.ts` is the end-to-end

@@ -58,7 +58,18 @@ const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
   cinder_gatekeeper: { hp: 135, attackPower: 12, minProgress: 0, xp: 80 },
   prism_refractor: { hp: 145, attackPower: 13, minProgress: 0, xp: 90 },
   null_testament: { hp: 75, attackPower: 14, minProgress: 0, xp: 100 },
+  // The Pursuer's HP is never spent — `damageEnemy` refuses to take it — so the
+  // 1 here is what keeps it alive through `settleDeaths`, not a health pool. Its
+  // XP is 0 for the same reason: nothing can ever collect it.
+  pursuer: { hp: 1, attackPower: 11, minProgress: 0, xp: 0 },
 };
+
+/**
+ * The Pursuer's stats, read by the engine that spawns it. Exported rather than
+ * reached through `populateFloor`, which builds a floor's own population and
+ * never places this.
+ */
+export const PURSUER_TEMPLATE = ENEMY_TABLE.pursuer;
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
   stasis_flask: {

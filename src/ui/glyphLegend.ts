@@ -91,6 +91,16 @@ export function glyphLegendHtml(): string {
       ${entryRow({ glyph: '#', color: '#c99bff', label: 'Violet-outlined tile', note: 'opening or sliding when the countdown lands' })}
     </div>
 
+    <span class="setup__label">What follows you down</span>
+    <div class="glyph-list">
+      ${entryRow(
+        entryFor(
+          'pursuer',
+          'arrives on a floor you have lingered on; ringed, not barred, because it cannot be killed — only outrun, and the stairs lose it'
+        )
+      )}
+    </div>
+
     ${enemySections()
       .map(
         section => `
@@ -101,8 +111,9 @@ export function glyphLegendHtml(): string {
 
     <p class="settings__hint settings__hint--left">
       A dimmed foe is staggered and loses its next turn. The bar under a glyph is
-      its remaining health. Regions appear in the order above; a short run simply
-      stops early.
+      its remaining health; the one drawn with a ring instead has none to lose,
+      and is the only thing on the map you are shown through the dark. Regions
+      appear in the order above; a short run simply stops early.
     </p>
   `;
 }

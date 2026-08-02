@@ -19,6 +19,20 @@ export function samePosition(a: Position, b: Position): boolean {
   return a.x === b.x && a.y === b.y;
 }
 
+/**
+ * Refused a health pool rather than given a large one: a pool is a number, and a
+ * number is something a player eventually chips down. This one must not be.
+ *
+ * It lives here beside `Position` for the reason those do — this file is types
+ * only — and it has to be reachable from more than one place, because HP is
+ * taken in more than one: `damageEnemy` in `engine.ts` and `applyEntityFallout`
+ * in `shiftSystem.ts`, which bills the geometry directly. Any third writer must
+ * ask here too, or "cannot be killed" becomes "cannot be killed by the player".
+ */
+export function isUnkillable(enemy: Enemy): boolean {
+  return enemy.enemyType === 'pursuer';
+}
+
 export type TileType = 'wall' | 'floor' | 'door' | 'stairs_down' | 'chasm';
 
 export interface GridTile {
@@ -239,7 +253,13 @@ export type EnemyType =
   | 'rift_regent'
   | 'cinder_gatekeeper'
   | 'prism_refractor'
-  | 'null_testament';
+  | 'null_testament'
+  /**
+   * Not a species and not in any region's pool. The Pursuer is spawned by the
+   * engine when a floor has been lingered on, one per floor, and cannot be
+   * killed — see `wakePursuer` in `engine.ts`.
+   */
+  | 'pursuer';
 
 export interface Enemy extends Entity {
   enemyType: EnemyType;

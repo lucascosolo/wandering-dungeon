@@ -861,6 +861,43 @@ describe('Experience and levels', () => {
     expect(state.player.hp).toBeLessThan(state.player.maxHp);
   });
 
+  it('signals the level-up for the splash and clears it on the next turn', () => {
+    const state = createMockGameState();
+    const before = state.player.level;
+
+    grantXp(state, xpToNextLevel(before), []);
+
+    expect(state.lastLevelUp).toEqual({
+      level: before + 1,
+      maxHpGained: HP_PER_LEVEL,
+      attackGained: ATTACK_PER_LEVEL,
+    });
+
+    dispatchAction(state, { type: 'WAIT' });
+    expect(state.lastLevelUp).toBeNull();
+  });
+
+  it('splashes a multi-level windfall once, naming the final level and total gains', () => {
+    const state = createMockGameState();
+    const windfall = xpToNextLevel(1) + xpToNextLevel(2);
+
+    grantXp(state, windfall, []);
+
+    expect(state.lastLevelUp).toEqual({
+      level: 3,
+      maxHpGained: 2 * HP_PER_LEVEL,
+      attackGained: 2 * ATTACK_PER_LEVEL,
+    });
+  });
+
+  it('leaves no level-up signal on a turn that gained no level', () => {
+    const state = createMockGameState();
+
+    grantXp(state, xpToNextLevel(1) - 1, []);
+
+    expect(state.lastLevelUp).toBeNull();
+  });
+
   it('makes each level cost more than the last', () => {
     expect(xpToNextLevel(2)).toBeGreaterThan(xpToNextLevel(1));
     expect(xpToNextLevel(8)).toBeGreaterThan(xpToNextLevel(7));

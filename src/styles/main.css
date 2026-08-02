@@ -145,6 +145,62 @@ html, body {
   }
 }
 
+/* Level-up splash — sits below the region banner so the two never collide when a
+   level lands on the first kill of a new region. */
+.level-splash {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: min(84%, 360px);
+  padding: 10px 22px;
+  transform: translate(-50%, 6px);
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(10, 10, 18, 0.9);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 14px;
+  box-shadow: 0 0 22px var(--accent-cyan-glow);
+  font-family: var(--font-mono);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.level-splash__title {
+  color: var(--accent-cyan);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.level-splash__gains {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.level-splash--enter {
+  animation: level-splash-enter 2.2s ease-out both;
+}
+
+@keyframes level-splash-enter {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.94); }
+  14%, 70% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level-splash--enter {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* Grid Canvas container */
 .grid-container {
   display: grid;

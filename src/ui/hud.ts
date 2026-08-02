@@ -1,4 +1,4 @@
-import { EnemyType, GameState, Item } from '../core/state';
+import { EnemyType, GameState, Item, LevelUpNotice } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { xpToNextLevel } from '../core/game';
 import { ENEMY_STYLES } from '../render/canvasRenderer';
@@ -31,6 +31,7 @@ export interface HudElements {
   canvas: HTMLCanvasElement;
   floorLabel: HTMLElement;
   regionBanner: HTMLElement;
+  levelSplash: HTMLElement;
   turnLabel: HTMLElement;
   levelLabel: HTMLElement;
   xpLabel: HTMLElement;
@@ -99,6 +100,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
 
     <div class="game-viewport">
       <div class="region-banner" id="region-banner" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="level-splash" id="level-splash" role="status" aria-live="polite" aria-atomic="true"></div>
       <canvas id="game-canvas"></canvas>
     </div>
 
@@ -157,6 +159,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     canvas: byId<HTMLCanvasElement>('game-canvas'),
     floorLabel: byId('floor-label'),
     regionBanner: byId('region-banner'),
+    levelSplash: byId('level-splash'),
     turnLabel: byId('turn-label'),
     levelLabel: byId('level-label'),
     xpLabel: byId('xp-label'),
@@ -236,6 +239,30 @@ export function updateHud(ui: HudElements, state: GameState): void {
   const onStairs = floorMap.tiles[player.position.y][player.position.x].type === 'stairs_down';
   ui.descendBtn.disabled = !onStairs;
   ui.abilityBtn.disabled = state.abilityCooldown > 0 || player.shieldTurnsRemaining > 0;
+}
+
+/**
+ * The level-up splash. Notification, not prompt: it is `pointer-events: none` and
+ * bound to no handler, so it cannot swallow the tap that continues a walk, and
+ * nothing here dispatches an action — showing it costs no turn.
+ *
+ * `null` clears it, which is how a new run drops the previous one's splash
+ * mid-animation. Retriggering the animation needs the class off, a reflow, then
+ * on again — same dance as the region banner, for the same reason.
+ */
+export function showLevelUp(ui: HudElements, notice: LevelUpNotice | null): void {
+  ui.levelSplash.classList.remove('level-splash--enter');
+  if (!notice) {
+    ui.levelSplash.innerHTML = '';
+    return;
+  }
+
+  ui.levelSplash.innerHTML = `
+    <span class="level-splash__title">Level ${notice.level}</span>
+    <span class="level-splash__gains">+${notice.maxHpGained} max HP &middot; +${notice.attackGained} attack</span>
+  `;
+  void ui.levelSplash.offsetWidth;
+  ui.levelSplash.classList.add('level-splash--enter');
 }
 
 /** Only the last few lines show, older ones fading out — a HUD log, not a scrollback. */

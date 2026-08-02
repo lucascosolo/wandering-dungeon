@@ -130,6 +130,14 @@ export function grantXp(state: GameState, amount: number, events: string[]): voi
     // not quietly replace the potion economy.
     player.hp += HP_PER_LEVEL;
     player.attackPower += ATTACK_PER_LEVEL;
+    // Accumulated rather than overwritten so a multi-level kill splashes the
+    // final level with everything it actually bought.
+    const pending = state.lastLevelUp;
+    state.lastLevelUp = {
+      level: player.level,
+      maxHpGained: (pending?.maxHpGained ?? 0) + HP_PER_LEVEL,
+      attackGained: (pending?.attackGained ?? 0) + ATTACK_PER_LEVEL,
+    };
     events.push(
       `You reach level ${player.level}. +${HP_PER_LEVEL} max HP, +${ATTACK_PER_LEVEL} attack.`
     );
@@ -667,6 +675,10 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   if (state.isGameOver) {
     return { state, events };
   }
+
+  // Last turn's splash is spent. Cleared here rather than by the HUD so the flag
+  // means "gained this dispatch" for every caller, tests included.
+  state.lastLevelUp = null;
 
   const rng = rngFor(state);
   let changedFloor = false;

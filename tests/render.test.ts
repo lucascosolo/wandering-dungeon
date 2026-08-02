@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { isGuardingExit } from '../src/render/canvasRenderer';
+import { createShop, isSoldOut } from '../src/core/shop';
+import { SeededRNG } from '../src/core/rng';
 import { createMockGameState, createMockEnemy } from './helpers';
 
 describe('isGuardingExit', () => {
@@ -27,5 +29,25 @@ describe('isGuardingExit', () => {
 
   it('does not flag another species that happens to be at the exit', () => {
     expect(isGuardingExit(createMockEnemy(exit, 'crawler'), exit)).toBe(false);
+  });
+});
+
+describe('isSoldOut', () => {
+  const shop = () => createShop(new SeededRNG('merchant-tell'), 0, 5, { x: 4, y: 4 });
+
+  it('leaves a stocked merchant lit', () => {
+    expect(isSoldOut(shop())).toBe(false);
+  });
+
+  it('leaves a part-bought merchant lit', () => {
+    const bought = shop();
+    bought.stock[0].sold = true;
+    expect(isSoldOut(bought)).toBe(false);
+  });
+
+  it('greys a merchant with nothing left, so the state reads off the map', () => {
+    const empty = shop();
+    for (const offer of empty.stock) offer.sold = true;
+    expect(isSoldOut(empty)).toBe(true);
   });
 });

@@ -235,18 +235,28 @@ A merchant on each boss floor after the kill, selling a rolled stock. This is
 the run's choice point — spend now or save for a better region — and the
 player-facing difficulty valve.
 
-Done when: purchases deduct coins, stock is seeded per boss floor, and the shop
-cannot be re-rolled by leaving and returning.
+Done when: purchases deduct coins, stock is seeded per boss floor, the shop
+cannot be re-rolled by leaving and returning, and the merchant is a body on the
+floor the player walks up to rather than a menu they carry.
 
 Depends on 5c, 6a. Files: `src/core/shop.ts` (new), `src/ui/`,
 `src/core/engine.ts`. Scope: M.
 
 The merchant is rolled once inside `awardBossDefeats` and stored on `GameState`,
-so closing the modal, reopening it from the coin chip, or resuming a save all
-read the same stock. `BUY_ITEM` is a free action — charging a turn would let the
-arena shift apart while the player read a price list. Stock always leads with a
-Health Potion; the shop is the difficulty valve and a valve that can roll shut
-is not a valve.
+so closing the modal, walking back into him, or resuming a save all read the
+same stock. `BUY_ITEM` is a free action — charging a turn would let the arena
+shift apart while the player read a price list. Stock always leads with a Health
+Potion; the shop is the difficulty valve and a valve that can roll shut is not a
+valve.
+
+He stands on a tile — `ShopState.position`, placed by `pickSpawnPosition` in the
+same breath as the stock roll — and draws as `&`. Walking into him trades, the
+same shape as walking into an enemy attacking, and is free for the same reason
+`BUY_ITEM` is. Tap-to-travel routes to his tile, so the last step of the walk is
+that bump; anywhere else he is a wall to the router, because he is solid. Rooms
+only, since a merchant parked in a corridor could seal the stairs on a floor that
+has stopped shifting. Bought out, he greys and takes a dashed ring — an empty
+stall is a persistent state, and those read on the map.
 
 ### 6c. Shop pricing pass
 

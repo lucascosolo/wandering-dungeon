@@ -6,7 +6,7 @@ import {
   HP_PER_LEVEL,
 } from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
-import { Item } from '../src/core/state';
+import { GameState, Item, Position } from '../src/core/state';
 import {
   buildFloor,
   coinsPerPile,
@@ -916,6 +916,18 @@ describe('Shop', () => {
     return state;
   }
 
+  /** A tile the player can stand on to bump `target` from. */
+  function adjacentWalkable(state: GameState, target: Position): Position {
+    const step = [
+      { x: target.x + 1, y: target.y },
+      { x: target.x - 1, y: target.y },
+      { x: target.x, y: target.y + 1 },
+      { x: target.x, y: target.y - 1 },
+    ].find(p => state.floorMap.tiles[p.y][p.x].type === 'floor');
+    expect(step).toBeDefined();
+    return step!;
+  }
+
   it('opens a merchant when the region falls', () => {
     const state = atBossDeath('shop-open');
 
@@ -924,6 +936,48 @@ describe('Shop', () => {
     expect(state.shop!.regionIndex).toBe(0);
     // The run's difficulty valve must never roll shut.
     expect(state.shop!.stock.some(offer => offer.item.type === 'health_potion')).toBe(true);
+  });
+
+  it('stands the merchant on a reachable room tile of the boss floor', () => {
+    const state = atBossDeath('shop-place');
+    const { position } = state.shop!;
+    const tile = state.floorMap.tiles[position.y][position.x];
+
+    expect(tile.type).toBe('floor');
+    // Rooms only — the merchant is solid, and one parked in a corridor could seal
+    // the way to the stairs on a floor that has stopped shifting.
+    expect(state.floorMap.shiftGroups[tile.shiftGroupId!].type).toBe('room');
+    expect(position).not.toEqual(state.floorMap.exit);
+    expect(position).not.toEqual(state.player.position);
+    expect(findPath(state.floorMap, state.player.position, position)).not.toBeNull();
+  });
+
+  it('opens the stock when the player walks into the merchant, and costs no turn', () => {
+    const state = atBossDeath('shop-bump');
+    const merchant = state.shop!.position;
+    const step = adjacentWalkable(state, merchant);
+    state.player.position = step;
+    const turn = state.turnCount;
+
+    dispatchAction(state, { type: 'MOVE', dx: merchant.x - step.x, dy: merchant.y - step.y });
+
+    expect(state.shopOpened).toBe(true);
+    // He is an obstacle, not a doormat: the bump trades instead of stepping in.
+    expect(state.player.position).toEqual(step);
+    // Free, like BUY_ITEM — the arena must not shift while a price list is read.
+    expect(state.turnCount).toBe(turn);
+  });
+
+  it('reports the merchant only for the dispatch that bumped him', () => {
+    const state = atBossDeath('shop-bump-clear');
+    const merchant = state.shop!.position;
+    const step = adjacentWalkable(state, merchant);
+    state.player.position = step;
+
+    dispatchAction(state, { type: 'MOVE', dx: merchant.x - step.x, dy: merchant.y - step.y });
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.shopOpened).toBe(false);
   });
 
   it('deducts coins and hands over the item', () => {
@@ -967,9 +1021,22 @@ describe('Shop', () => {
   it('cannot be re-rolled, and retires when the player descends', () => {
     const state = atBossDeath('shop-stable');
     const before = state.shop!.stock.map(offer => `${offer.item.type}:${offer.price}`);
+    const stall = { ...state.shop!.position };
 
     // Closing and reopening the modal only re-reads this stored stock.
     expect(state.shop!.stock.map(offer => `${offer.item.type}:${offer.price}`)).toEqual(before);
+
+    // `awardBossDefeats` runs three times per dispatch and the corpse stays on the
+    // floor for the first of them, so "rolled once" is a claim about every turn
+    // after the kill, not only about the kill itself. The merchant's tile is part
+    // of the same roll and must not wander either.
+    const step = adjacentWalkable(state, stall);
+    for (let i = 0; i < 5; i++) dispatchAction(state, { type: 'WAIT' });
+    state.player.position = step;
+    dispatchAction(state, { type: 'MOVE', dx: stall.x - step.x, dy: stall.y - step.y });
+
+    expect(state.shop!.stock.map(offer => `${offer.item.type}:${offer.price}`)).toEqual(before);
+    expect(state.shop!.position).toEqual(stall);
 
     state.player.position = { ...state.floorMap.exit };
     dispatchAction(state, { type: 'DESCEND' });

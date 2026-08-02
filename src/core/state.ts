@@ -116,6 +116,12 @@ export interface ShopState {
   /** The boss floor it belongs to. Descending past it retires the merchant. */
   floor: number;
   merchant: string;
+  /**
+   * The tile the merchant stands on. He is a physical obstacle: moving into this
+   * tile trades instead of stepping onto it, so the shop is somewhere the player
+   * walks to rather than a menu they carry.
+   */
+  position: Position;
   stock: ShopOffer[];
 }
 
@@ -288,6 +294,13 @@ export interface GameState {
   clearedRegions: number[];
   /** The merchant on this boss floor, or null when there is none to trade with. */
   shop: ShopState | null;
+  /**
+   * The player bumped the merchant during the turn just dispatched, so the shell
+   * should raise his stock. Same one-turn discipline as `lastLevelUp`: cleared at
+   * the top of every dispatch and stripped on load, so resuming a run saved on the
+   * counter does not reopen a modal the player already closed.
+   */
+  shopOpened: boolean;
   eventLog: LogMessage[];
   isGameOver: boolean;
   isVictory: boolean;

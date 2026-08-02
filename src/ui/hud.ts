@@ -45,7 +45,7 @@ export interface HudElements {
   potionCount: HTMLElement;
   armorChip: HTMLElement;
   armorName: HTMLElement;
-  coinChip: HTMLButtonElement;
+  coinChip: HTMLElement;
   coinCount: HTMLElement;
   armorModal: HTMLElement;
   shopModal: HTMLElement;
@@ -93,7 +93,9 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       <span class="legend__hint">weak&rarr;deadly</span> &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
       <span class="legend__warn legend__warn--open">violet</span> opening &middot;
-      <span style="color:#d9d0ff">ringed R</span> holds the stairs
+      <span style="color:#d9d0ff">ringed R</span> holds the stairs &middot;
+      <span style="color:#f2e8cf">&amp;</span> merchant
+      <span class="legend__hint">(walk into them; grey&nbsp;&amp; is bought out)</span>
     </div>
 
     <div class="vitals">
@@ -123,10 +125,10 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
         <span class="armor-chip__name" id="armor-name">Unarmoured</span>
       </div>
 
-      <button class="coin-chip" id="coin-chip" type="button" disabled>
+      <div class="coin-chip" id="coin-chip">
         <span class="coin-chip__glyph">$</span>
         <span class="coin-chip__count" id="coin-count">0</span>
-      </button>
+      </div>
     </div>
 
     <div class="hotbar" id="hotbar"></div>
@@ -176,7 +178,7 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
     potionCount: byId('potion-count'),
     armorChip: byId('armor-chip'),
     armorName: byId('armor-name'),
-    coinChip: byId<HTMLButtonElement>('coin-chip'),
+    coinChip: byId('coin-chip'),
     coinCount: byId('coin-count'),
     armorModal: byId('armor-modal'),
     shopModal: byId('shop-modal'),
@@ -231,9 +233,9 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.shieldFill.style.width = `${Math.min(100, (player.shieldHp / player.maxHp) * 100)}%`;
 
   ui.coinCount.textContent = String(player.coins);
-  // Doubles as the way back into the merchant's stock, so a modal closed by
-  // accident does not cost the player the shop.
-  ui.coinChip.disabled = state.shop === null;
+  // A purse readout only — the stock is reached by walking into the merchant, not
+  // from the HUD, so the chip lights up to say there is someone on this floor to
+  // spend it on rather than opening the shop itself.
   ui.coinChip.classList.toggle('coin-chip--merchant', state.shop !== null);
 
   const potions = healthPotions(state).length;

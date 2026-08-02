@@ -275,11 +275,26 @@ Depends on 3a. Files: `src/core/state.ts`, `src/core/engine.ts`,
 An entity that hunts the player across a floor and cannot be killed, only
 outrun. Pairs with 7 as the visible face of rising pressure.
 
-Done when: it tracks the player through the map, is escapable via the exit, and
-does not deadlock on a floor whose geometry just shifted.
+It ships with its story, not after it. A thing that chases you and cannot be
+fought only frightens if the player knows what it is before it appears;
+unexplained, it reads as a bug in the enemy AI. So this task includes an opening
+splash at run start — who the player is, what they are descending into, and what
+is coming down behind them — shown before the first turn rather than as a log
+line that scrolls away. Beats along the way (first sighting, the descent that
+does not shake it) carry the rest.
 
-Depends on 7. Files: `src/core/state.ts`, `src/core/engine.ts`,
-`src/core/map/pathfinding.ts`. Scope: M.
+The splash mechanism exists twice already — level-up and boss-defeat, in
+`src/ui/hud.ts` — but the opening one is a prompt, not a notification: it holds
+until dismissed, so it cannot reuse their `pointer-events: none`
+fire-and-forget shape unaltered.
+
+Done when: it tracks the player through the map, is escapable via the exit, does
+not deadlock on a floor whose geometry just shifted, and a new run opens on
+framing that explains it before it is first seen.
+
+Depends on 7 (shipped). Files: `src/core/state.ts`, `src/core/engine.ts`,
+`src/core/map/pathfinding.ts`, `src/ui/titleScreen.ts`, `src/ui/hud.ts`,
+`src/styles/main.css`. Scope: L.
 
 ### 9. Weapon types
 

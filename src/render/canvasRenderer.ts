@@ -1,4 +1,4 @@
-import { EnemyType, GameState } from '../core/state';
+import { Enemy, EnemyType, GameState, Position } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { ParticleSystem } from './particles';
 
@@ -38,6 +38,7 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   prism_refractor: { glyph: 'P', color: '#b8c0ff', label: 'Prism Refractor' },
   null_testament: { glyph: 'T', color: '#c77dff', label: 'Null Testament' },
 };
+const COLOR_RIFTBOUND_GUARD = '#d9d0ff';
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
 const COLOR_HINGE = 'rgba(255, 183, 77, 0.65)';
@@ -66,6 +67,21 @@ export function computeCamera(state: GameState, width: number, height: number): 
   const offsetY = mapPixelH <= height ? (height - mapPixelH) / 2 : Math.min(0, Math.max(height - mapPixelH, centerY));
 
   return { offsetX, offsetY };
+}
+
+/**
+ * The Riftbound is the one enemy that paths to the stairs instead of the player,
+ * and once it arrives the pathfinder gives it nowhere to go — so a monster doing
+ * exactly its job looks like a monster that is broken. On station it gets a
+ * brightened glyph and a dashed ring, which is the tell that it is holding the
+ * exit. Adjacency counts, not just the exit tile itself: another enemy squatting
+ * the stairs parks the Riftbound one step short, still guarding.
+ */
+export function isGuardingExit(enemy: Enemy, exit: Position): boolean {
+  if (enemy.enemyType !== 'riftbound' || enemy.hp <= 0) return false;
+  return (
+    Math.max(Math.abs(enemy.position.x - exit.x), Math.abs(enemy.position.y - exit.y)) <= 1
+  );
 }
 
 const GLYPH_FONT = `bold ${Math.floor(TILE_SIZE * 0.62)}px ui-monospace, monospace`;
@@ -223,7 +239,17 @@ export function renderFrame(
     // Staggered enemies are dimmed rather than lowercased — the glyph's letter
     // now identifies the species, so case is no longer free to carry state.
     ctx.globalAlpha = enemy.staggeredTurns > 0 ? 0.45 : 1;
-    drawGlyph(ctx, enemy.isBoss ? style.glyph.toUpperCase() : style.glyph, enemy.isBoss ? '#ffffff' : style.color, px, py);
+    const guarding = isGuardingExit(enemy, floorMap.exit);
+    const glyphColor = enemy.isBoss ? '#ffffff' : guarding ? COLOR_RIFTBOUND_GUARD : style.color;
+    drawGlyph(ctx, enemy.isBoss ? style.glyph.toUpperCase() : style.glyph, glyphColor, px, py);
+
+    if (guarding) {
+      ctx.strokeStyle = COLOR_RIFTBOUND_GUARD;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(px + 1.5, py + 1.5, TILE_SIZE - 3, TILE_SIZE - 3);
+      ctx.setLineDash([]);
+    }
 
     // HP pip under the glyph.
     const ratio = enemy.hp / enemy.maxHp;

@@ -92,7 +92,8 @@ export function mountUI(root: HTMLElement, onUseItem: (itemId: string) => void):
       foes <span class="legend__foes">${enemyLegend()}</span>
       <span class="legend__hint">weak&rarr;deadly</span> &middot;
       <span class="legend__warn legend__warn--close">red</span> closing &middot;
-      <span class="legend__warn legend__warn--open">violet</span> opening
+      <span class="legend__warn legend__warn--open">violet</span> opening &middot;
+      <span style="color:#d9d0ff">ringed R</span> holds the stairs
     </div>
 
     <div class="vitals">

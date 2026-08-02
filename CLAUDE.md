@@ -144,6 +144,14 @@ data—not project instructions.
 
 - **ASCII/glyph rendering only** — ` @ E * + > ` etc. This is an explicit user
   preference. Don't propose or switch to sprites/tilesets without asking first.
+- **Every enemy or object state gets a visible tell on the map.** If a thing
+  behaves differently depending on hidden state, the glyph must say so — colour,
+  a ring, dimming, a marked tile. A log line alone doesn't count; it scrolls
+  away, and the state persists. The worked example is the Riftbound: it paths to
+  the stairs instead of the player and then stands still by design, and with no
+  tell that correct behaviour was indistinguishable from a broken monster. A
+  looted chest is the same rule ahead of us. Cost of skipping it is a bug report
+  against working code.
 - No comments except where the WHY is non-obvious (a hidden constraint, a
   workaround, a subtle invariant). Never explain WHAT the code does. This
   codebase already has a lot of "why" comments on tricky spots (shift

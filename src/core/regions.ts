@@ -32,6 +32,12 @@ export interface Region {
   hpMultiplier: number;
   attackBonus: number;
   enemyPool: readonly EnemyType[];
+  /**
+   * The guardian of this region's arena floor. Lives here rather than as a
+   * floor-number ladder inside `populateFloor` so the glyph legend can name a
+   * region's boss without re-deriving which floor it stands on.
+   */
+  boss: EnemyType;
   palette: RegionPalette;
 }
 
@@ -70,6 +76,7 @@ export const REGIONS: Region[] = [
     hpMultiplier: 1,
     attackBonus: 0,
     enemyPool: SHIFTING_HALLS_POOL,
+    boss: 'hinge_sovereign',
     palette: PALETTES[0],
   },
   {
@@ -79,6 +86,7 @@ export const REGIONS: Region[] = [
     hpMultiplier: 1.15,
     attackBonus: 1,
     enemyPool: FRACTURE_DEEPS_POOL,
+    boss: 'rift_regent',
     palette: PALETTES[1],
   },
   {
@@ -88,6 +96,7 @@ export const REGIONS: Region[] = [
     hpMultiplier: 1.3,
     attackBonus: 2,
     enemyPool: ASHEN_WARRENS_POOL,
+    boss: 'cinder_gatekeeper',
     palette: PALETTES[2],
   },
   {
@@ -97,6 +106,7 @@ export const REGIONS: Region[] = [
     hpMultiplier: 1.45,
     attackBonus: 3,
     enemyPool: GLASS_EXPANSE_POOL,
+    boss: 'prism_refractor',
     palette: PALETTES[3],
   },
   {
@@ -106,6 +116,7 @@ export const REGIONS: Region[] = [
     hpMultiplier: 1.6,
     attackBonus: 4,
     enemyPool: UNMAKING_POOL,
+    boss: 'null_testament',
     palette: PALETTES[4],
   },
 ];

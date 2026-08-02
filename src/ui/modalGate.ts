@@ -12,6 +12,8 @@ export interface ModalSnapshot {
   /** The end-of-run modal. */
   end: boolean;
   inventory: boolean;
+  /** The in-run menu: help, glyph key, settings, abandon. */
+  menu: boolean;
 }
 
 /** Keys that close a dismissable prompt. Neither is in `DEFAULT_KEYBINDS`. */
@@ -26,7 +28,7 @@ export const DISMISS_HINT = 'ESC or X to close';
  * are unaffected.
  */
 export function blocksGameInput(open: ModalSnapshot): boolean {
-  return open.armor || open.shop || open.end || open.inventory;
+  return open.armor || open.shop || open.end || open.inventory || open.menu;
 }
 
 /**
@@ -35,8 +37,13 @@ export function blocksGameInput(open: ModalSnapshot): boolean {
  * The end modal is deliberately absent: a dead run is not a prompt you escape,
  * so it blocks input but cannot be dismissed — the only ways out are its own
  * two buttons.
+ *
+ * The menu is checked first because it is the one prompt opened deliberately
+ * rather than raised by the engine: whatever else is somehow up, a dismiss aimed
+ * at a menu the player just opened should close that.
  */
-export function dismissTarget(open: ModalSnapshot): 'armor' | 'shop' | 'inventory' | null {
+export function dismissTarget(open: ModalSnapshot): 'armor' | 'shop' | 'inventory' | 'menu' | null {
+  if (open.menu) return 'menu';
   if (open.armor) return 'armor';
   if (open.shop) return 'shop';
   if (open.inventory) return 'inventory';

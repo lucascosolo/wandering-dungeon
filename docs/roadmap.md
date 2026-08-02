@@ -257,7 +257,7 @@ than guessed.
 
 Depends on 6b. Files: `src/core/shop.ts`. Scope: S.
 
-### 7. Escalating unraveling
+### ~~7. Escalating unraveling~~ — shipped
 
 Shift cadence and severity ramp the longer the player lingers on a floor,
 rewarding efficient exits. Pressure is **per-floor** — `turnCount` never resets

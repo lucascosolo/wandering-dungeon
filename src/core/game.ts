@@ -337,6 +337,8 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.lastShiftTurn = -999;
   state.lastShiftType = null;
   state.exitBlockedStreak = 0;
+  // Escalating pressure is per-floor: descending buys back the full grace period.
+  state.floorTurns = 0;
   state.shiftCountdown = state.nextShiftCountdownMax;
 
   computeFOV(map, state.player.position);
@@ -372,6 +374,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     config,
     rngState: rng.serialize(),
     turnCount: 0,
+    floorTurns: 0,
     shiftCountdown: STARTING_COUNTDOWN,
     nextShiftCountdownMax: STARTING_COUNTDOWN,
     isStasisActive: false,

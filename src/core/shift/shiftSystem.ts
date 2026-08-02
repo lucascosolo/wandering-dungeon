@@ -185,6 +185,55 @@ export const MAX_EXIT_BLOCKED_STREAK = 1;
 /** Attempts to find a shift that satisfies the safety rules before giving up. */
 const PLAN_ATTEMPTS = 6;
 
+/**
+ * Escalating unraveling: the longer the player stays on one floor, the faster and
+ * harder it comes apart.
+ *
+ * The curve is a flat grace period followed by steps, not a slope from turn one.
+ * Kills grant XP, so a floor is worth fighting through; a ramp that bit immediately
+ * would make staying strictly wrong and collapse that choice. Instead the first
+ * PRESSURE_GRACE_TURNS are free — played runs clear a floor in 40-90 turns, so a
+ * normal pace pays nothing — and only then does each PRESSURE_STEP_TURNS shave a
+ * turn off the interval, halving the cadence around 100 turns in. That is well past
+ * "fought through it and looted it" and squarely into dawdling.
+ *
+ * The numbers are held down from below by `tests/run.test.ts`: its bot lingers 40-90
+ * turns a floor, and a 30-turn grace with 10-turn steps cost it a whole region of
+ * depth. Gentler than it looks on paper is the point, not an accident.
+ */
+export const PRESSURE_GRACE_TURNS = 50;
+export const PRESSURE_STEP_TURNS = 10;
+export const MAX_PRESSURE = 5;
+
+/**
+ * Cadence never tightens past this. The region hazards in `advanceClock` are keyed
+ * on exact `shiftCountdown` values (2 and 4), and a countdown reset to N only ever
+ * takes the values N-1..0 — at an interval below 5 the `=== 4` hazards would become
+ * unreachable. Five keeps every hazard firing exactly once per cycle.
+ */
+export const MIN_SHIFT_INTERVAL = 5;
+
+/** Pressure tier for a floor, 0 (fresh) to MAX_PRESSURE (picked clean). */
+export function floorPressure(floorTurns: number): number {
+  if (floorTurns <= PRESSURE_GRACE_TURNS) return 0;
+  return Math.min(
+    MAX_PRESSURE,
+    Math.ceil((floorTurns - PRESSURE_GRACE_TURNS) / PRESSURE_STEP_TURNS)
+  );
+}
+
+/**
+ * Turns until the next shift, given how long the player has lingered.
+ *
+ * The Haste Sigil can already push `nextShiftCountdownMax` below MIN_SHIFT_INTERVAL
+ * for the rest of the run; the floor is clamped to whichever is smaller so pressure
+ * can only ever shorten the interval, never hand back turns the sigil took away.
+ */
+export function shiftInterval(state: GameState): number {
+  const base = state.nextShiftCountdownMax;
+  return Math.max(Math.min(base, MIN_SHIFT_INTERVAL), base - floorPressure(state.floorTurns));
+}
+
 /** Clone the geometry a shift can touch, so a shift can be rehearsed safely. */
 function cloneGeometry(map: FloorMap): FloorMap {
   return {
@@ -810,10 +859,17 @@ function applyLocalizedCollapse(map: FloorMap, targetId: string): void {
 /** Fraction of max HP a shift costs anything it catches. */
 const FALLOUT_FRACTION = 0.08;
 
+/** Extra fallout damage per pressure tier — the severity half of the ramp. */
+const FALLOUT_PRESSURE_BONUS = 0.1;
+
 /** The Vanguard braces for impact, so fallout hits them at half strength. */
 function applyFalloutDamage(state: GameState, events: string[]): void {
   const reduction = state.player.classType === 'vanguard' ? 0.5 : 1;
-  const damage = Math.max(1, Math.floor(state.player.maxHp * FALLOUT_FRACTION * reduction));
+  const severity = 1 + FALLOUT_PRESSURE_BONUS * floorPressure(state.floorTurns);
+  const damage = Math.max(
+    1,
+    Math.floor(state.player.maxHp * FALLOUT_FRACTION * reduction * severity)
+  );
   events.push('The collapse catches you.');
   damagePlayer(state, damage, events, 'the shift');
 }

@@ -36,6 +36,13 @@ export function decodeRun(raw: unknown): GameState | null {
   player.level ??= 1;
   player.xp ??= 0;
 
+  // A run saved before escalating pressure existed carries no per-floor counter.
+  // Same boundary fix as level/xp above: resume at zero pressure rather than throw
+  // the run away. Reading `turnCount` instead would be wrong — it never resets, so
+  // a resumed run would arrive on its current floor already fully unravelled.
+  const state = saved.state as GameState & { floorTurns?: number };
+  state.floorTurns ??= 0;
+
   // Purely a one-turn signal to the HUD. Resuming is not that turn, so a run saved
   // on the turn it levelled must not come back with the splash still pending.
   saved.state.lastLevelUp = null;

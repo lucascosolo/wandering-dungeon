@@ -10,8 +10,14 @@ import {
   applyTelegraphs,
   syncDoors,
   MAX_EXIT_BLOCKED_STREAK,
+  MIN_SHIFT_INTERVAL,
+  MAX_PRESSURE,
+  PRESSURE_GRACE_TURNS,
+  PRESSURE_STEP_TURNS,
+  floorPressure,
+  shiftInterval,
 } from '../src/core/shift/shiftSystem';
-import { createNewGame } from '../src/core/game';
+import { buildFloor, createNewGame } from '../src/core/game';
 import { createRunConfig } from '../src/core/runConfig';
 import { dispatchAction } from '../src/core/engine';
 import { FloorMap } from '../src/core/state';
@@ -422,5 +428,101 @@ describe('Shift Engine', () => {
 
     expect(state.floorMap.tiles[1][1].isTelegraphedCollapse).toBe(false);
     expect(state.floorMap.tiles[2][2].isTelegraphedCollapse).toBe(false);
+  });
+});
+
+describe('Escalating unraveling', () => {
+  it('leaves the cadence untouched through the grace period, then steps it down', () => {
+    expect(floorPressure(0)).toBe(0);
+    expect(floorPressure(PRESSURE_GRACE_TURNS)).toBe(0);
+    expect(floorPressure(PRESSURE_GRACE_TURNS + 1)).toBe(1);
+    expect(floorPressure(PRESSURE_GRACE_TURNS + PRESSURE_STEP_TURNS)).toBe(1);
+    expect(floorPressure(PRESSURE_GRACE_TURNS + PRESSURE_STEP_TURNS + 1)).toBe(2);
+    expect(floorPressure(PRESSURE_GRACE_TURNS + PRESSURE_STEP_TURNS * 50)).toBe(MAX_PRESSURE);
+  });
+
+  it('never tightens the interval past the floor that keeps countdown-keyed hazards reachable', () => {
+    const state = createMockGameState();
+    state.nextShiftCountdownMax = 8;
+
+    state.floorTurns = 0;
+    expect(shiftInterval(state)).toBe(8);
+
+    state.floorTurns = 100_000;
+    expect(shiftInterval(state)).toBe(MIN_SHIFT_INTERVAL);
+  });
+
+  it('lets a Haste Sigil interval stay below the pressure floor rather than being handed turns back', () => {
+    const state = createMockGameState();
+    state.nextShiftCountdownMax = 3;
+
+    state.floorTurns = 0;
+    expect(shiftInterval(state)).toBe(3);
+    state.floorTurns = 100_000;
+    expect(shiftInterval(state)).toBe(3);
+  });
+
+  it('measurably tightens shift cadence the longer a floor is occupied', () => {
+    const state = createMockGameState('pressure-seed');
+    const shiftTurns: number[] = [];
+
+    for (let i = 0; i < 140; i++) {
+      state.player.hp = state.player.maxHp;
+      dispatchAction(state, { type: 'WAIT' });
+      if (state.lastShiftTurn === state.turnCount) shiftTurns.push(state.turnCount);
+    }
+
+    expect(shiftTurns.length).toBeGreaterThan(4);
+    const gaps = shiftTurns.slice(1).map((t, i) => t - shiftTurns[i]);
+    const early = gaps[0];
+    const late = gaps[gaps.length - 1];
+
+    expect(late).toBeLessThan(early);
+    expect(late).toBe(MIN_SHIFT_INTERVAL);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(MIN_SHIFT_INTERVAL);
+  });
+
+  it('hits harder with fallout as pressure builds', () => {
+    const state = createMockGameState();
+    state.floorTurns = 0;
+    const fresh = Math.floor(state.player.maxHp * 0.08 * 0.5 * (1 + 0.1 * floorPressure(0)));
+    state.floorTurns = PRESSURE_GRACE_TURNS + PRESSURE_STEP_TURNS * MAX_PRESSURE;
+    const late = Math.floor(
+      state.player.maxHp * 0.08 * 0.5 * (1 + 0.1 * floorPressure(state.floorTurns))
+    );
+    expect(late).toBeGreaterThan(fresh);
+  });
+
+  it('resets pressure when a new floor is built', () => {
+    const state = createMockGameState();
+    state.floorTurns = 500;
+
+    buildFloor(state, new SeededRNG('descend-seed'), 2);
+
+    expect(state.floorTurns).toBe(0);
+    expect(shiftInterval(state)).toBe(state.nextShiftCountdownMax);
+  });
+
+  it('resets pressure when the player actually descends', () => {
+    const state = createNewGame('descend-run', createRunConfig('short', 'standard'));
+
+    for (let i = 0; i < 80; i++) {
+      state.player.hp = state.player.maxHp;
+      dispatchAction(state, { type: 'WAIT' });
+    }
+    expect(floorPressure(state.floorTurns)).toBeGreaterThan(0);
+    const beforeLevel = state.floorMap.level;
+
+    state.player.position = { ...state.floorMap.exit };
+    dispatchAction(state, { type: 'DESCEND' });
+
+    expect(state.floorMap.level).toBe(beforeLevel + 1);
+    // A successful descent replaces the world and the clock does not advance for
+    // it, so the new floor opens on turn zero of its own grace period.
+    expect(state.floorTurns).toBe(0);
+    expect(floorPressure(state.floorTurns)).toBe(0);
+    // The run-long clock keeps its count — that divergence is the whole reason
+    // pressure reads floorTurns instead of turnCount.
+    expect(state.turnCount).toBe(80);
   });
 });

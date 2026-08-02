@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Set by the deploy from the pushed commit; empty locally is fine, the
+        # config falls back to git and then to a timestamp.
+        BUILD_ID: ${BUILD_ID:-}
     image: wandering-dungeon:latest
     container_name: wandering-dungeon
     # 8420 is this project's port on the shared box. Nothing else listens on it;

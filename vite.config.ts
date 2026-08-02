@@ -15,6 +15,14 @@ import pkg from './package.json';
  * the whole build (and `npm run dev`) with it.
  */
 function buildId(): string {
+  // The container build is exactly the "no history" case above: the image is
+  // built from a tarball with .git excluded, so git here would always fall back
+  // to a timestamp and the stamp would name a minute instead of a commit —
+  // losing the one thing it exists to give a bug report. The deploy passes the
+  // sha in as a build arg.
+  const injected = process.env.BUILD_ID?.trim();
+  if (injected) return injected;
+
   try {
     const sha = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
       stdio: ['ignore', 'pipe', 'ignore'],

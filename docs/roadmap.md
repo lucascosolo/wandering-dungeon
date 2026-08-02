@@ -371,6 +371,40 @@ Depends on 4b for the hazard-facing rolls; the rest depend on nothing unbuilt.
 Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/damage.ts`,
 `src/core/engine.ts`, `src/ui/hud.ts`. Scope: M.
 
+### 12. Chests
+
+Floor coins are now a deliberate trickle — a pile is 1-3 coins and a whole floor
+scatters two or three of them. That makes the ground read cleanly, but it also
+means nothing on a floor is worth a detour. A chest is the thing worth the
+detour.
+
+Chests are **rarer than coin piles and distinct from them**: not every floor has
+one, they are a separate glyph, and opening one is an action rather than a
+walk-over pickup. What is inside is rolled when the floor is built, not when the
+chest is opened — the same reason shop stock is rolled once in 6b, or a player
+saves and reloads until the roll suits them.
+
+Contents, one per chest:
+
+- **a larger coin sum** — 3-5, several piles' worth in one place, so the chest is
+  felt against the trickle rather than lost in it
+- **a special item** — a consumable off the loot pool, or a piece the floor's
+  `ARMOR_TIERS` step would not otherwise hand out
+
+Pairs with the coin rescale: the trickle is what makes a chest legible as a
+find, and the chest is what makes exploring a floor pay instead of beelining the
+stairs. Neither half works alone — small coins with nothing else to look for is
+just a poorer floor.
+
+Done when: chests spawn on a fraction of normal floors, opening one costs a turn
+and yields exactly one rolled reward, contents are fixed at floor build time and
+survive save/resume, and an unopened chest is still unopened after a shift moves
+the geometry around it.
+
+Depends on 6a. Pairs with 9 and 11 if the item roll is to include equipment.
+Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/engine.ts`,
+`src/render/canvasRenderer.ts`. Scope: M.
+
 ---
 
 # Independent — feel

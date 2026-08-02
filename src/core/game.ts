@@ -152,17 +152,23 @@ export function createCoinCache(value: number, id: string): Item {
 }
 
 /**
- * Coin income scales with the region so a later shop is not priced out of reach
- * of the floors that feed it. 6c prices stock against what this actually pays.
+ * What one scattered pile on the floor is worth. Flat across regions on purpose:
+ * the number is read off the floor at a glance, and "3 Coins" stays legible where
+ * "27 Coins" is just noise. Region scaling lives in `coinsPerKill` instead.
  */
-export function coinsForRegion(regionIndex: number, rng: SeededRNG): number {
-  return 8 + regionIndex * 4 + rng.randomInt(0, 5);
+export function coinsPerPile(rng: SeededRNG): number {
+  return rng.randomInt(1, 3);
 }
 
-/** What one kill pays. Deliberately small — floors are the main income. */
+/**
+ * What one kill pays. With piles flat, this is the only thing that keeps late
+ * regions paying for their own (marked-up) shop, so it carries the whole scaling
+ * curve — but at half the old slope, because later regions also field more
+ * enemies per floor and the two would compound.
+ */
 export function coinsPerKill(regionIndex: number, isBoss: boolean): number {
-  const base = 2 + regionIndex;
-  return isBoss ? base * 10 : base;
+  const base = 1 + Math.floor((regionIndex + 1) / 2);
+  return isBoss ? base * 5 : base;
 }
 
 /**
@@ -297,7 +303,7 @@ export function populateFloor(
     const position = take();
     if (!position) break;
     drops.push({
-      item: createCoinCache(coinsForRegion(region.index, rng), `coins_${level}_${i}`),
+      item: createCoinCache(coinsPerPile(rng), `coins_${level}_${i}`),
       position,
     });
   }

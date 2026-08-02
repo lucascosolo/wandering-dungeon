@@ -131,12 +131,9 @@ function act(action: GameAction): void {
     showArmorOffer(ui, state, resolveArmorOffer);
   }
 
-  // The boss falling is the only thing that opens the shop unprompted; after
-  // that it is the player's to reopen from the coin chip.
-  if (state.shop && shopGreetedFloor !== state.shop.floor) {
-    shopGreetedFloor = state.shop.floor;
-    openShop();
-  }
+  // The merchant is a thing on the floor: the only thing that raises his stock is
+  // the player walking into him, which the engine reports for this one dispatch.
+  if (state.shopOpened) openShop();
 
   // Autosave every turn. Writes on the same key are serialized by IndexedDB in
   // the order they are issued, so the last turn is what lands — including this
@@ -153,9 +150,6 @@ function resolveArmorOffer(equip: boolean): void {
   ui.armorModal.classList.add('hidden');
   act({ type: equip ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
 }
-
-/** The floor whose merchant has already introduced themselves. */
-let shopGreetedFloor: number | null = null;
 
 function openShop(): void {
   if (!state.shop) return;
@@ -217,7 +211,9 @@ function stepTravel(): void {
 
   const moved = state.player.position.x !== from.x || state.player.position.y !== from.y;
   // A step that went nowhere means the way closed — a shift, or something now
-  // standing in it. Either way the planned route is stale.
+  // standing in it. Either way the planned route is stale. Walking into the
+  // merchant lands here too, and wants exactly this: the step that did not move
+  // was the trade, `act` has already raised his stock, and the walk is over.
   if (
     !moved ||
     state.isGameOver ||
@@ -232,13 +228,23 @@ function stepTravel(): void {
 /**
  * The map as the player knows it. Routing over the true geometry would let a
  * single tap solve corridors they have never seen.
+ *
+ * The merchant is solid, so he is a wall to the router — unless he is the tap's
+ * destination, where the route has to reach his tile for the last step to be the
+ * bump that opens his stock.
  */
-function exploredMap(): FloorMap {
-  const { floorMap } = state;
+function exploredMap(target: Position): FloorMap {
+  const { floorMap, shop } = state;
+  const blocked =
+    shop && !(shop.position.x === target.x && shop.position.y === target.y) ? shop.position : null;
   return {
     ...floorMap,
     tiles: floorMap.tiles.map((row, y) =>
-      row.map((tile, x) => (floorMap.explored[y][x] ? tile : { ...tile, type: 'wall' }))
+      row.map((tile, x) =>
+        floorMap.explored[y][x] && !(blocked && blocked.x === x && blocked.y === y)
+          ? tile
+          : { ...tile, type: 'wall' }
+      )
     ),
   };
 }
@@ -246,7 +252,7 @@ function exploredMap(): FloorMap {
 function travelTo(target: Position): void {
   stopTravel();
 
-  const path = findPath(exploredMap(), state.player.position, target);
+  const path = findPath(exploredMap(target), state.player.position, target);
   if (!path || path.length < 2) return;
 
   travelPath = path.slice(1);
@@ -329,8 +335,6 @@ function enterRun(next: GameState): void {
   ui.armorModal.classList.add('hidden');
   showLevelUp(ui, null);
   showBossDefeat(ui, null);
-  // A resumed run's merchant has already been met — reopening is the coin chip's job.
-  shopGreetedFloor = next.shop ? next.shop.floor : null;
   closeShop();
   closeInventory();
   resizeCanvas();
@@ -387,7 +391,6 @@ function bootGameShell(): void {
   root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
   root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
   ui.potionBtn.addEventListener('click', usePotion);
-  ui.coinChip.addEventListener('click', openShop);
   root.querySelector('#btn-close-inventory')!.addEventListener('click', closeInventory);
 
   // The viewport is flex-sized, so its box is only known after layout — observe it

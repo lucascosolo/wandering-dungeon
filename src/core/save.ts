@@ -1,5 +1,5 @@
 import { del, get, set } from 'idb-keyval';
-import { GameState, Player } from './state';
+import { GameState, Player, Position } from './state';
 
 /**
  * Bumped whenever `GameState`'s shape changes in a way an older save cannot
@@ -43,11 +43,19 @@ export function decodeRun(raw: unknown): GameState | null {
   const state = saved.state as GameState & { floorTurns?: number };
   state.floorTurns ??= 0;
 
+  // A run saved before the merchant stood on a tile carries a shop with no
+  // position. Backfilled to the floor's entrance — a room tile that is never the
+  // stairs, so the merchant cannot resume standing where the player has to walk
+  // to descend — rather than discarding the run over a field it can be given.
+  const shop = saved.state.shop as (GameState['shop'] & { position?: Position }) | null;
+  if (shop) shop.position ??= { ...saved.state.floorMap.entrance };
+
   // Purely one-turn signals to the HUD. Resuming is not that turn, so a run saved
-  // on the turn it levelled — or felled a guardian — must not come back with the
-  // splash still pending.
+  // on the turn it levelled — or felled a guardian, or opened the merchant's
+  // stock — must not come back with the splash or the modal still pending.
   saved.state.lastLevelUp = null;
   saved.state.lastBossDefeat = null;
+  saved.state.shopOpened = false;
 
   return saved.state;
 }

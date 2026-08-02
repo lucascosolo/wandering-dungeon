@@ -1,5 +1,6 @@
 import { Enemy, EnemyType, GameState, Position } from '../core/state';
 import { regionForFloor } from '../core/regions';
+import { isSoldOut } from '../core/shop';
 import { ParticleSystem } from './particles';
 
 export const TILE_SIZE = 30;
@@ -39,6 +40,10 @@ export const ENEMY_STYLES: Record<EnemyType, { glyph: string; color: string; lab
   null_testament: { glyph: 'T', color: '#c77dff', label: 'Null Testament' },
 };
 const COLOR_RIFTBOUND_GUARD = '#d9d0ff';
+/** Ivory, so the merchant reads as neither loot nor a foe. White is the boss
+ *  glyph, but no boss is alive on a floor that has a merchant on it. */
+const COLOR_MERCHANT = '#f2e8cf';
+const COLOR_MERCHANT_EMPTY = '#6f6a60';
 const COLOR_TELEGRAPH = 'rgba(255, 0, 85, 0.35)';
 const COLOR_TELEGRAPH_SHIFT = 'rgba(157, 78, 221, 0.3)';
 const COLOR_HINGE = 'rgba(255, 183, 77, 0.65)';
@@ -214,6 +219,24 @@ export function renderFrame(
           ? COLOR_COIN
           : COLOR_ITEM;
     drawGlyph(ctx, glyph, color, x * TILE_SIZE + offsetX, y * TILE_SIZE + offsetY);
+  }
+
+  const { shop } = state;
+  if (shop && floorMap.visible[shop.position.y][shop.position.x]) {
+    const px = shop.position.x * TILE_SIZE + offsetX;
+    const py = shop.position.y * TILE_SIZE + offsetY;
+    // Bought out is a persistent state, so it reads on the map and not only in
+    // the log: the stall greys out and takes a dashed ring, the same idiom the
+    // Riftbound uses for "standing here on purpose".
+    const empty = isSoldOut(shop);
+    drawGlyph(ctx, '&', empty ? COLOR_MERCHANT_EMPTY : COLOR_MERCHANT, px, py);
+    if (empty) {
+      ctx.strokeStyle = COLOR_MERCHANT_EMPTY;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(px + 1.5, py + 1.5, TILE_SIZE - 3, TILE_SIZE - 3);
+      ctx.setLineDash([]);
+    }
   }
 
   for (const enemy of state.entities) {

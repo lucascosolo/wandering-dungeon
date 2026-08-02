@@ -135,14 +135,36 @@ describe('Run persistence', () => {
     expect(restored.player.xp).toBe(0);
   });
 
-  it('brings the merchant back with the same stock', () => {
+  it('brings the merchant back with the same stock, standing on the same tile', () => {
     const state = playedRun('save-shop', 5);
-    state.shop = createShop(new SeededRNG('save-shop-stock'), 2, 15);
+    state.shop = createShop(new SeededRNG('save-shop-stock'), 2, 15, { x: 7, y: 4 });
 
     const restored = roundTrip(state)!;
 
     // Rerolling on resume would let a player close the tab until the stock suited them.
     expect(restored.shop).toEqual(state.shop);
+    // The stock is reached by bumping him, so losing his tile would leave a shop
+    // with no way in at all.
+    expect(restored.shop!.position).toEqual({ x: 7, y: 4 });
+  });
+
+  it('does not reopen the merchant on resume', () => {
+    const state = playedRun('save-shop-open', 5);
+    state.shop = createShop(new SeededRNG('save-shop-open-stock'), 2, 15, { x: 7, y: 4 });
+    state.shopOpened = true;
+
+    expect(roundTrip(state)!.shopOpened).toBe(false);
+  });
+
+  it('stands a merchant saved before he had a tile on the floor entrance', () => {
+    const state = playedRun('save-shop-legacy', 5);
+    state.shop = createShop(new SeededRNG('save-shop-legacy-stock'), 2, 15, { x: 7, y: 4 });
+    const saved = structuredClone(encodeRun(state));
+    delete (saved.state.shop as Partial<NonNullable<GameState['shop']>>).position;
+
+    const restored = decodeRun(saved)!;
+
+    expect(restored.shop!.position).toEqual(state.floorMap.entrance);
   });
 
   it('survives a shift, which is the state most likely to diverge', () => {

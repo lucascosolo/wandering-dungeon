@@ -207,6 +207,39 @@ function manhattan(a: Position, b: Position): number {
 }
 
 /**
+ * A free tile for something placed after the floor was built — the merchant, so
+ * far. Rooms only: a corridor or door tile is a chokepoint, and the merchant is a
+ * solid obstacle, so standing him in one could seal the way to the stairs on a
+ * floor that has already stopped shifting. Nearby is preferred over anywhere so
+ * the arena's reward is visibly in the arena, with the whole floor as the
+ * fallback when the player cleared it from an odd corner.
+ */
+export function pickSpawnPosition(
+  map: FloorMap,
+  rng: SeededRNG,
+  near: Position,
+  occupied: Position[]
+): Position | null {
+  const taken = new Set(occupied.map(p => `${p.x},${p.y}`));
+  const open = walkableTiles(map).filter(p => {
+    const tile = map.tiles[p.y][p.x];
+    const group = tile.shiftGroupId === null ? undefined : map.shiftGroups[tile.shiftGroupId];
+    return (
+      tile.type === 'floor' &&
+      group?.type === 'room' &&
+      !taken.has(`${p.x},${p.y}`) &&
+      !(p.x === map.exit.x && p.y === map.exit.y)
+    );
+  });
+  if (open.length === 0) return null;
+
+  const close = open.filter(p => manhattan(p, near) <= 8);
+  const pool = close.length > 0 ? close : open;
+  const pick = pool[rng.randomInt(0, pool.length - 1)];
+  return { x: pick.x, y: pick.y };
+}
+
+/**
  * Place enemies and item drops on a freshly generated floor.
  * Nothing spawns within 5 tiles of the entrance so the player gets a beat to orient.
  */
@@ -395,6 +428,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     lastDamageSource: null,
     clearedRegions: [],
     shop: null,
+    shopOpened: false,
     eventLog: [],
     isGameOver: false,
     isVictory: false,

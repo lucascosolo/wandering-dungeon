@@ -1045,10 +1045,7 @@ html, body {
   font-weight: 600;
 }
 
-.coin-chip:disabled { cursor: default; }
-
 .coin-chip--merchant {
-  cursor: pointer;
   border-color: #f7b32b;
   box-shadow: 0 0 12px rgba(247, 179, 43, 0.45);
 }

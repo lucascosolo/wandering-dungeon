@@ -1,4 +1,4 @@
-import { Item, ItemType, ShopOffer, ShopState } from './state';
+import { Item, ItemType, Position, ShopOffer, ShopState } from './state';
 import { SeededRNG } from './rng';
 import { createItem } from './game';
 import { REGIONS } from './regions';
@@ -73,13 +73,24 @@ function offer(type: ItemType, regionIndex: number, id: string): ShopOffer {
   };
 }
 
-export function createShop(rng: SeededRNG, regionIndex: number, floor: number): ShopState {
+export function createShop(
+  rng: SeededRNG,
+  regionIndex: number,
+  floor: number,
+  position: Position
+): ShopState {
   return {
     regionIndex,
     floor,
     merchant: MERCHANT_NAMES[regionIndex] ?? MERCHANT_NAMES[0],
+    position,
     stock: rollShopStock(rng, regionIndex),
   };
+}
+
+/** Nothing left to sell. The renderer draws this state, so it reads off the map. */
+export function isSoldOut(shop: ShopState): boolean {
+  return shop.stock.every(offer => offer.sold);
 }
 
 const MERCHANT_NAMES: string[] = REGIONS.map(

@@ -12,7 +12,14 @@ import {
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
 import { findPath } from './map/pathfinding';
-import { buildFloor, coinsPerKill, createItem, xpPerKill, xpToNextLevel } from './game';
+import {
+  buildFloor,
+  coinsPerKill,
+  createItem,
+  pickSpawnPosition,
+  xpPerKill,
+  xpToNextLevel,
+} from './game';
 import { isRegionEnd, regionForFloor } from './regions';
 import { createShop, resolvePurchase } from './shop';
 
@@ -190,6 +197,18 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
     return true;
   }
 
+  const { shop } = state;
+  if (shop && shop.position.x === target.x && shop.position.y === target.y) {
+    // Bumping the merchant trades instead of stepping onto them, the same shape
+    // as bumping an enemy attacks. Free, like BUY_ITEM itself: the floor is
+    // stabilized by the time a merchant exists, so there is no clock to dodge —
+    // and charging a turn for opening a price list, when reading it is free,
+    // would only tax the player for closing the modal by accident.
+    state.shopOpened = true;
+    events.push(`${shop.merchant} spreads out their wares.`);
+    return false;
+  }
+
   if (!isWalkableAt(state, target)) {
     events.push('The way is blocked.');
     return false;
@@ -351,7 +370,10 @@ function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): v
   clearedRegions.push(region.index);
   // The merchant arrives with the region's fall, and is rolled exactly once —
   // see ShopState. Reopening the modal must never reroll the stock.
-  state.shop = createShop(rng, region.index, state.floorMap.level);
+  const stall =
+    pickSpawnPosition(state.floorMap, rng, state.player.position, [state.player.position]) ??
+    state.floorMap.entrance;
+  state.shop = createShop(rng, region.index, state.floorMap.level, stall);
   const reward = createItem('hourglass_shard', `boss_reward_${state.floorMap.level}`);
   state.player.inventory.push(reward);
   state.lastBossDefeat = {
@@ -360,6 +382,7 @@ function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): v
     bossName: defeatedBosses[0].name,
   };
   events.push(`${defeatedBosses[0].name} falls. ${region.name} is cleared; you claim a ${reward.name}.`);
+  events.push(`${state.shop.merchant} sets up a stall in the quiet arena. Walk into them to trade.`);
 }
 
 function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
@@ -705,6 +728,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   // means "gained this dispatch" for every caller, tests included.
   state.lastLevelUp = null;
   state.lastBossDefeat = null;
+  state.shopOpened = false;
 
   const rng = rngFor(state);
   let changedFloor = false;

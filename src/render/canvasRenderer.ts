@@ -127,10 +127,18 @@ export function renderFrame(
   state: GameState,
   width: number,
   height: number,
-  particles?: ParticleSystem
+  particles?: ParticleSystem,
+  /**
+   * Screen shake, in pixels, applied to the camera rather than to the canvas
+   * transform — the background fill has to stay put, or a shake would show bare
+   * edges where the world slid off.
+   */
+  shake?: { x: number; y: number }
 ): void {
   const { floorMap } = state;
-  const { offsetX, offsetY } = computeCamera(state, width, height);
+  const camera = computeCamera(state, width, height);
+  const offsetX = camera.offsetX + (shake?.x ?? 0);
+  const offsetY = camera.offsetY + (shake?.y ?? 0);
   const region = regionForFloor(floorMap.level);
   const hasHingeStress = region.index === 0;
 

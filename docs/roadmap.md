@@ -571,7 +571,7 @@ Files: `src/core/state.ts`, `src/core/game.ts`, `src/core/engine.ts`,
 
 No dependency on the epic. Pick these up between phases.
 
-## Impact effects for shifts and combat
+## ~~Impact effects for shifts and combat~~ — partly shipped
 
 Shifts and altercations should read as events. Candidates: screen shake on a
 collapse, hit-stop on a kill, heavier particle bursts, a flash on the struck
@@ -580,15 +580,40 @@ glyph.
 The render loop is on-demand — effects that animate must keep marking the frame
 dirty while they run, the way particles do via `ParticleSystem.active`.
 
-## Pickup feedback
+**Shipped**: screen shake on an executed shift. `renderFrame` takes an optional
+pixel offset applied to the *camera*, not to the canvas transform — shaking the
+transform would slide the background fill too and show bare edges. It is driven
+from `renderTick` in `main.ts`, which keeps the frame dirty while the magnitude
+decays, and armed off `state.lastShiftTurn === state.turnCount` rather than off
+log text, which cannot tell an execution from its telegraph. The displacement is
+two out-of-phase sines rather than a random walk: steadier to watch, and one
+less unseeded roll.
+
+**Still open**: hit-stop on a kill, and a flash on the struck glyph. Both are
+combat-side; the shift side is done.
+
+## ~~Pickup feedback~~ — partly shipped
 
 Walking over a `*` produces no acknowledgement. Candidates: a burst on the tile,
 the item name rising off it, a highlight on the hotbar slot it landed in.
 
-## Show cooldowns
+**Shipped**: a burst on the tile, in the colour the map drew the glyph — gold
+for an item, deeper gold for coins. **Still open**: the rising name and the
+hotbar-slot highlight, which is where a player who picked up something they
+cannot immediately see would actually look.
+
+## ~~Show cooldowns~~ — shipped
 
 `state.abilityCooldown` already gates `ui.abilityBtn.disabled` in `updateHud`,
 so the number exists and simply is not shown. Same for `stasisTurnsRemaining`.
+
+**Shipped**: the Shield button now prints its turn count. Both states are
+disabled and both print a number, and they mean opposite things, so colour is
+what separates them — cyan while the shield is holding, amber while it is coming
+back, with the count in the button's `title` in words. The class selectors are
+doubled (`.action-btn.action-btn--holding`) because `.action-btn:disabled`
+matches at the same weight and would otherwise win the opacity.
+`stasisTurnsRemaining` was already shown, in the shift pill.
 
 ---
 

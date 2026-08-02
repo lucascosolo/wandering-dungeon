@@ -98,11 +98,25 @@ function reactToEvents(events: string[], struck: { x: number; y: number } | null
     if (text.startsWith('You hit')) {
       const at = struck ?? { x, y };
       particles.burst(at.x, at.y, '#00f0ff', 8);
+    } else if (text.startsWith('You pick up')) {
+      // Walking over a `*` used to produce nothing at all — the item simply
+      // appeared in the hotbar, which is a place the player is not looking while
+      // they walk. The colours are the ones the map drew the glyph in.
+      particles.burst(x, y, '#ffd166', 10);
+    } else if (text.startsWith('You pocket')) {
+      particles.burst(x, y, '#f7b32b', 10);
     } else if (text.includes('damage')) {
       particles.burst(x, y, '#ff0055', 10);
     } else if (text.toLowerCase().includes('shift')) {
       particles.burst(x, y, '#9d4edd', 16);
     }
+  }
+
+  // The floor rearranging itself is the loudest thing that happens in this game
+  // and read as the quietest. Keyed off the turn the shift executed rather than
+  // off the log text, which cannot tell an execution from its telegraph.
+  if (state.lastShiftTurn === state.turnCount) {
+    shakeMagnitude = SHIFT_SHAKE_PIXELS;
   }
 
   // A reactive modifier fires on a tile, not in the log, so it sparks there —
@@ -610,6 +624,21 @@ function loop(now: number): void {
   }
 }
 
+/**
+ * Screen shake, in pixels, decaying per frame. A shift used to land as a violet
+ * puff and a line of log text, which is a small acknowledgement for the floor
+ * rearranging itself underneath you.
+ *
+ * Like particles, this has to keep marking the frame dirty for as long as it
+ * runs — the render loop only draws when something asks it to. The displacement
+ * is two out-of-phase sines rather than a random walk, which is both steadier to
+ * look at and one less unseeded roll in a codebase whose whole determinism story
+ * is that there are none.
+ */
+let shakeMagnitude = 0;
+const SHIFT_SHAKE_PIXELS = 6;
+const SHAKE_DECAY_PER_FRAME = 0.14;
+
 function renderTick(now: number): void {
   const dt = Math.min(3, (now - lastFrame) / 16.67);
   lastFrame = now;
@@ -619,8 +648,23 @@ function renderTick(now: number): void {
     dirty = true;
   }
 
+  let shake: { x: number; y: number } | undefined;
+  if (shakeMagnitude > 0.15) {
+    shake = {
+      x: Math.sin(now * 0.09) * shakeMagnitude,
+      y: Math.cos(now * 0.13) * shakeMagnitude,
+    };
+    shakeMagnitude *= Math.max(0, 1 - SHAKE_DECAY_PER_FRAME * dt);
+    dirty = true;
+  } else if (shakeMagnitude !== 0) {
+    // Settle exactly, so the last frame of a shake puts the world back where the
+    // camera says it is rather than a fraction of a pixel off it forever.
+    shakeMagnitude = 0;
+    dirty = true;
+  }
+
   if (dirty) {
-    renderFrame(ctx, state, viewWidth, viewHeight, particles);
+    renderFrame(ctx, state, viewWidth, viewHeight, particles, shake);
     dirty = false;
   }
 }

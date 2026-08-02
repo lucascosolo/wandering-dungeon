@@ -1,4 +1,4 @@
-import { get, set } from 'idb-keyval';
+import { del, get, set } from 'idb-keyval';
 
 export type ActionId =
   | 'moveUp'
@@ -93,11 +93,31 @@ export function sanitize(stored: unknown): Keybinds {
 }
 
 export async function loadKeybinds(): Promise<void> {
-  bindings = sanitize(await get(STORAGE_KEY));
+  // Same storage boundary as `save.ts`: unreadable bindings mean the defaults,
+  // never a rejected boot chain. `sanitize` already treats anything it does not
+  // recognise as "use the default", so undefined is a value it handles.
+  try {
+    bindings = sanitize(await get(STORAGE_KEY));
+  } catch (error) {
+    console.error('Could not read saved keybinds', error);
+    bindings = sanitize(undefined);
+  }
 }
 
 function save(): void {
-  void set(STORAGE_KEY, bindings);
+  // Not `void set(...)`: an unhandled rejection here would surface the global
+  // error panel over a working game every time a key is rebound.
+  set(STORAGE_KEY, bindings).catch(error => console.error('Could not save keybinds', error));
+}
+
+/** Part of the error panel's Reset Save, which must work when nothing else does. */
+export async function clearKeybinds(): Promise<void> {
+  try {
+    await del(STORAGE_KEY);
+  } catch (error) {
+    console.error('Could not clear keybinds', error);
+  }
+  bindings = clone(DEFAULT_KEYBINDS);
 }
 
 /**

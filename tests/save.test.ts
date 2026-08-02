@@ -218,3 +218,96 @@ describe('Run persistence', () => {
     expect(decodeRun(undefined)).toBeNull();
   });
 });
+
+/**
+ * `decodeRun` runs inside the boot chain, before any screen exists. A throw here
+ * is not a caught error — it is a permanently black page on a tester's phone
+ * with no console and no way to clear IndexedDB. Every case below must come back
+ * as "no save", which costs at most one unresumable run.
+ */
+describe('decodeRun is a boundary and never throws', () => {
+  /** A save whose `state` has been mutated into something malformed. */
+  function damaged(mutate: (state: Record<string, unknown>) => void): unknown {
+    const saved = structuredClone(encodeRun(playedRun('save-damage', 4)));
+    mutate(saved.state as unknown as Record<string, unknown>);
+    return saved;
+  }
+
+  const garbage: [string, unknown][] = [
+    ['null', null],
+    ['undefined', undefined],
+    ['a number', 42],
+    ['a string', 'run-in-progress'],
+    ['an array', [1, 2, 3]],
+    ['an empty object', {}],
+    ['the right version wrapping nothing', { version: SAVE_VERSION }],
+    ['the right version wrapping a string', { version: SAVE_VERSION, state: 'corrupt' }],
+    ['the right version wrapping an empty state', { version: SAVE_VERSION, state: {} }],
+    ['a value from some other app', { version: SAVE_VERSION, state: { hello: 'world' } }],
+  ];
+
+  for (const [label, value] of garbage) {
+    it(`returns null for ${label}`, () => {
+      expect(() => decodeRun(value)).not.toThrow();
+      expect(decodeRun(value)).toBeNull();
+    });
+  }
+
+  const truncations: [string, (state: Record<string, unknown>) => void][] = [
+    // The one that motivated all of this: the shop backfill reads
+    // `state.floorMap.entrance`, so a save with no map threw a TypeError straight
+    // into the uncatchable boot chain.
+    ['no floorMap at all', s => delete s.floorMap],
+    ['a floorMap with no entrance', s => delete (s.floorMap as Record<string, unknown>).entrance],
+    ['a floorMap with no exit', s => delete (s.floorMap as Record<string, unknown>).exit],
+    ['no tile grid', s => delete (s.floorMap as Record<string, unknown>).tiles],
+    ['no player', s => delete s.player],
+    ['a player with no position', s => delete (s.player as Record<string, unknown>).position],
+    ['a player with no inventory', s => delete (s.player as Record<string, unknown>).inventory],
+    ['no rng state', s => delete s.rngState],
+    ['no run config', s => delete s.config],
+    ['no entity list', s => delete s.entities],
+    ['a tile grid cut short', s => ((s.floorMap as { tiles: unknown[] }).tiles.length = 3)],
+    [
+      'a tile row cut short',
+      s => ((s.floorMap as { tiles: unknown[][] }).tiles[0]!.length = 2),
+    ],
+    [
+      'a tile grid of nulls',
+      s => {
+        const map = s.floorMap as { tiles: unknown[][] };
+        map.tiles = map.tiles.map(row => row.map(() => null));
+      },
+    ],
+    [
+      'a fog grid that does not match the map',
+      s => ((s.floorMap as { explored: unknown[] }).explored.length = 1),
+    ],
+    ['a player position of NaN', s => ((s.player as { position: { x: number } }).position.x = NaN)],
+  ];
+
+  for (const [label, mutate] of truncations) {
+    it(`returns null for a save with ${label}`, () => {
+      const value = damaged(mutate);
+      expect(() => decodeRun(value)).not.toThrow();
+      expect(decodeRun(value)).toBeNull();
+    });
+  }
+
+  it('survives a state whose fields throw when read', () => {
+    const saved = structuredClone(encodeRun(playedRun('save-hostile', 4)));
+    Object.defineProperty(saved.state, 'player', {
+      get() {
+        throw new Error('hostile getter');
+      },
+    });
+
+    expect(() => decodeRun(saved)).not.toThrow();
+    expect(decodeRun(saved)).toBeNull();
+  });
+
+  it('still accepts a genuine save, so the checks are not simply refusing everything', () => {
+    const state = playedRun('save-still-good', 6);
+    expect(roundTrip(state)).not.toBeNull();
+  });
+});

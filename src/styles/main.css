@@ -1160,3 +1160,79 @@ html, body {
   font-family: var(--font-mono);
   font-weight: 700;
 }
+
+/* The crash panel. Sits on `body` above everything including the title screen
+   (z-index 60) — it is shown when nothing else can be trusted to still exist,
+   so it borrows the title screen's layout tokens rather than any HUD element's. */
+.error-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-area-top) + 24px) 24px calc(var(--safe-area-bottom) + 24px);
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 0, 85, 0.18), transparent 60%),
+    var(--bg-main);
+}
+
+.error-panel__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.error-panel__mark {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  letter-spacing: 0.22em;
+  color: var(--warning-red);
+  text-shadow: 0 0 18px var(--warning-red-glow);
+}
+
+.error-panel__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.error-panel__headline {
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.error-panel__detail {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  max-width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-glass-card);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.error-panel__note {
+  margin: 4px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.error-panel .title-btn small { text-align: center; }

@@ -1,7 +1,7 @@
 import { get, set } from 'idb-keyval';
 import { GameAction } from '../core/engine';
 import { regionForFloor } from '../core/regions';
-import { GameState, ShiftType } from '../core/state';
+import { GameState, manhattan, ShiftType } from '../core/state';
 
 const ENDPOINT = '/__runlog';
 
@@ -117,9 +117,8 @@ function totalEnemyHp(state: GameState): number {
 }
 
 function adjacentEnemies(state: GameState): number {
-  const { x, y } = state.player.position;
   return state.entities.filter(
-    e => e.hp > 0 && Math.abs(e.position.x - x) + Math.abs(e.position.y - y) === 1
+    e => e.hp > 0 && manhattan(e.position, state.player.position) === 1
   ).length;
 }
 

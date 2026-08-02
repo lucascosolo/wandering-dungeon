@@ -9,6 +9,8 @@ import {
   ShiftTileChange,
   ShiftType,
   TileType,
+  manhattan,
+  samePosition,
 } from '../state';
 import { SeededRNG } from '../rng';
 import { damagePlayer } from '../damage';
@@ -166,7 +168,7 @@ function pickGroupNearPlayer(map: FloorMap, ids: string[], playerPos: Position):
   let bestDist = Infinity;
   for (const id of ids) {
     const c = groupCenter(map, id);
-    const dist = Math.abs(c.x - playerPos.x) + Math.abs(c.y - playerPos.y);
+    const dist = manhattan(c, playerPos);
     if (dist < bestDist) {
       bestDist = dist;
       best = id;
@@ -322,8 +324,7 @@ function orderGroupsByDistance(map: FloorMap, ids: string[], playerPos: Position
       const ca = groupCenter(map, a);
       const cb = groupCenter(map, b);
       return (
-        Math.abs(ca.x - playerPos.x) + Math.abs(ca.y - playerPos.y) -
-        (Math.abs(cb.x - playerPos.x) + Math.abs(cb.y - playerPos.y))
+        manhattan(ca, playerPos) - manhattan(cb, playerPos)
       );
     });
   return first ? [first, ...rest] : rest;
@@ -636,7 +637,7 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
     // for it. planShift guaranteed such a tile exists.
     if (!isSafeTile(map.tiles[state.player.position.y][state.player.position.x].type)) {
       const safeTile = findNearestSafeTile(map, state.player.position, p =>
-        state.entities.some(e => e.hp > 0 && e.position.x === p.x && e.position.y === p.y)
+        state.entities.some(e => e.hp > 0 && samePosition(e.position, p))
       );
       if (safeTile) {
         state.player.position = safeTile;
@@ -651,7 +652,7 @@ export function executeShift(state: GameState, rng: SeededRNG): string[] {
   if (
     regionForFloor(map.level).index === 3 &&
     changed.some(change =>
-      Math.abs(change.x - state.player.position.x) + Math.abs(change.y - state.player.position.y) === 1
+      manhattan(change, state.player.position) === 1
     )
   ) {
     events.push('Shards burst from the rearranged glass beside you.');
@@ -823,9 +824,7 @@ function applyCorridorReconnect(
     .sort((a, b) => {
       const ca = groupCenter(map, a);
       const cb = groupCenter(map, b);
-      const da = Math.abs(ca.x - playerPos.x) + Math.abs(ca.y - playerPos.y);
-      const db = Math.abs(cb.x - playerPos.x) + Math.abs(cb.y - playerPos.y);
-      return da - db;
+      return manhattan(ca, playerPos) - manhattan(cb, playerPos);
     });
   if (roomGroups.length < 2) return;
 
@@ -909,10 +908,8 @@ function applyFalloutDamage(state: GameState, events: string[]): void {
  */
 function applyEntityFallout(state: GameState, events: string[]): void {
   const occupied = (p: Position, self: Enemy): boolean =>
-    (state.player.position.x === p.x && state.player.position.y === p.y) ||
-    state.entities.some(
-      e => e !== self && e.hp > 0 && e.position.x === p.x && e.position.y === p.y
-    );
+    samePosition(state.player.position, p) ||
+    state.entities.some(e => e !== self && e.hp > 0 && samePosition(e.position, p));
 
   for (const entity of state.entities) {
     if (entity.hp <= 0) continue;

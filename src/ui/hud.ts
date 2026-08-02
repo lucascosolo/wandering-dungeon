@@ -323,6 +323,26 @@ export function armorSummary(armor: Item): string {
 }
 
 /**
+ * Restart a CSS enter-animation that is already on the element. The class has to
+ * come off, the layout has to be read to flush it, and only then does putting it
+ * back re-trigger — without the forced reflow the browser coalesces both class
+ * changes into no change at all and the animation never plays a second time.
+ *
+ * `void` on the read is deliberate: it is there for the side effect, and without
+ * it a minifier is free to drop the property access and silently break this.
+ */
+function replayAnimation(el: HTMLElement, enterClass: string, html: string | null): void {
+  el.classList.remove(enterClass);
+  if (html === null) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = html;
+  void el.offsetWidth;
+  el.classList.add(enterClass);
+}
+
+/**
  * The level-up splash. Notification, not prompt: it is `pointer-events: none` and
  * bound to no handler, so it cannot swallow the tap that continues a walk, and
  * nothing here dispatches an action — showing it costs no turn.
@@ -332,18 +352,15 @@ export function armorSummary(armor: Item): string {
  * on again — same dance as the region banner, for the same reason.
  */
 export function showLevelUp(ui: HudElements, notice: LevelUpNotice | null): void {
-  ui.levelSplash.classList.remove('level-splash--enter');
-  if (!notice) {
-    ui.levelSplash.innerHTML = '';
-    return;
-  }
-
-  ui.levelSplash.innerHTML = `
+  replayAnimation(
+    ui.levelSplash,
+    'level-splash--enter',
+    notice &&
+      `
     <span class="level-splash__title">Level ${notice.level}</span>
     <span class="level-splash__gains">+${notice.maxHpGained} max HP &middot; +${notice.attackGained} attack</span>
-  `;
-  void ui.levelSplash.offsetWidth;
-  ui.levelSplash.classList.add('level-splash--enter');
+  `
+  );
 }
 
 /**
@@ -357,19 +374,16 @@ export function showLevelUp(ui: HudElements, notice: LevelUpNotice | null): void
  * bring them into contact.
  */
 export function showBossDefeat(ui: HudElements, notice: BossDefeatNotice | null): void {
-  ui.bossSplash.classList.remove('boss-splash--enter');
-  if (!notice) {
-    ui.bossSplash.innerHTML = '';
-    return;
-  }
-
-  ui.bossSplash.innerHTML = `
+  replayAnimation(
+    ui.bossSplash,
+    'boss-splash--enter',
+    notice &&
+      `
     <span class="boss-splash__title">Floor ${notice.floor} Stabilized</span>
     <span class="boss-splash__line">${escapeHtml(notice.bossName)} falls. ${escapeHtml(notice.regionName)} settles into alignment.</span>
     <span class="boss-splash__line boss-splash__line--muted">The decay resumes when you descend.</span>
-  `;
-  void ui.bossSplash.offsetWidth;
-  ui.bossSplash.classList.add('boss-splash--enter');
+  `
+  );
 }
 
 /** Only the last few lines show, older ones fading out — a HUD log, not a scrollback. */

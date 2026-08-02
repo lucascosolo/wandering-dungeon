@@ -123,6 +123,24 @@ describe('Run persistence', () => {
     expect(roundTrip(state)!.clearedRegions).toEqual([0]);
   });
 
+  it('keeps refused armor refused across a resume', () => {
+    const state = playedRun('save-declines', 5);
+    state.declinedArmorIds = ['armor_5', 'armor_3'];
+
+    // Losing these would put the swap prompt back in the player's face on the
+    // first step after a resume, for pieces they have already turned down.
+    expect(roundTrip(state)!.declinedArmorIds).toEqual(['armor_5', 'armor_3']);
+  });
+
+  it('resumes a run saved before declines could stick with none recorded', () => {
+    const state = playedRun('save-pre-declines', 5);
+    const saved = structuredClone(encodeRun(state));
+    delete (saved.state as Partial<GameState>).declinedArmorIds;
+
+    // Backfilled rather than discarded — the run simply asks once more.
+    expect(decodeRun(saved)!.declinedArmorIds).toEqual([]);
+  });
+
   it('resumes a run saved before levels existed at level 1', () => {
     const state = playedRun('save-pre-xp', 5);
     const saved = structuredClone(encodeRun(state));

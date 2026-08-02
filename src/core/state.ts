@@ -260,9 +260,18 @@ export interface GameState {
   /**
    * Armor the player is standing on while already wearing some. The piece stays
    * on the floor until EQUIP_ARMOR resolves the offer, so a declined swap needs
-   * no put-back path and re-stepping on the tile simply asks again.
+   * no put-back path — the piece is simply still there afterwards.
    */
   pendingArmorOffer: Item | null;
+  /**
+   * Pieces of armor the player has already said no to, by item id. Keyed on the
+   * piece and not the tile: item ids are unique per drop, so a *different* piece
+   * landing on the same tile is a fresh decision and still asks, while a declined
+   * piece the dungeon shifts somewhere else stays declined — the answer was about
+   * the armor, not about the floor under it. Reset by `buildFloor`, since drops do
+   * not survive a descent.
+   */
+  declinedArmorIds: string[];
   /**
    * A level gained during the turn just dispatched, for the HUD to splash. Written
    * only by `grantXp` and cleared at the top of every dispatch, so it names one

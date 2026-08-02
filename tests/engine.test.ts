@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ATTACK_PER_LEVEL,
+  declinedArmorUnderfoot,
   dispatchAction,
   grantXp,
   HP_PER_LEVEL,
@@ -697,6 +698,89 @@ describe('Armor', () => {
     expect(state.player.armor?.id).toBe('worn');
     expect(state.pendingArmorOffer).toBeNull();
     expect(state.turnCount).toBe(turn);
+  });
+
+  /** Wear something, step onto `piece` on the neighbouring tile, and say no. */
+  function declineOnNeighbour(state: GameState, piece: Item) {
+    const step = stepTarget(state);
+    state.player.armor = armor('worn', 2);
+    state.floorMap.drops = [{ item: piece, position: { x: step.x, y: step.y } }];
+
+    dispatchAction(state, { type: 'MOVE', dx: step.dx, dy: step.dy });
+    expect(state.pendingArmorOffer?.id).toBe(piece.id);
+    dispatchAction(state, { type: 'DECLINE_ARMOR' });
+    return step;
+  }
+
+  it('does not ask again after a decline, however often the tile is re-entered', () => {
+    const state = createMockGameState();
+    const step = declineOnNeighbour(state, armor('carapace_a', 5));
+
+    for (let i = 0; i < 3; i++) {
+      dispatchAction(state, { type: 'MOVE', dx: -step.dx, dy: -step.dy });
+      dispatchAction(state, { type: 'MOVE', dx: step.dx, dy: step.dy });
+      expect(state.pendingArmorOffer).toBeNull();
+    }
+
+    // Still there, still declined — which is what the HUD hint reads.
+    expect(state.floorMap.drops).toHaveLength(1);
+    expect(declinedArmorUnderfoot(state)?.id).toBe('carapace_a');
+  });
+
+  it('asks again for a different piece that lands on the same tile', () => {
+    const state = createMockGameState();
+    const step = declineOnNeighbour(state, armor('carapace_a', 5));
+
+    // The dungeon puts a second, distinct piece where the first one lies. A new
+    // piece is a new decision, so the decline on A must not answer for B.
+    state.floorMap.drops!.push({ item: armor('carapace_b', 7), position: { x: step.x, y: step.y } });
+    dispatchAction(state, { type: 'MOVE', dx: -step.dx, dy: -step.dy });
+    dispatchAction(state, { type: 'MOVE', dx: step.dx, dy: step.dy });
+
+    expect(state.pendingArmorOffer?.id).toBe('carapace_b');
+  });
+
+  it('re-raises the prompt on request, for free, and only where a declined piece lies', () => {
+    const state = createMockGameState();
+    const step = declineOnNeighbour(state, armor('carapace_a', 5));
+    const turn = state.turnCount;
+
+    dispatchAction(state, { type: 'PICK_UP_ARMOR' });
+    expect(state.pendingArmorOffer?.id).toBe('carapace_a');
+    expect(state.turnCount).toBe(turn);
+
+    dispatchAction(state, { type: 'EQUIP_ARMOR' });
+    expect(state.player.armor?.id).toBe('carapace_a');
+    expect(state.floorMap.drops!.map(d => d.item.id)).toEqual(['worn']);
+
+    // Off the tile there is nothing to re-raise.
+    dispatchAction(state, { type: 'MOVE', dx: -step.dx, dy: -step.dy });
+    expect(declinedArmorUnderfoot(state)).toBeNull();
+    dispatchAction(state, { type: 'PICK_UP_ARMOR' });
+    expect(state.pendingArmorOffer).toBeNull();
+  });
+
+  it('counts a swap as an answer for the piece it drops at the feet', () => {
+    const state = createMockGameState();
+    declineOnNeighbour(state, armor('carapace_a', 5));
+
+    dispatchAction(state, { type: 'PICK_UP_ARMOR' });
+    dispatchAction(state, { type: 'EQUIP_ARMOR' });
+
+    // 'worn' is now on the floor underfoot. The player just took it off, so
+    // stepping back onto it must not re-ask the swap they only made.
+    expect(state.declinedArmorIds).toContain('worn');
+    expect(declinedArmorUnderfoot(state)?.id).toBe('worn');
+    expect(state.pendingArmorOffer).toBeNull();
+  });
+
+  it('forgets declines on descent, since the drops do not survive it', () => {
+    const state = createMockGameState();
+    declineOnNeighbour(state, armor('carapace_a', 5));
+    expect(state.declinedArmorIds).toHaveLength(1);
+
+    buildFloor(state, new SeededRNG('armor-descend'), 2);
+    expect(state.declinedArmorIds).toEqual([]);
   });
 });
 

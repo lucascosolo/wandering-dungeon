@@ -366,6 +366,8 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   // The merchant belongs to the boss floor. Descending leaves them behind.
   state.shop = null;
   state.pendingArmorOffer = null;
+  // Drops do not survive a descent, so neither do the answers about them.
+  state.declinedArmorIds = [];
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
   state.lastShiftType = null;
@@ -419,6 +421,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     preShiftSnapshot: null,
     pendingShift: null,
     pendingArmorOffer: null,
+    declinedArmorIds: [],
     lastLevelUp: null,
     lastBossDefeat: null,
     lastShiftChanges: [],

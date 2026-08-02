@@ -26,20 +26,18 @@ None of them verify how something *feels* in the browser — see Verification be
 
 ## Documentation map — load selectively
 
-~1,000 lines of design docs sit outside this file. Load the slice the task
-needs; none of it rewards reading end to end.
+Only three documents sit outside this file. Load the slice the task needs.
 
-| File | Lines | What it is / when to read |
-|---|---|---|
-| `docs/roadmap.md` | 371 | **Start here for feature work.** Ordered tasks, shipped ones struck through. Read the one task you're on plus its epic header — not the whole file. |
-| `project.md` | 165 | The original design brief: core fantasy, the four classes, what the shift system is *for*. Read when a change touches what the game is rather than how it's built. Vision, not spec — it describes four classes and only the Vanguard exists. |
-| `.superpowers/sdd/2026-07-29-wandering-dungeon-mvp/progress.md` | 25 | Where the shift-system bug scars are written down. Read before touching `src/core/shift/`. |
-| `docs/specs/2026-07-29-…-design.md` | 139 | MVP design spec. Historical. |
-| `docs/plans/2026-07-29-…md` | 345 | MVP build plan, with per-task briefs and reports beside it in `.superpowers/sdd/`. Historical. |
+| File | What it is / when to read |
+|---|---|
+| `docs/roadmap.md` | **Start here for feature work.** Ordered tasks, shipped ones struck through. Read the one task you're on plus its epic header — not the whole file. |
+| `project.md` | The original design brief: core fantasy, the four classes, what the shift system is *for*. Read when a change touches what the game is rather than how it's built. Vision, not spec — it describes four classes and only the Vanguard exists. |
+| `docs/deploying.md` | How the container reaches the VPS, and what a domain must do before the PWA works. |
 
-The last two describe the MVP as it was planned, not the game as it now is.
-Where they disagree with the code, the code wins and the roadmap is the live
-document.
+The MVP-era spec, build plan, and SDD task packages were deleted once shipped —
+they described the game as planned, not as it is. The code wins on how it works;
+the roadmap is the live document for what's next. The scars those docs recorded
+are in Architecture below.
 
 ## Architecture — read this before touching game logic
 
@@ -68,8 +66,9 @@ document.
   may seal the exit. This is intentional oscillation, not a bug — the exit is
   allowed to become unreachable for exactly one shift cycle, with
   `carveRescuePath` as the hard fail-safe. Don't "fix" a sealed exit by adding
-  a stricter invariant; that's what caused the floor-locks-permanently
-  regression during the last fix (see `.superpowers/sdd/2026-07-29-wandering-dungeon-mvp/progress.md`).
+  a stricter invariant; the old "every shift keeps a path to the exit" rule is
+  what made collapses unschedulable, and re-adding it caused a
+  floor-locks-permanently regression.
 - **`damagePlayer()` in `src/core/damage.ts` is the only path by which the player
   loses HP.** It is its own module because `shiftSystem` needs it and `engine.ts`
   already imports `shiftSystem` — importing back would cycle. Difficulty scaling,

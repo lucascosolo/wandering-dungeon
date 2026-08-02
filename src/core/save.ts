@@ -1,5 +1,5 @@
 import { del, get, set } from 'idb-keyval';
-import { GameState } from './state';
+import { GameState, Player } from './state';
 
 /**
  * Bumped whenever `GameState`'s shape changes in a way an older save cannot
@@ -28,6 +28,14 @@ export function decodeRun(raw: unknown): GameState | null {
   const saved = raw as SavedRun | undefined;
   if (!saved || saved.version !== SAVE_VERSION || !saved.state) return null;
   if (saved.state.isGameOver) return null;
+
+  // A run saved before levels existed carries no level/xp. Filling them in at the
+  // deserialization boundary — rather than bumping SAVE_VERSION and throwing the
+  // run away — resumes it at level 1, which is exactly what it was playing at.
+  const player = saved.state.player as Player & { level?: number; xp?: number };
+  player.level ??= 1;
+  player.xp ??= 0;
+
   return saved.state;
 }
 

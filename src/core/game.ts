@@ -23,29 +23,38 @@ interface EnemyTemplate {
   attackPower: number;
   /** Fraction of the run that must be reached before this species appears. */
   minProgress: number;
+  /**
+   * XP for the kill, before the region multiplier. Roughly `hp / 6 + attack`, so
+   * what a species is worth tracks what it costs to bring down rather than being
+   * a second, independently drifting number.
+   */
+  xp: number;
 }
 
 const ENEMY_TABLE: Record<EnemyType, EnemyTemplate> = {
-  crawler: { hp: 18, attackPower: 4, minProgress: 0 },
-  sentinel: { hp: 30, attackPower: 6, minProgress: 0 },
-  fracture_beast: { hp: 42, attackPower: 9, minProgress: 0.25 },
-  warp_stalker: { hp: 34, attackPower: 12, minProgress: 0.5 },
-  collapse_behemoth: { hp: 70, attackPower: 15, minProgress: 0.8 },
-  hinge_warden: { hp: 32, attackPower: 7, minProgress: 0 },
-  seam_skitter: { hp: 20, attackPower: 5, minProgress: 0 },
-  fracture_leech: { hp: 24, attackPower: 7, minProgress: 0 },
-  riftbound: { hp: 38, attackPower: 8, minProgress: 0 },
-  ashlock: { hp: 40, attackPower: 7, minProgress: 0 },
-  stasis_scorcher: { hp: 26, attackPower: 7, minProgress: 0 },
-  facet_reaver: { hp: 36, attackPower: 7, minProgress: 0 },
-  glass_moth: { hp: 24, attackPower: 6, minProgress: 0 },
-  unmaking_hound: { hp: 34, attackPower: 7, minProgress: 0 },
-  null_scribe: { hp: 28, attackPower: 6, minProgress: 0 },
-  hinge_sovereign: { hp: 110, attackPower: 10, minProgress: 0 },
-  rift_regent: { hp: 125, attackPower: 11, minProgress: 0 },
-  cinder_gatekeeper: { hp: 135, attackPower: 12, minProgress: 0 },
-  prism_refractor: { hp: 145, attackPower: 13, minProgress: 0 },
-  null_testament: { hp: 75, attackPower: 14, minProgress: 0 },
+  crawler: { hp: 18, attackPower: 4, minProgress: 0, xp: 5 },
+  sentinel: { hp: 30, attackPower: 6, minProgress: 0, xp: 9 },
+  fracture_beast: { hp: 42, attackPower: 9, minProgress: 0.25, xp: 14 },
+  warp_stalker: { hp: 34, attackPower: 12, minProgress: 0.5, xp: 14 },
+  collapse_behemoth: { hp: 70, attackPower: 15, minProgress: 0.8, xp: 24 },
+  hinge_warden: { hp: 32, attackPower: 7, minProgress: 0, xp: 10 },
+  seam_skitter: { hp: 20, attackPower: 5, minProgress: 0, xp: 6 },
+  fracture_leech: { hp: 24, attackPower: 7, minProgress: 0, xp: 8 },
+  riftbound: { hp: 38, attackPower: 8, minProgress: 0, xp: 12 },
+  ashlock: { hp: 40, attackPower: 7, minProgress: 0, xp: 12 },
+  stasis_scorcher: { hp: 26, attackPower: 7, minProgress: 0, xp: 9 },
+  facet_reaver: { hp: 36, attackPower: 7, minProgress: 0, xp: 11 },
+  glass_moth: { hp: 24, attackPower: 6, minProgress: 0, xp: 8 },
+  unmaking_hound: { hp: 34, attackPower: 7, minProgress: 0, xp: 10 },
+  null_scribe: { hp: 28, attackPower: 6, minProgress: 0, xp: 9 },
+  // Bosses carry their premium in the table rather than through an isBoss
+  // multiplier: an arena guardian is mandatory, so its worth is a fixed part of
+  // the curve, not a bonus for optional work.
+  hinge_sovereign: { hp: 110, attackPower: 10, minProgress: 0, xp: 60 },
+  rift_regent: { hp: 125, attackPower: 11, minProgress: 0, xp: 70 },
+  cinder_gatekeeper: { hp: 135, attackPower: 12, minProgress: 0, xp: 80 },
+  prism_refractor: { hp: 145, attackPower: 13, minProgress: 0, xp: 90 },
+  null_testament: { hp: 75, attackPower: 14, minProgress: 0, xp: 100 },
 };
 
 const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
@@ -154,6 +163,25 @@ export function coinsForRegion(regionIndex: number, rng: SeededRNG): number {
 export function coinsPerKill(regionIndex: number, isBoss: boolean): number {
   const base = 2 + regionIndex;
   return isBoss ? base * 10 : base;
+}
+
+/**
+ * XP for one kill. Scaled by region so a late floor is not worth the same as the
+ * first — region 4 doubles it, which sits just above the 1.6x enemy HP step, so
+ * fighting deeper stays marginally better value than farming the top.
+ */
+export function xpPerKill(enemyType: EnemyType, regionIndex: number): number {
+  return Math.round(ENEMY_TABLE[enemyType].xp * (1 + regionIndex * 0.25));
+}
+
+/**
+ * XP from `level` to the next one. Near-linear on purpose: a steeply convex curve
+ * compresses a full clear and a straight run to the stairs into the same level or
+ * two, and that gap is the entire incentive this system exists to create. 10c
+ * retunes this against real `logs/<run-id>.json` kill counts.
+ */
+export function xpToNextLevel(level: number): number {
+  return 100 + 60 * (level - 1);
 }
 
 /** All walkable tiles, used as the spawn candidate pool. */
@@ -324,6 +352,8 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     shieldTurnsRemaining: 0,
     armor: null,
     coins: 0,
+    level: 1,
+    xp: 0,
     inventory: [
       createItem('health_potion', 'start_potion'),
       createItem('stasis_flask', 'start_stasis'),

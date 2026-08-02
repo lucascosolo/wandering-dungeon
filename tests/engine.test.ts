@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { dispatchAction } from '../src/core/engine';
+import {
+  ATTACK_PER_LEVEL,
+  dispatchAction,
+  grantXp,
+  HP_PER_LEVEL,
+} from '../src/core/engine';
 import { damagePlayer } from '../src/core/damage';
 import { Item } from '../src/core/state';
 import {
@@ -8,6 +13,8 @@ import {
   coinsPerKill,
   createCoinCache,
   createNewGame,
+  xpPerKill,
+  xpToNextLevel,
 } from '../src/core/game';
 import { priceFor } from '../src/core/shop';
 import { SeededRNG } from '../src/core/rng';
@@ -762,6 +769,99 @@ describe('Coins', () => {
 
     expect(caches.length).toBeGreaterThan(0);
     for (const cache of caches) expect(cache.item.value ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe('Experience and levels', () => {
+  /** Walkable neighbour of the player, so the test moves rather than bumps a wall. */
+  function step(state: ReturnType<typeof createMockGameState>) {
+    const { x, y } = state.player.position;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const type = state.floorMap.tiles[y + dy]?.[x + dx]?.type;
+      if (type === 'floor' || type === 'door') return { dx, dy, x: x + dx, y: y + dy };
+    }
+    throw new Error('player is walled in');
+  }
+
+  it('pays more XP for a deadlier species, a deeper region, and a boss', () => {
+    expect(xpPerKill('riftbound', 0)).toBeGreaterThan(xpPerKill('seam_skitter', 0));
+    expect(xpPerKill('hinge_warden', 4)).toBeGreaterThan(xpPerKill('hinge_warden', 0));
+    expect(xpPerKill('hinge_sovereign', 0)).toBeGreaterThan(xpPerKill('hinge_warden', 0));
+  });
+
+  it('banks XP on the killing blow and names it in the event', () => {
+    const state = createMockGameState();
+    const target = step(state);
+    const enemy = createMockEnemy({ x: target.x, y: target.y });
+    enemy.hp = 1;
+    state.entities = [enemy];
+
+    const { events } = dispatchAction(state, { type: 'MOVE', dx: target.dx, dy: target.dy });
+
+    const award = xpPerKill('crawler', 0);
+    expect(state.player.xp).toBe(award);
+    expect(events.some(e => e.includes(`You gain ${award} XP`))).toBe(true);
+  });
+
+  it('gains nothing from walking past a fight', () => {
+    const state = createMockGameState();
+    const target = step(state);
+    state.entities = [createMockEnemy({ x: target.x + 4, y: target.y })];
+    const { maxHp, attackPower } = state.player;
+
+    for (let i = 0; i < 5; i++) dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.xp).toBe(0);
+    expect(state.player.level).toBe(1);
+    expect(state.player.maxHp).toBe(maxHp);
+    expect(state.player.attackPower).toBe(attackPower);
+  });
+
+  it('routes every stat gain through grantXp, spending the threshold each level', () => {
+    const state = createMockGameState();
+    const before = { maxHp: state.player.maxHp, attack: state.player.attackPower };
+
+    grantXp(state, xpToNextLevel(1) - 1, []);
+    expect(state.player.level).toBe(1);
+    expect(state.player.maxHp).toBe(before.maxHp);
+
+    grantXp(state, 1, []);
+    expect(state.player.level).toBe(2);
+    expect(state.player.xp).toBe(0);
+    expect(state.player.maxHp).toBe(before.maxHp + HP_PER_LEVEL);
+    expect(state.player.attackPower).toBe(before.attack + ATTACK_PER_LEVEL);
+  });
+
+  it('levels more than once from a single windfall and keeps the remainder', () => {
+    const state = createMockGameState();
+    const before = { maxHp: state.player.maxHp, attack: state.player.attackPower };
+    // Enough to clear the first four thresholds outright — a boss late in the run
+    // can be worth more than a whole level, so the loop must not stop at one.
+    const windfall = xpToNextLevel(1) + xpToNextLevel(2) + xpToNextLevel(3) + 7;
+
+    const events: string[] = [];
+    grantXp(state, windfall, events);
+
+    expect(state.player.level).toBe(4);
+    expect(state.player.xp).toBe(7);
+    expect(events).toHaveLength(3);
+    expect(state.player.maxHp).toBe(before.maxHp + 3 * HP_PER_LEVEL);
+    expect(state.player.attackPower).toBe(before.attack + 3 * ATTACK_PER_LEVEL);
+  });
+
+  it('heals by exactly the max-HP gain rather than to full', () => {
+    const state = createMockGameState();
+    state.player.hp = 40;
+
+    grantXp(state, xpToNextLevel(1), []);
+
+    expect(state.player.hp).toBe(40 + HP_PER_LEVEL);
+    expect(state.player.hp).toBeLessThan(state.player.maxHp);
+  });
+
+  it('makes each level cost more than the last', () => {
+    expect(xpToNextLevel(2)).toBeGreaterThan(xpToNextLevel(1));
+    expect(xpToNextLevel(8)).toBeGreaterThan(xpToNextLevel(7));
   });
 });
 

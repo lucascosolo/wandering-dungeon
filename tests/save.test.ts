@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createNewGame } from '../src/core/game';
-import { dispatchAction } from '../src/core/engine';
+import { createNewGame, xpToNextLevel } from '../src/core/game';
+import { dispatchAction, grantXp } from '../src/core/engine';
 import { createRunConfig } from '../src/core/runConfig';
 import { createShop } from '../src/core/shop';
 import { SeededRNG } from '../src/core/rng';
@@ -72,6 +72,37 @@ describe('Run persistence', () => {
     // a region's worth of income.
     expect(restored.player.coins).toBe(137);
     expect(restored.floorMap.drops).toEqual(state.floorMap.drops);
+  });
+
+  it('persists level, banked XP, and the stats levelling bought', () => {
+    const state = playedRun('save-xp', 5);
+    grantXp(state, xpToNextLevel(1) + xpToNextLevel(2) + 12, []);
+    const levelled = {
+      level: state.player.level,
+      xp: state.player.xp,
+      maxHp: state.player.maxHp,
+      attackPower: state.player.attackPower,
+    };
+
+    const restored = roundTrip(state)!;
+
+    // Losing this on resume would silently undo every fight the run has taken.
+    expect(restored.player.level).toBe(levelled.level);
+    expect(restored.player.xp).toBe(levelled.xp);
+    expect(restored.player.maxHp).toBe(levelled.maxHp);
+    expect(restored.player.attackPower).toBe(levelled.attackPower);
+  });
+
+  it('resumes a run saved before levels existed at level 1', () => {
+    const state = playedRun('save-pre-xp', 5);
+    const saved = structuredClone(encodeRun(state));
+    delete (saved.state.player as Partial<GameState['player']>).level;
+    delete (saved.state.player as Partial<GameState['player']>).xp;
+
+    const restored = decodeRun(saved)!;
+
+    expect(restored.player.level).toBe(1);
+    expect(restored.player.xp).toBe(0);
   });
 
   it('brings the merchant back with the same stock', () => {

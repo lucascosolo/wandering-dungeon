@@ -23,8 +23,8 @@ export function showOverlayScreen(
   document.body.appendChild(screen);
 
   screen.innerHTML = `
-    <div class="title-screen__inner settings__inner">
-      ${bodyHtml}
+    <div class="title-screen__inner settings__inner panel__inner">
+      <div class="panel__body">${bodyHtml}</div>
       <div class="title-screen__menu">
         <button class="title-btn title-btn--primary" data-overlay-back type="button">${escapeHtml(backLabel)}</button>
       </div>

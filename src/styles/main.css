@@ -1642,7 +1642,10 @@ html, body {
    push the menu off the bottom of it. */
 @media (min-width: 760px) and (min-height: 560px) {
   .title-screen__mark { font-size: 1.45rem; margin-bottom: 10px; }
-  .title-screen__name { font-size: 2rem; }
+  /* The name is wider than the menu column it sits over, and wrapping a
+     four-word title across two lines to respect that column looks like a
+     mistake. There is always room: the block needs 760px of viewport. */
+  .title-screen__name { font-size: 2rem; white-space: nowrap; }
   .title-screen__tagline { font-size: 0.86rem; margin-bottom: 28px; }
   .setup__heading { font-size: 1.5rem; margin-bottom: 18px; }
 }

@@ -13,7 +13,7 @@ Everything is seeded, so a run can be replayed exactly.
 
 ## For alpha testers
 
-**Play at:** http://162.35.172.112:8420/
+**Play at:** https://roguelike.lucascosolo.com/
 
 Nothing to install and no account. It runs in the browser and saves your run on
 the device.

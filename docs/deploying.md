@@ -2,7 +2,34 @@
 
 The game is a static bundle served by nginx in a container. Host port **8420**.
 
-Live now: `http://162.35.172.112:8420/`
+Live now: **https://roguelike.lucascosolo.com/** (also reachable at
+`http://162.35.172.112:8420/`, which is the same container without TLS).
+
+## How the domain reaches it
+
+`roguelike.lucascosolo.com` is a proxied CNAME to the account's Cloudflare Tunnel
+(`36ce6a43-…​.cfargotunnel.com`), and that tunnel's ingress routes the hostname to
+`http://127.0.0.1:8420` on this box. `cloudflared` already ran here for `ai-lab`, so
+this added one ingress rule and one DNS record — no ports were opened and no reverse
+proxy was installed. TLS terminates at Cloudflare, which is enough to make the origin
+a secure context for the browser, so the PWA behaviour below now works.
+
+The tunnel config is stored server-side at Cloudflare (`cloudflared` runs from a
+token, so there is no ingress file on the box). Read or change it with:
+
+```
+CF=~/.claude/skills/cloudflare-control/scripts/cf.sh
+A=46afde13730ab602c1832b2d31b8680b; T=36ce6a43-e9fe-47a4-bb52-5005d9213b78
+$CF GET accounts/$A/cfd_tunnel/$T/configurations
+```
+
+A PUT replaces the whole ingress list, so read it first and append — `ai-lab` shares
+this tunnel and dropping its rule would take that site down. Unlike `ai-lab`, this
+hostname has **no** Cloudflare Access application in front of it: the game is public,
+and adding one would put a login between testers and the title screen.
+
+The sections below describe the alternative — running TLS on the box itself. Nothing
+in them is in use; keep them for the case where the tunnel is retired.
 
 ## Why the domain is not optional
 

@@ -83,29 +83,35 @@ export function glyphLegendHtml(): string {
     <h2 class="setup__heading">Glyph Key</h2>
     <p class="settings__hint">Everything the map can draw, and what it means.</p>
 
-    <span class="setup__label">You and the floor</span>
-    <div class="glyph-list">
-      ${entryRow({ glyph: skin.glyph, color: skin.color, label: 'You', note: 'the glyph the screen is centred on' })}
-      ${TERRAIN_LEGEND.map(entryRow).join('')}
-      ${entryRow({ glyph: '#', color: '#ff0055', label: 'Red-outlined tile', note: 'closing when the countdown lands' })}
-      ${entryRow({ glyph: '#', color: '#c99bff', label: 'Violet-outlined tile', note: 'opening or sliding when the countdown lands' })}
-    </div>
+    <section class="panel__section">
+      <span class="setup__label">You and the floor</span>
+      <div class="glyph-list">
+        ${entryRow({ glyph: skin.glyph, color: skin.color, label: 'You', note: 'the glyph the screen is centred on' })}
+        ${TERRAIN_LEGEND.map(entryRow).join('')}
+        ${entryRow({ glyph: '#', color: '#ff0055', label: 'Red-outlined tile', note: 'closing when the countdown lands' })}
+        ${entryRow({ glyph: '#', color: '#c99bff', label: 'Violet-outlined tile', note: 'opening or sliding when the countdown lands' })}
+      </div>
+    </section>
 
-    <span class="setup__label">What follows you down</span>
-    <div class="glyph-list">
-      ${entryRow(
-        entryFor(
-          'pursuer',
-          'arrives on a floor you have lingered on; ringed, not barred, because it cannot be killed — only outrun, and the stairs lose it'
-        )
-      )}
-    </div>
+    <section class="panel__section">
+      <span class="setup__label">What follows you down</span>
+      <div class="glyph-list">
+        ${entryRow(
+          entryFor(
+            'pursuer',
+            'arrives on a floor you have lingered on; ringed, not barred, because it cannot be killed — only outrun, and the stairs lose it'
+          )
+        )}
+      </div>
+    </section>
 
     ${enemySections()
       .map(
         section => `
-      <span class="setup__label">${escapeHtml(section.title)}</span>
-      <div class="glyph-list">${section.entries.map(entryRow).join('')}</div>`
+      <section class="panel__section">
+        <span class="setup__label">${escapeHtml(section.title)}</span>
+        <div class="glyph-list">${section.entries.map(entryRow).join('')}</div>
+      </section>`
       )
       .join('')}
 

@@ -1513,3 +1513,140 @@ html, body {
   font-weight: 700;
   color: var(--accent-cyan);
 }
+
+/* The scrolling body of a reference panel (How to Play, the glyph key) or of
+   Settings. Its children are `.panel__section` blocks: on a phone one flow, on
+   a wide screen the units a multi-column layout is allowed to break between. */
+.panel__body { width: 100%; }
+
+.panel__section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Setup screen: Length and Difficulty are one stacked flow on a phone and a
+   pair of columns once there is room for both to be read at a glance. */
+.setup__groups {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.setup__group { display: flex; flex-direction: column; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Wide screens.
+
+   The whole UI is drawn for a phone: one 320px column, which on a laptop or a
+   tablet reads as a ribbon stranded in an empty screen — worst of all on the
+   reference panels, where How to Play and the glyph key become a very long
+   scroll through a very narrow slot.
+
+   Everything below only widens. No rule in these blocks fires under 760px, so
+   the phone layout is untouched, and every column here collapses back to that
+   single flow the moment the viewport is narrow.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 760px) {
+  .title-screen { padding: calc(var(--safe-area-top) + 40px) 40px calc(var(--safe-area-bottom) + 40px); }
+
+  .title-screen__inner { max-width: 440px; gap: 8px; }
+
+  /* New Game keeps the full width — it is the one entry that is not a peer of
+     the others. The remaining four pair off, which is what stops a five-item
+     stack from running the height of the viewport. */
+  .title-screen__menu--main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .title-screen__menu--main .title-btn--primary { grid-column: 1 / -1; }
+
+  .title-screen__menu--row { flex-direction: row; }
+  .title-screen__menu--row .title-btn { flex: 1; }
+
+  .title-screen__inner--wide { max-width: 620px; }
+
+  .setup__groups {
+    flex-direction: row;
+    gap: 28px;
+  }
+
+  .setup__group { flex: 1; }
+
+  /* Reference panels (How to Play, the glyph key) and Settings: the body flows
+     into newspaper columns instead of one tall scroll.
+
+     `break-inside: avoid` on the sections is what makes this readable rather
+     than merely wide. The panels are written as a section label followed by the
+     blocks it describes, and `break-after: avoid` on the label alone is not
+     honoured by every engine — WebKit left the label at the foot of one column
+     and its content at the head of the next. Grouping them into one unbreakable
+     box is the version that holds everywhere. */
+  .panel__inner { max-width: min(1060px, 100%); }
+
+  .panel__body {
+    columns: 2;
+    column-gap: 36px;
+  }
+
+  .panel__body > .setup__heading,
+  .panel__body > .setup__heading + .settings__hint { column-span: all; }
+
+  /* A subtitle centred over a full-width span reads as a caption on whichever
+     column happens to sit beneath it. */
+  .panel__body > .setup__heading + .settings__hint { text-align: left; }
+
+  .panel__section { break-inside: avoid; }
+
+  /* Settings is two named sections rather than a flow of them, and its keybind
+     list is taller than most windows — asking a column to balance it produces
+     one full column and one empty. Two fixed columns instead; `display: grid`
+     also turns the multi-column rules above into no-ops, which is why this can
+     share `.panel__body`. */
+  .panel__body--split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 36px;
+    align-items: start;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  .panel__body--split > .setup__heading,
+  .panel__body--split > .setup__heading + .settings__hint { grid-column: 1 / -1; }
+
+
+  /* The blocks carry a bottom margin to separate them from the next section;
+     the last one in a column is separating itself from nothing. */
+  .panel__section > :last-child { margin-bottom: 0; }
+
+  /* The opening splash shares this shell but is read once, top to bottom —
+     columns would ask the player to jump back up mid-thought. It is a single
+     block, so it would also leave the second column empty. */
+  .panel__body:has(> .opening) {
+    columns: 1;
+    max-width: 62ch;
+    margin: 0 auto;
+  }
+
+  .panel__inner .title-screen__menu {
+    width: 100%;
+    max-width: 340px;
+  }
+}
+
+/* Typography only, and gated on height as well: a phone held sideways clears
+   760px wide with barely 400px to spare vertically, and a title that size would
+   push the menu off the bottom of it. */
+@media (min-width: 760px) and (min-height: 560px) {
+  .title-screen__mark { font-size: 1.45rem; margin-bottom: 10px; }
+  .title-screen__name { font-size: 2rem; }
+  .title-screen__tagline { font-size: 0.86rem; margin-bottom: 28px; }
+  .setup__heading { font-size: 1.5rem; margin-bottom: 18px; }
+}
+
+@media (min-width: 1180px) {
+  .panel__body { columns: 3; }
+}

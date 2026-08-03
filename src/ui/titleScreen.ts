@@ -51,7 +51,7 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
         <h1 class="title-screen__name">The Wandering Dungeon</h1>
         <p class="title-screen__tagline">the floor does not stay where you left it</p>
 
-        <div class="title-screen__menu">
+        <div class="title-screen__menu title-screen__menu--main">
           <button class="title-btn title-btn--primary" id="btn-new-game" type="button">
             New Game
           </button>
@@ -105,30 +105,36 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
     const floors = RUN_LENGTHS[length].floors;
 
     screen.innerHTML = `
-      <div class="title-screen__inner">
+      <div class="title-screen__inner title-screen__inner--wide">
         <h2 class="setup__heading">New Run</h2>
 
-        <span class="setup__label">Length</span>
-        <div class="setup__options">
-          ${LENGTH_ORDER.map(
-            key => `
-            <button class="setup-btn ${key === length ? 'setup-btn--on' : ''}"
-                    data-length="${key}" type="button">
-              ${RUN_LENGTHS[key].label}
-              <small>${RUN_LENGTHS[key].floors} floors</small>
-            </button>`
-          ).join('')}
-        </div>
+        <div class="setup__groups">
+          <div class="setup__group">
+            <span class="setup__label">Length</span>
+            <div class="setup__options">
+              ${LENGTH_ORDER.map(
+                key => `
+                <button class="setup-btn ${key === length ? 'setup-btn--on' : ''}"
+                        data-length="${key}" type="button">
+                  ${RUN_LENGTHS[key].label}
+                  <small>${RUN_LENGTHS[key].floors} floors</small>
+                </button>`
+              ).join('')}
+            </div>
+          </div>
 
-        <span class="setup__label">Difficulty${locked ? ' — locked by EXTREME' : ''}</span>
-        <div class="setup__options ${locked ? 'setup__options--locked' : ''}">
-          ${DIFFICULTY_ORDER.map(
-            key => `
-            <button class="setup-btn ${key === shown ? 'setup-btn--on' : ''}"
-                    data-difficulty="${key}" type="button" ${locked ? 'disabled' : ''}>
-              ${DIFFICULTIES[key].label}
-            </button>`
-          ).join('')}
+          <div class="setup__group">
+            <span class="setup__label">Difficulty${locked ? ' — locked by EXTREME' : ''}</span>
+            <div class="setup__options ${locked ? 'setup__options--locked' : ''}">
+              ${DIFFICULTY_ORDER.map(
+                key => `
+                <button class="setup-btn ${key === shown ? 'setup-btn--on' : ''}"
+                        data-difficulty="${key}" type="button" ${locked ? 'disabled' : ''}>
+                  ${DIFFICULTIES[key].label}
+                </button>`
+              ).join('')}
+            </div>
+          </div>
         </div>
 
         <p class="setup__summary">
@@ -136,7 +142,7 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
           ${Math.round(DIFFICULTIES[shown].damageTaken * 100)}% damage taken
         </p>
 
-        <div class="title-screen__menu">
+        <div class="title-screen__menu title-screen__menu--row">
           <button class="title-btn title-btn--primary" id="btn-begin" type="button">Descend</button>
           <button class="title-btn" id="btn-back" type="button">Back</button>
         </div>
@@ -171,14 +177,14 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
 
   function renderOverwriteWarning(): void {
     screen.innerHTML = `
-      <div class="title-screen__inner">
+      <div class="title-screen__inner title-screen__inner--wide">
         <h2 class="setup__heading">Abandon your run?</h2>
         <p class="setup__summary">
           A run is in progress on floor ${saved!.floorMap.level}/${saved!.config.finalFloor},
           turn ${saved!.turnCount}. Starting a new one erases it.
         </p>
 
-        <div class="title-screen__menu">
+        <div class="title-screen__menu title-screen__menu--row">
           <button class="title-btn title-btn--danger" id="btn-overwrite" type="button">
             Erase and descend
           </button>

@@ -7,7 +7,7 @@
  * static site with no backend, and the link exists so alpha testers can react to
  * the shape and tone of the offer.
  */
-export const SUPPORT_URL = 'https://example.com/wandering-dungeon-support';
+export const SUPPORT_URL = 'https://www.patreon.com/trophonix';
 
 export const SUPPORT_LABEL = 'Support the game';
 

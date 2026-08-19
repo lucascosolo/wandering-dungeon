@@ -101,3 +101,7 @@ This is the Vanguard’s story: a warrior who learns that in a fragmenting world
 ---
 
 *The Wandering Dungeon* is built with TypeScript, Vite, and an HTML5 canvas. No frameworks. Deterministic RNG. Seeded runs. Save in progress. One question per run: *How much can I safely take before the dungeon moves again?*
+
+---
+
+**Support the development:** [Patreon](https://www.patreon.com/trophonix)

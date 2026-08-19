@@ -384,6 +384,11 @@ export interface GameState {
   armorReactions: ArmorReaction[];
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
+  /** The tile of the last enemy killed on this turn, for a kill flash. Cleared at dispatch top. */
+  lastKillPosition: Position | null;
+  /** The name of the last item picked up, for a floating label. Cleared at dispatch top. */
+  lastPickupName: string | null;
+  lastPickupPosition: Position | null;
   /** turnCount when lastShiftChanges was recorded, so the flash can fade out. */
   lastShiftTurn: number;
   /** Which kind of shift last landed, so effects and logs can tell them apart. */

@@ -223,6 +223,28 @@ export function renderFrame(
     }
   }
 
+  // Kill flash — brief red flash where an enemy was felled
+  if (state.lastKillPosition && floorMap.visible[state.lastKillPosition.y]?.[state.lastKillPosition.x]) {
+    const { x, y } = state.lastKillPosition;
+    const px = x * TILE_SIZE + offsetX;
+    const py = y * TILE_SIZE + offsetY;
+    ctx.fillStyle = 'rgba(255, 60, 60, 0.35)';
+    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+  }
+
+  // Floating pickup name
+  if (state.lastPickupName && state.lastPickupPosition) {
+    const { x, y } = state.lastPickupPosition;
+    if (floorMap.visible[y]?.[x]) {
+      const px = x * TILE_SIZE + offsetX;
+      const py = y * TILE_SIZE + offsetY;
+      ctx.fillStyle = '#ffd166';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(state.lastPickupName, px + TILE_SIZE / 2, py - 4);
+    }
+  }
+
   for (const drop of floorMap.drops ?? []) {
     const { x, y } = drop.position;
     if (!floorMap.visible[y][x]) continue;

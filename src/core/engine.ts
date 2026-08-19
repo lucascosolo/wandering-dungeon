@@ -464,10 +464,14 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         drops.splice(index, 1);
         const picked = (drop.item.value ?? 0) + coinBonus(state);
         state.player.coins += picked;
+        state.lastPickupName = `${picked} coins`;
+        state.lastPickupPosition = { ...target };
         events.push(`You pocket ${picked} coins.`);
       } else {
         drops.splice(index, 1);
         state.player.inventory.push(drop.item);
+        state.lastPickupName = drop.item.name;
+        state.lastPickupPosition = { ...target };
         events.push(`You pick up a ${drop.item.name}.`);
       }
     }
@@ -731,6 +735,11 @@ const BOSS_MARKS: Partial<Record<EnemyType, BossMark>> = {
 
 function settleDeaths(state: GameState, rng: SeededRNG, events: string[]): void {
   awardBossDefeats(state, rng, events);
+  // Capture kill flash positions before removing corpses
+  const killed = state.entities.filter(e => e.hp <= 0 && e.hp !== undefined);
+  if (killed.length > 0) {
+    state.lastKillPosition = killed[0].position;
+  }
   state.entities = state.entities.filter(e => e.hp > 0);
 }
 
@@ -1188,6 +1197,9 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   state.lastBossDefeat = null;
   state.armorReactions = [];
   state.shopOpened = false;
+  state.lastKillPosition = null;
+  state.lastPickupName = null;
+  state.lastPickupPosition = null;
 
   const rng = rngFor(state);
   let changedFloor = false;

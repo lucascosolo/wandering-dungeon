@@ -465,6 +465,9 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
   state.lastShiftType = null;
+  state.lastKillPosition = null;
+  state.lastPickupName = null;
+  state.lastPickupPosition = null;
   state.exitBlockedStreak = 0;
   // Escalating pressure is per-floor: descending buys back the full grace period.
   state.floorTurns = 0;
@@ -542,6 +545,9 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     armorReactions: [],
     lastShiftChanges: [],
     lastShiftTurn: -999,
+    lastKillPosition: null,
+    lastPickupName: null,
+    lastPickupPosition: null,
     lastShiftType: null,
     exitBlockedStreak: 0,
     lastDamageSource: null,

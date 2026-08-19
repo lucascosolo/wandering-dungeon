@@ -227,13 +227,15 @@ export function renderFrame(
     const { x, y } = drop.position;
     if (!floorMap.visible[y][x]) continue;
     const glyph =
-      drop.item.category === 'armor' ? '[' : drop.item.category === 'currency' ? '$' : '*';
+      drop.item.category === 'armor' ? '[' : drop.item.category === 'currency' ? '$' : drop.item.category === 'weapon' ? ')' : '*';
     const color =
       drop.item.category === 'armor'
         ? COLOR_ARMOR
         : drop.item.category === 'currency'
           ? COLOR_COIN
-          : COLOR_ITEM;
+          : drop.item.category === 'weapon'
+            ? '#e09f3e'
+            : COLOR_ITEM;
     const px = x * TILE_SIZE + offsetX;
     const py = y * TILE_SIZE + offsetY;
     drawGlyph(ctx, glyph, color, px, py);

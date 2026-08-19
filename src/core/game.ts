@@ -10,6 +10,7 @@ import {
   Player,
   Position,
   FloorMap,
+  WeaponType,
   manhattan,
   samePosition,
 } from './state';
@@ -131,6 +132,26 @@ const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
     category: 'armor',
     defense: 7,
   },
+  short_blade: {
+    type: 'short_blade',
+    name: 'Short Blade',
+    description: 'A sturdy blade. No bonus, no penalty.',
+    category: 'weapon',
+  },
+  war_axe: {
+    type: 'war_axe',
+    name: 'War Axe',
+    description: 'Heavy blade. +4 damage on every melee hit.',
+    category: 'weapon',
+    damageBonus: 4,
+  },
+  longbow: {
+    type: 'longbow',
+    name: 'Longbow',
+    description: 'Ranged weapon. Attack any visible enemy up to 6 tiles away.',
+    category: 'weapon',
+    range: 6,
+  },
 };
 
 /**
@@ -156,6 +177,8 @@ const LOOT_POOL: ItemType[] = [
   'haste_sigil',
   'rewind_scroll',
 ];
+
+const WEAPON_POOL: WeaponType[] = ['war_axe', 'longbow'];
 
 export function createItem(type: ItemType, id: string): Item {
   return { id, ...ITEM_TABLE[type] };
@@ -396,6 +419,18 @@ export function populateFloor(
     });
   }
 
+  // One weapon per floor (starting floor 2), drawn from the weapon pool
+  if (level >= 2) {
+    const weaponPosition = take();
+    if (weaponPosition) {
+      const type = WEAPON_POOL[rng.randomInt(0, WEAPON_POOL.length - 1)];
+      drops.push({
+        item: createItem(type, `weapon_${level}`),
+        position: weaponPosition,
+      });
+    }
+  }
+
   const chests: Chest[] = [];
   if (rng.random() < 0.4) {
     const pos = take();
@@ -425,6 +460,8 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.pendingArmorOffer = null;
   // Drops do not survive a descent, so neither do the answers about them.
   state.declinedArmorIds = [];
+  state.pendingWeaponOffer = null;
+  state.declinedWeaponIds = [];
   state.lastShiftChanges = [];
   state.lastShiftTurn = -999;
   state.lastShiftType = null;
@@ -469,6 +506,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     shieldHp: 0,
     shieldTurnsRemaining: 0,
     armor: null,
+    weapon: createItem('short_blade', 'start_weapon'),
     coins: 0,
     level: 1,
     xp: 0,
@@ -497,6 +535,8 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     pendingShift: null,
     pendingArmorOffer: null,
     declinedArmorIds: [],
+    pendingWeaponOffer: null,
+    declinedWeaponIds: [],
     lastLevelUp: null,
     lastBossDefeat: null,
     armorReactions: [],

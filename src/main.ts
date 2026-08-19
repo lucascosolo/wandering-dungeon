@@ -1,5 +1,5 @@
 import { createNewGame } from './core/game';
-import { declinedArmorUnderfoot, dispatchAction, GameAction } from './core/engine';
+import { declinedArmorUnderfoot, declinedWeaponUnderfoot, dispatchAction, GameAction } from './core/engine';
 import { FloorMap, GameState, Position, samePosition } from './core/state';
 import type { HudElements } from './ui/hud';
 import { findPath } from './core/map/pathfinding';
@@ -25,6 +25,7 @@ import {
   showLevelUp,
   showRunMenu,
   showShop,
+  showWeaponOffer,
   updateHud,
 } from './ui/hud';
 import { showHowToPlay } from './ui/howToPlay';
@@ -186,6 +187,10 @@ function act(action: GameAction): void {
     showArmorOffer(ui, state, resolveArmorOffer);
   }
 
+  if (state.pendingWeaponOffer) {
+    showWeaponOffer(ui, state, resolveWeaponOffer);
+  }
+
   // The merchant is a thing on the floor: the only thing that raises his stock is
   // the player walking into him, which the engine reports for this one dispatch.
   if (state.shopOpened) openShop();
@@ -276,9 +281,19 @@ function resolveArmorOffer(equip: boolean): void {
   act({ type: equip ? 'EQUIP_ARMOR' : 'DECLINE_ARMOR' });
 }
 
+function resolveWeaponOffer(equip: boolean): void {
+  ui.armorModal.classList.add('hidden');
+  act({ type: equip ? 'EQUIP_WEAPON' : 'DECLINE_WEAPON' });
+}
+
 /** Re-raise the prompt for a piece the player already turned down. */
 function pickUpArmor(): void {
   act({ type: 'PICK_UP_ARMOR' });
+}
+
+/** Re-raise the prompt for a weapon the player already turned down. */
+function pickUpWeapon(): void {
+  act({ type: 'PICK_UP_WEAPON' });
 }
 
 /**
@@ -286,6 +301,13 @@ function pickUpArmor(): void {
  * it, because descending has no other keyboard route the player may have bound
  * away, while the pickup always keeps the hint button.
  */
+function weaponPickupWantsEnter(): boolean {
+  if (state.floorMap.tiles[state.player.position.y][state.player.position.x].type === 'stairs_down') {
+    return false;
+  }
+  return declinedWeaponUnderfoot(state) !== null;
+}
+
 function armorPickupWantsEnter(): boolean {
   if (state.floorMap.tiles[state.player.position.y][state.player.position.x].type === 'stairs_down') {
     return false;

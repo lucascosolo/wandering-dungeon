@@ -11,6 +11,7 @@ import {
   manhattan,
   Position,
   samePosition,
+  WeaponType,
 } from './state';
 import { SeededRNG } from './rng';
 import { damagePlayer } from './damage';
@@ -49,6 +50,9 @@ export type GameAction =
   | { type: 'DECLINE_ARMOR' }
   | { type: 'PICK_UP_ARMOR' }
   | { type: 'BUY_ITEM'; offerId: string }
+  | { type: 'EQUIP_WEAPON' }
+  | { type: 'DECLINE_WEAPON' }
+  | { type: 'PICK_UP_WEAPON' }
   | { type: 'INSPECT_TILE'; x: number; y: number };
 
 export interface DispatchResult {
@@ -91,6 +95,9 @@ function consumesTurn(action: GameAction): boolean {
     // Reopening a prompt the player already answered is not an act in the world
     // either — it only re-asks the question that EQUIP/DECLINE will answer.
     action.type !== 'PICK_UP_ARMOR' &&
+    action.type !== 'EQUIP_WEAPON' &&
+    action.type !== 'DECLINE_WEAPON' &&
+    action.type !== 'PICK_UP_WEAPON' &&
     // Trading is free. Charging a turn would let the dungeon shift the arena
     // apart while the player reads a price list.
     action.type !== 'BUY_ITEM'
@@ -108,6 +115,39 @@ function isWalkableAt(state: GameState, pos: Position): boolean {
 
 function enemyAt(state: GameState, pos: Position): Enemy | undefined {
   return state.entities.find(e => e.hp > 0 && samePosition(e.position, pos));
+}
+
+/**
+ * Ranged attack with the Longbow. Scans in the pressed direction for the first
+ * visible enemy within range and fires at it. Spends the turn whether or not
+ * anything was hit — the arrow was loosed.
+ */
+function rangedAttack(state: GameState, rng: SeededRNG, range: number, dx: number, dy: number, events: string[]): boolean {
+  // Walk outward in the pressed direction, looking for an enemy
+  let cx = state.player.position.x + dx;
+  let cy = state.player.position.y + dy;
+  const { floorMap } = state;
+  for (let dist = 1; dist <= range; dist++) {
+    if (cx < 0 || cx >= floorMap.width || cy < 0 || cy >= floorMap.height) break;
+    // Blocked by a wall — arrow stops
+    if (floorMap.tiles[cy][cx].type === 'wall' || floorMap.tiles[cy][cx].type === 'chasm') break;
+    if (!floorMap.visible[cy][cx]) { cx += dx; cy += dy; continue; }
+    const enemy = state.entities.find(e => e.hp > 0 && e.position.x === cx && e.position.y === cy);
+    if (enemy) {
+      if (isUnkillable(enemy)) {
+        events.push(`Your arrow passes through ${enemy.name}. It does not slow.`);
+        return true;
+      }
+      const dealt = Math.max(1, state.player.attackPower + rng.randomInt(-2, 2));
+      events.push(`Your arrow hits ${enemy.name} for ${dealt} damage.`);
+      damageEnemy(state, enemy, dealt, events);
+      return true;
+    }
+    cx += dx;
+    cy += dy;
+  }
+  events.push('The arrow finds nothing.');
+  return true;
 }
 
 function log(state: GameState, text: string, type: LogMessage['type'] = 'info'): void {
@@ -253,7 +293,8 @@ function playerAttack(state: GameState, rng: SeededRNG, target: Enemy, events: s
     return;
   }
 
-  const dealt = Math.max(1, state.player.attackPower + rng.randomInt(-2, 2));
+  const weaponBonus = state.player.weapon?.damageBonus ?? 0;
+  const dealt = Math.max(1, state.player.attackPower + weaponBonus + rng.randomInt(-2, 2));
   events.push(`You hit ${target.name} for ${dealt} damage.`);
   damageEnemy(state, target, dealt, events);
 }
@@ -334,6 +375,14 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
     return true;
   }
 
+  // Ranged attack: if holding a ranged weapon and no adjacent enemy, scan
+  // the direction for enemies in line of sight within range.
+  const weapon = state.player.weapon;
+  if (weapon?.range && !occupant) {
+    const hit = rangedAttack(state, rng, weapon.range, dx, dy, events);
+    if (hit) return true;
+  }
+
   const { shop } = state;
   if (shop && samePosition(shop.position, target)) {
     // Bumping the merchant trades instead of stepping onto them, the same shape
@@ -391,6 +440,24 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         drops.splice(index, 1);
         state.player.armor = drop.item;
         events.push(`You strap on the ${drop.item.name}.`);
+      } else if (drop.item.category === 'weapon' && state.player.weapon && drop.item.type !== 'short_blade') {
+        // Player has a weapon already and this isn't a starter. Offer the swap.
+        if (state.declinedWeaponIds.includes(drop.item.id)) {
+          events.push(`The ${drop.item.name} still lies here.`);
+        } else {
+          state.pendingWeaponOffer = drop.item;
+          events.push(`A ${drop.item.name} lies here.`);
+        }
+      } else if (drop.item.category === 'weapon') {
+        drops.splice(index, 1);
+        const old = state.player.weapon;
+        state.player.weapon = drop.item;
+        if (old) {
+          drops.push({ item: old, position: target });
+          events.push(`You pick up the ${drop.item.name}, dropping the ${old.name}.`);
+        } else {
+          events.push(`You pick up the ${drop.item.name}.`);
+        }
       } else if (drop.item.category === 'currency') {
         // Currency never enters the inventory — it is a number on the player, so
         // it cannot be "used", dropped, or take up a hotbar slot.
@@ -420,7 +487,7 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
  * never offer a pickup the action would refuse.
  */
 export function declinedArmorUnderfoot(state: GameState): Item | null {
-  if (state.isGameOver || state.pendingArmorOffer) return null;
+  if (state.isGameOver || state.pendingArmorOffer || state.pendingWeaponOffer) return null;
   const { x, y } = state.player.position;
   const drop = state.floorMap.drops?.find(
     d =>
@@ -456,6 +523,42 @@ function equipOfferedArmor(state: GameState, events: string[]): void {
     if (!state.declinedArmorIds.includes(previous.id)) state.declinedArmorIds.push(previous.id);
   }
   events.push(`You swap into the ${offered.name}.`);
+}
+
+/** The declined weapon the player is standing on, if any. Same pattern as declinedArmorUnderfoot. */
+export function declinedWeaponUnderfoot(state: GameState): Item | null {
+  if (state.isGameOver || state.pendingWeaponOffer) return null;
+  const { x, y } = state.player.position;
+  const drop = state.floorMap.drops?.find(
+    d =>
+      d.position.x === x &&
+      d.position.y === y &&
+      d.item.category === 'weapon' &&
+      state.declinedWeaponIds.includes(d.item.id)
+  );
+  return drop ? drop.item : null;
+}
+
+/** Swap the worn weapon for the piece underfoot. Same pattern as equipOfferedArmor. */
+function equipOfferedWeapon(state: GameState, events: string[]): void {
+  const offered = state.pendingWeaponOffer;
+  state.pendingWeaponOffer = null;
+  if (!offered) return;
+
+  const { player, floorMap } = state;
+  const drops = floorMap.drops ?? [];
+  const index = drops.findIndex(d => d.item.id === offered.id);
+  if (index === -1) return;
+
+  drops.splice(index, 1);
+  const previous = player.weapon;
+  player.weapon = offered;
+  state.declinedWeaponIds = state.declinedWeaponIds.filter(id => id !== offered.id);
+  if (previous) {
+    drops.push({ item: previous, position: { ...player.position } });
+    if (!state.declinedWeaponIds.includes(previous.id)) state.declinedWeaponIds.push(previous.id);
+  }
+  events.push(`You take up the ${offered.name}.`);
 }
 
 /**
@@ -1136,6 +1239,22 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     case 'BUY_ITEM':
       buyFromShop(state, action.offerId, events);
       break;
+    case 'EQUIP_WEAPON':
+      equipOfferedWeapon(state, events);
+      break;
+    case 'DECLINE_WEAPON': {
+      const declined = state.pendingWeaponOffer;
+      state.pendingWeaponOffer = null;
+      if (declined && !state.declinedWeaponIds.includes(declined.id)) {
+        state.declinedWeaponIds.push(declined.id);
+      }
+      break;
+    }
+    case 'PICK_UP_WEAPON': {
+      const underfoot = declinedWeaponUnderfoot(state);
+      if (underfoot) state.pendingWeaponOffer = underfoot;
+      break;
+    }
     case 'INSPECT_TILE': {
       const { x, y } = action;
       const inBounds = x >= 0 && x < state.floorMap.width && y >= 0 && y < state.floorMap.height;

@@ -108,7 +108,10 @@ export type ItemType =
   | 'rewind_scroll'
   | 'health_potion'
   | 'coin_cache'
-  | ArmorType;
+  | ArmorType
+  | WeaponType;
+
+export type WeaponType = 'short_blade' | 'war_axe' | 'longbow';
 
 export type ArmorType = 'padded_vest' | 'scrap_plating' | 'warden_carapace';
 
@@ -135,9 +138,13 @@ export interface Item {
   type: ItemType;
   name: string;
   description: string;
-  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor' | 'currency';
+  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor' | 'currency' | 'weapon';
   /** Flat damage soaked per hit. Armor only — see damagePlayer. */
   defense?: number;
+  /** Bonus damage on melee attacks. Weapon only. */
+  damageBonus?: number;
+  /** Attack range in tiles. Weapon only — absent means melee (range 1). */
+  range?: number;
   /**
    * Armor only, and optional: a run saved before modifiers existed carries pieces
    * without one, and an unmodified piece is a legal piece rather than a broken
@@ -192,6 +199,8 @@ export interface Player extends Entity {
   shieldTurnsRemaining: number;
   /** Worn armor. Kept out of `inventory` so it can never be "used" as a consumable. */
   armor: Item | null;
+  /** Worn weapon. Null means fists (attackPower only). */
+  weapon: Item | null;
   inventory: Item[];
   /** Spending money for the post-boss merchant. Carries across floors. */
   coins: number;
@@ -351,6 +360,10 @@ export interface GameState {
    * not survive a descent.
    */
   declinedArmorIds: string[];
+  /** Weapon the player is standing on while already carrying one. Same pattern as pendingArmorOffer. */
+  pendingWeaponOffer: Item | null;
+  /** Weapons the player has already declined. Same pattern as declinedArmorIds. */
+  declinedWeaponIds: string[];
   /**
    * A level gained during the turn just dispatched, for the HUD to splash. Written
    * only by `grantXp` and cleared at the top of every dispatch, so it names one

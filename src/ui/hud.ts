@@ -726,3 +726,44 @@ export function showEndModal(
   copyBtn.addEventListener('click', () => copyReport(copyBtn, card, buildReport()));
 }
 
+export function showWeaponOffer(
+  ui: HudElements,
+  state: GameState,
+  onDecide: (equip: boolean) => void
+): void {
+  const offered = state.pendingWeaponOffer!;
+  const worn = state.player.weapon;
+
+  const weaponStat = (w: Item): string => {
+    if (w.damageBonus) return `+${w.damageBonus} damage`;
+    if (w.range) return `range ${w.range}`;
+    return 'standard';
+  };
+
+  ui.armorModal.classList.remove('hidden');
+  ui.armorModal.innerHTML = `
+    <div class="modal__card glass-panel">
+      <h2>Replace Weapon?</h2>
+      <div class="armor-compare">
+        <div class="armor-compare__side">
+          <span class="armor-compare__label">Worn</span>
+          <span class="armor-compare__name">${escapeHtml(worn ? worn.name : 'Fists')}</span>
+          <span class="armor-compare__value">${worn ? weaponStat(worn) : 'standard'}</span>
+        </div>
+        <div class="armor-compare__side armor-compare__side--new">
+          <span class="armor-compare__label">Found</span>
+          <span class="armor-compare__name">${escapeHtml(offered.name)}</span>
+          <span class="armor-compare__value">${weaponStat(offered)}</span>
+          <span class="armor-compare__desc">${escapeHtml(offered.description)}</span>
+        </div>
+      </div>
+      <div class="setup__actions">
+        <button class="button" id="armor-equip-btn">Take Weapon</button>
+        <button class="button button--secondary" id="armor-decline-btn">Keep Current</button>
+      </div>
+    </div>`;
+
+  document.getElementById('armor-equip-btn')!.onclick = () => onDecide(true);
+  document.getElementById('armor-decline-btn')!.onclick = () => onDecide(false);
+}
+

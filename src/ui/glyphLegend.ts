@@ -25,6 +25,7 @@ export const TERRAIN_LEGEND: readonly LegendEntry[] = [
   { glyph: '*', color: '#ffd166', label: 'Item', note: 'walk over it to take it' },
   { glyph: '[', color: '#8fd9c0', label: 'Armour', note: 'a ringed piece rolled a modifier' },
   { glyph: '$', color: '#f7b32b', label: 'Coins', note: 'for the merchant past the next guardian' },
+  { glyph: '=', color: '#4af', label: 'Chest', note: 'bump to open — holds coins, items or armour; ringed to show it is interactable' },
   { glyph: '&', color: '#f2e8cf', label: 'Merchant', note: 'walk into him to trade; greyed and ringed once bought out' },
 ];
 

@@ -247,6 +247,22 @@ export function renderFrame(
     }
   }
 
+  for (const chest of floorMap.chests ?? []) {
+    const { x, y } = chest.position;
+    if (!floorMap.visible[y][x]) continue;
+    const glyph = '=';
+    const color = '#4af';
+    const px = x * TILE_SIZE + offsetX;
+    const py = y * TILE_SIZE + offsetY;
+    drawGlyph(ctx, glyph, color, px, py);
+    if (!chest.looted) {
+      // Ring around an unopened chest so it reads as interactable
+      ctx.strokeStyle = '#4af';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+  }
+
   const { shop } = state;
   if (shop && floorMap.visible[shop.position.y][shop.position.x]) {
     const px = shop.position.x * TILE_SIZE + offsetX;

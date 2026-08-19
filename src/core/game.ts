@@ -1,5 +1,6 @@
 import {
   ArmorType,
+  Chest,
   Enemy,
   EnemyType,
   GameState,
@@ -304,6 +305,7 @@ export function populateFloor(
 ): {
   enemies: Enemy[];
   drops: ItemDrop[];
+  chests: Chest[];
 } {
   const candidates = walkableTiles(map).filter(p => manhattan(p, map.entrance) > 5);
   const taken = new Set<string>();
@@ -366,7 +368,7 @@ export function populateFloor(
   }
 
   const drops: ItemDrop[] = [];
-  if (isRegionEnd(level)) return { enemies, drops };
+  if (isRegionEnd(level)) return { enemies, drops, chests: [] };
 
   const dropCount = 2 + rng.randomInt(0, 2);
   for (let i = 0; i < dropCount; i++) {
@@ -394,15 +396,25 @@ export function populateFloor(
     });
   }
 
-  return { enemies, drops };
+  const chests: Chest[] = [];
+  if (rng.random() < 0.4) {
+    const pos = take();
+    if (pos) {
+      const contents = rollChestContents(rng, level);
+      chests.push({ id: `chest_${level}`, position: pos, contents, looted: false });
+    }
+  }
+
+  return { enemies, drops, chests };
 }
 
 /** Build a floor at `level` and move the player onto its entrance. */
 export function buildFloor(state: GameState, rng: SeededRNG, level: number): void {
   const map = generateFloor(rng, level);
-  const { enemies, drops } = populateFloor(map, rng, level, state.config.finalFloor);
+  const { enemies, drops, chests } = populateFloor(map, rng, level, state.config.finalFloor);
 
   map.drops = drops;
+  map.chests = chests;
   state.floorMap = map;
   state.entities = enemies;
   state.player.position = { x: map.entrance.x, y: map.entrance.y };
@@ -422,6 +434,24 @@ export function buildFloor(state: GameState, rng: SeededRNG, level: number): voi
   state.shiftCountdown = state.nextShiftCountdownMax;
 
   computeFOV(map, state.player.position);
+}
+
+/** What a chest can contain. Rolled at floor build time like shop stock. */
+function rollChestContents(rng: SeededRNG, level: number): Item {
+  const roll = rng.random();
+  if (roll < 0.5) {
+    // Coin sum — 3-5 coins
+    return createCoinCache(rng.randomInt(3, 6), `chest_coins_${level}`);
+  }
+  if (roll < 0.8) {
+    // Consumable from the loot pool
+    const type = LOOT_POOL[rng.randomInt(0, LOOT_POOL.length - 1)];
+    return createItem(type, `chest_item_${level}`);
+  }
+  // Armour one tier ahead of the current floor (capped at warden_carapace)
+  const nextTier = level + 2;
+  const type = armorForLevel(Math.min(nextTier, 5));
+  return createArmor(type, `chest_armor_${level}`, rng);
 }
 
 /** Create a fresh run. `seed` drives every generation and combat roll. */

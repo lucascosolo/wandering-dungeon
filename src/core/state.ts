@@ -286,6 +286,13 @@ export interface ItemDrop {
   position: Position;
 }
 
+export interface Chest {
+  id: string;
+  position: Position;
+  contents: Item;
+  looted: boolean;
+}
+
 export interface FloorMap {
   level: number;
   width: number;
@@ -298,6 +305,8 @@ export interface FloorMap {
   visible: boolean[][];
   /** Item pickups lying on the floor. Populated when the floor is built. */
   drops?: ItemDrop[];
+  /** Chests placed on this floor. Unopened chests are interactable containers. */
+  chests?: Chest[];
 }
 
 export interface GameState {

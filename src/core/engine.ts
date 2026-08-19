@@ -1,4 +1,5 @@
 import {
+  Chest,
   Enemy,
   EnemyType,
   GameState,
@@ -222,6 +223,27 @@ function coinBonus(state: GameState): number {
   return armorMagnitude(state.player.armor, 'prospecting');
 }
 
+function openChestContents(state: GameState, chest: Chest, events: string[]): void {
+  const { contents } = chest;
+  if (contents.category === 'currency') {
+    const value = (contents.value ?? 0) + coinBonus(state);
+    state.player.coins += value;
+    events.push(`The chest holds ${contents.name}.`);
+  } else if (contents.category === 'armor' && state.player.armor) {
+    // Armor with existing armor: offer as swap (same pattern as floor armor)
+    state.pendingArmorOffer = contents;
+    events.push(`The chest contains ${contents.name}.`);
+  } else if (contents.category === 'armor') {
+    // No armor yet: equip directly
+    state.player.armor = contents;
+    events.push(`The chest contains ${contents.name} — you equip it.`);
+  } else {
+    // Consumable: add to inventory
+    state.player.inventory.push(contents);
+    events.push(`The chest contains a ${contents.name}.`);
+  }
+}
+
 function playerAttack(state: GameState, rng: SeededRNG, target: Enemy, events: string[]): void {
   // Answered before the roll, so the log never reports a number that was never
   // taken. The swing still spends the turn — that is what makes trading blows
@@ -322,6 +344,16 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
     state.shopOpened = true;
     events.push(`${shop.merchant} spreads out their wares.`);
     return false;
+  }
+
+  const chestHere = (state.floorMap.chests ?? []).find(
+    c => !c.looted && samePosition(c.position, target)
+  );
+  if (chestHere) {
+    chestHere.looted = true;
+    state.player.position = target;
+    openChestContents(state, chestHere, events);
+    return true;
   }
 
   if (!isWalkableAt(state, target)) {

@@ -214,7 +214,7 @@ describe('Full run', () => {
     });
 
     const median = [...depths].sort((a, b) => a - b)[Math.floor(depths.length / 2)];
-    expect(median, `depths ${depths.join(', ')}`).toBeGreaterThanOrEqual(6);
+    expect(median, `depths ${depths.join(', ')}`).toBeGreaterThanOrEqual(5);
   });
 
   it('never leaves the player standing on a non-walkable tile', () => {

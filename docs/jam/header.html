@@ -9,8 +9,8 @@
 
 body {
   background: #0a0a0f;
-  width: 800px;
-  height: 300px;
+  width: 630px;
+  height: 500px;
   overflow: hidden;
   font-family: monospace;
   display: flex;
@@ -25,8 +25,8 @@ body {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: repeat(40, 20px);
-  grid-template-rows: repeat(15, 20px);
+  grid-template-columns: repeat(31, 20px);
+  grid-template-rows: repeat(25, 20px);
   opacity: 0.08;
 }
 
@@ -122,8 +122,8 @@ body {
   const grid = document.getElementById('grid');
   const tiles = ['.', '#', '+', '.', '.', '#', '.', '+', '.', '#'];
   const colors = ['#4af', '#c99bff', '#f7b32b'];
-  for (let y = 0; y < 15; y++) {
-    for (let x = 0; x < 40; x++) {
+  for (let y = 0; y < 25; y++) {
+    for (let x = 0; x < 31; x++) {
       const span = document.createElement('span');
       span.className = 'glyph';
       if (Math.random() < 0.3) {

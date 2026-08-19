@@ -630,6 +630,13 @@ function descend(state: GameState, rng: SeededRNG, events: string[]): boolean {
 
   events.push(`You descend to floor ${floorMap.level + 1}.`);
   buildFloor(state, rng, floorMap.level + 1);
+
+  // Announce boss when entering an arena floor
+  const boss = state.entities.find(e => e.isBoss && e.hp > 0);
+  if (boss) {
+    events.push(`${boss.name} bars your path.`);
+  }
+
   return true;
 }
 

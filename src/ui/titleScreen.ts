@@ -33,11 +33,90 @@ export function showTitleScreen(handlers: TitleScreenHandlers): void {
   screen.className = 'title-screen';
   document.body.appendChild(screen);
 
+  // Particle canvas behind the title content
+  const canvas = document.createElement('canvas');
+  canvas.className = 'title-screen__particles';
+  screen.appendChild(canvas);
+  const ctx = canvas.getContext('2d')!;
+
+  let animId = 0;
+
+  function resizeCanvas(): void {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // Falling debris fragments
+  interface Fragment {
+    x: number; y: number;
+    w: number; h: number;
+    vx: number; vy: number;
+    rot: number; rotV: number;
+    alpha: number;
+    color: string;
+  }
+
+  const fragments: Fragment[] = [];
+  const COLORS = ['#4af', '#c99bff', '#f7b32b', '#e09f3e', '#ff6b35'];
+
+  function spawnFragment(): void {
+    fragments.push({
+      x: Math.random() * canvas.width,
+      y: -20,
+      w: 4 + Math.random() * 10,
+      h: 4 + Math.random() * 10,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: 0.5 + Math.random() * 1.2,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.04,
+      alpha: 0.3 + Math.random() * 0.3,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    });
+  }
+
+  function animateParticles(): void {
+    // Spawn 2-3 new fragments per frame
+    for (let i = 0; i < 3; i++) spawnFragment();
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = fragments.length - 1; i >= 0; i--) {
+      const f = fragments[i];
+      f.x += f.vx;
+      f.y += f.vy;
+      f.rot += f.rotV;
+      f.alpha -= 0.003;
+
+      if (f.alpha <= 0 || f.y > canvas.height + 20) {
+        fragments.splice(i, 1);
+        continue;
+      }
+
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      ctx.globalAlpha = Math.max(0, f.alpha);
+      ctx.fillStyle = f.color;
+      ctx.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
+      ctx.restore();
+    }
+
+    // Cap fragments to avoid memory issues
+    if (fragments.length > 200) fragments.splice(0, fragments.length - 200);
+
+    animId = requestAnimationFrame(animateParticles);
+  }
+  animId = requestAnimationFrame(animateParticles);
+
   const { saved } = handlers;
   let length: RunLength = 'short';
   let difficulty: Difficulty = 'standard';
 
   function close(): void {
+    cancelAnimationFrame(animId);
+    window.removeEventListener('resize', resizeCanvas);
     screen.remove();
   }
 

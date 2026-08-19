@@ -1,0 +1,33 @@
+{
+  "project": "/root/workspaces/build/wandering-dungeon",
+  "jam": "Do You WANNA Jam?! 2026 — theme: 'unstable'",
+  "deadline": "2026-08-24 14:00 UTC",
+  "current_state": "4 of 8 tasks complete. 288 tests green, TSC clean, build clean.",
+  "shipped_features": [
+    "Chests — lootable containers on ~40% of non-boss floors, glyph '=', bump-to-open, coins/consumables/armour contents",
+    "Weapon types — Short Blade (starter), War Axe (+4 damage), Longbow (range 6 ranged attack), weapon swap prompt, glyph ')'",
+    "Feel polish — kill flash (red tile flash), floating pickup name labels",
+    "Patreon link — https://www.patreon.com/trophonix wired into support button, profile page, itch.io description"
+  ],
+  "remaining_features": [
+    "Title screen particles — world-breaking-apart ambient effect (fragments/debris falling down screen)",
+    "Boss fight clarity — nameplate/HP bar, telegraph tooltips, boss entry splash, color-coded marks"
+  ],
+  "remaining_tasks": [
+    "QA pass — full test suite + build",
+    "Screenshots — capture game screenshots (non-AI, via browser)",
+    "Jam submission — upload to itch.io"
+  ],
+  "key_files": {
+    "plan": "docs/plans/2026-08-19-jam-polish.md",
+    "itchio_description": "docs/jam/itchio-description.md",
+    "itchio_tagline": "docs/jam/itchio-tagline.txt",
+    "screenshot_captions": "docs/jam/screenshot-captions.md",
+    "profile_page": "/root/projects/lucascosolo.com/index.html",
+    "profile_style": "/root/projects/lucascosolo.com/STYLE.md"
+  },
+  "last_commit": "feat: feel polish — kill flash, pickup labels, Patreon link",
+  "git_log_tail": "dda6d5f feat: weapon types — Short Blade, War Axe, and Longbow\n1ce0109 feat: chests — lootable containers on floors\nc575357 fix: keep the title on one line once the menu is two columns",
+  "patreon_url": "https://www.patreon.com/trophonix",
+  "deploy_url": "https://roguelike.lucascosolo.com"
+}

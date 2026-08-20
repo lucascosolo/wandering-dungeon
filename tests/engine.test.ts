@@ -13,6 +13,7 @@ import {
   coinsPerPile,
   coinsPerKill,
   createCoinCache,
+  createItem,
   createNewGame,
   xpPerKill,
   xpToNextLevel,
@@ -1285,5 +1286,45 @@ describe('Run configuration', () => {
     state.config = createRunConfig('short', 'gentle');
     damagePlayer(state, 1, []);
     expect(state.player.hp).toBe(99);
+  });
+});
+
+describe('Ranged weapons', () => {
+  it('fires instead of walking while a bow is aimed', () => {
+    const state = createMockGameState();
+    state.player.weapon = createItem('longbow', 'test_bow');
+    state.player.weaponActive = true;
+    const { dx, dy, x, y } = walkableStep(state);
+    const from = { ...state.player.position };
+
+    const { events } = dispatchAction(state, { type: 'MOVE', dx, dy });
+
+    expect(state.player.position).toEqual(from);
+    expect(state.player.position).not.toEqual({ x, y });
+    expect(events.some(e => e.toLowerCase().includes('arrow'))).toBe(true);
+  });
+
+  it('walks normally once a bow is sheathed', () => {
+    const state = createMockGameState();
+    state.player.weapon = createItem('longbow', 'test_bow');
+    state.player.weaponActive = false;
+    const { dx, dy, x, y } = walkableStep(state);
+
+    dispatchAction(state, { type: 'MOVE', dx, dy });
+
+    expect(state.player.position).toEqual({ x, y });
+  });
+
+  it('toggles the aim stance for free, without spending a turn', () => {
+    const state = createMockGameState();
+    state.player.weapon = createItem('longbow', 'test_bow');
+    const turnBefore = state.turnCount;
+
+    dispatchAction(state, { type: 'TOGGLE_WEAPON' });
+    expect(state.player.weaponActive).toBe(false);
+
+    dispatchAction(state, { type: 'TOGGLE_WEAPON' });
+    expect(state.player.weaponActive).toBe(true);
+    expect(state.turnCount).toBe(turnBefore);
   });
 });

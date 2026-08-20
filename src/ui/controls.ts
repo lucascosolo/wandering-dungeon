@@ -16,6 +16,8 @@ export interface ControlHandlers {
   toggleInventory: () => void;
   /** Drink a Health Potion, bound to its own key rather than a hotbar slot. */
   usePotion: () => void;
+  /** Sheathe or draw a ranged weapon, so a direction press walks instead of firing. */
+  toggleWeapon: () => void;
   /** Tile coordinates of a tap inside the canvas, in map space. */
   tapTile: (x: number, y: number) => void;
   /** 1-based hotbar slot index, from number keys 1-4. */
@@ -73,6 +75,9 @@ export function attachControls(canvas: HTMLCanvasElement, handlers: ControlHandl
         break;
       case 'potion':
         handlers.usePotion();
+        break;
+      case 'bow':
+        handlers.toggleWeapon();
         break;
       case 'descend':
         // Enter is bound to Descend by default and is also the natural key for

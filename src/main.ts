@@ -558,6 +558,7 @@ function bootGameShell(): void {
     armorPickupWantsEnter,
     toggleInventory,
     usePotion,
+    toggleWeapon: () => act({ type: 'TOGGLE_WEAPON' }),
     inputBlocked: () => blocksGameInput(openModals()),
     dismissModal,
     useHotbarSlot: (slot) => {
@@ -580,6 +581,7 @@ function bootGameShell(): void {
 
   root.querySelector('#btn-wait')!.addEventListener('click', () => act({ type: 'WAIT' }));
   root.querySelector('#btn-ability')!.addEventListener('click', () => act({ type: 'ABILITY' }));
+  root.querySelector('#btn-bow-toggle')!.addEventListener('click', () => act({ type: 'TOGGLE_WEAPON' }));
   root.querySelector('#btn-descend')!.addEventListener('click', () => act({ type: 'DESCEND' }));
   root.querySelector('#btn-inventory')!.addEventListener('click', toggleInventory);
   ui.potionBtn.addEventListener('click', usePotion);

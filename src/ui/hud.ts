@@ -68,6 +68,8 @@ export interface HudElements {
   abilityBtn: HTMLButtonElement;
   abilityLabel: HTMLElement;
   descendBtn: HTMLButtonElement;
+  bowToggleBtn: HTMLButtonElement;
+  bowToggleLabel: HTMLElement;
 }
 
 /**
@@ -151,6 +153,7 @@ export function mountUI(
 
     <div class="thumb-action-bar">
       <button class="action-btn" id="btn-wait" type="button">Wait<small>space</small></button>
+      <button class="action-btn hidden" id="btn-bow-toggle" type="button"><span id="bow-toggle-label">Aim</span><small>b</small></button>
       <button class="action-btn" id="btn-ability" type="button"><span id="ability-label">Shield</span><small>q</small></button>
       <button class="action-btn" id="btn-inventory" type="button">Items<small>i</small></button>
       <button class="action-btn action-btn--warning" id="btn-descend" type="button">Descend<small>&gt;</small></button>
@@ -215,6 +218,8 @@ export function mountUI(
     abilityBtn: byId<HTMLButtonElement>('btn-ability'),
     abilityLabel: byId('ability-label'),
     descendBtn: byId<HTMLButtonElement>('btn-descend'),
+    bowToggleBtn: byId<HTMLButtonElement>('btn-bow-toggle'),
+    bowToggleLabel: byId('bow-toggle-label'),
   };
 }
 
@@ -329,6 +334,17 @@ export function updateHud(ui: HudElements, state: GameState): void {
   ui.abilityBtn.classList.toggle('action-btn--holding', holding > 0);
   ui.abilityBtn.classList.toggle('action-btn--cooling', holding === 0 && cooling > 0);
   ui.abilityBtn.disabled = cooling > 0 || holding > 0;
+
+  // Only a ranged weapon needs a stance at all — a melee hit never mistakes a
+  // walk for a swing, so the toggle stays out of the bar entirely rather than
+  // sitting there disabled.
+  const hasRangedWeapon = Boolean(player.weapon?.range);
+  ui.bowToggleBtn.classList.toggle('hidden', !hasRangedWeapon);
+  ui.bowToggleLabel.textContent = player.weaponActive ? 'Aim' : 'Sheath';
+  ui.bowToggleBtn.classList.toggle('action-btn--active', hasRangedWeapon && player.weaponActive);
+  ui.bowToggleBtn.title = player.weaponActive
+    ? 'Aiming: a direction press fires. Tap to sheathe and walk instead.'
+    : 'Sheathed: a direction press walks. Tap to aim and fire instead.';
 }
 
 function turnsLabel(turns: number): string {

@@ -10,6 +10,7 @@ export type ActionId =
   | 'descend'
   | 'inventory'
   | 'potion'
+  | 'bow'
   | 'hotbar1'
   | 'hotbar2'
   | 'hotbar3'
@@ -30,6 +31,7 @@ export const ACTIONS: { id: ActionId; label: string }[] = [
   { id: 'descend', label: 'Descend' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'potion', label: 'Drink potion' },
+  { id: 'bow', label: 'Aim / sheathe bow' },
   { id: 'hotbar1', label: 'Hotbar 1' },
   { id: 'hotbar2', label: 'Hotbar 2' },
   { id: 'hotbar3', label: 'Hotbar 3' },
@@ -46,6 +48,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   descend: ['>', 'enter'],
   inventory: ['i'],
   potion: ['h'],
+  bow: ['b'],
   hotbar1: ['1'],
   hotbar2: ['2'],
   hotbar3: ['3'],

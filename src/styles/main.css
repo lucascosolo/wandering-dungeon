@@ -757,6 +757,16 @@ html, body {
   color: #ffb74d;
 }
 
+/* The bow is drawn and will fire on the next direction press — same accent as
+   every other "armed" readout in the HUD, so a glance at the bar is enough to
+   tell a tap will shoot rather than walk. */
+.action-btn.action-btn--active {
+  background: var(--accent-cyan-glow);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
 .sheet {
   position: absolute;
   left: 50%;
@@ -1245,6 +1255,10 @@ html, body {
   -webkit-user-select: text;
 }
 
+.settings__inner::-webkit-scrollbar {
+  display: none;
+}
+
 .error-panel__note {
   margin: 4px 0 0;
   font-size: 0.68rem;
@@ -1548,6 +1562,13 @@ html, body {
    single flow the moment the viewport is narrow.
    ───────────────────────────────────────────────────────────────────────── */
 @media (min-width: 760px) {
+  .help__list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 24px;
+  }
+  .help__body { margin: 0 0 8px; }
+  .panel__section { margin: 0; }
   .title-screen { padding: calc(var(--safe-area-top) + 40px) 40px calc(var(--safe-area-bottom) + 40px); }
 
   .title-screen__inner { max-width: 440px; gap: 8px; }

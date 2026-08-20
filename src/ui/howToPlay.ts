@@ -102,6 +102,7 @@ export function howToPlayHtml(): string {
         <div class="keybind"><span class="keybind__label">Step into the next tile, or hit whatever stands there</span><span class="help__keys">tap beside you</span></div>
         <div class="keybind"><span class="keybind__label">Walk to somewhere you have already seen</span><span class="help__keys">tap it</span></div>
         <div class="keybind"><span class="keybind__label">Wait &middot; Shield &middot; Items &middot; Descend</span><span class="help__keys">bottom buttons</span></div>
+        <div class="keybind"><span class="keybind__label">Aim or sheathe a ranged weapon</span><span class="help__keys">bottom button, appears while one is worn</span></div>
       </div>
       <p class="help__body help__body--note">
         A long walk stops itself the moment an enemy comes into view, you take a hit,

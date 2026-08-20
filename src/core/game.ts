@@ -510,6 +510,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     shieldTurnsRemaining: 0,
     armor: null,
     weapon: createItem('short_blade', 'start_weapon'),
+    weaponActive: true,
     coins: 0,
     level: 1,
     xp: 0,

@@ -201,6 +201,13 @@ export interface Player extends Entity {
   armor: Item | null;
   /** Worn weapon. Null means fists (attackPower only). */
   weapon: Item | null;
+  /**
+   * Whether a ranged weapon fires on a direction press. A melee weapon ignores
+   * this, but a bow does not: without a sheathe toggle, every step taken toward
+   * an enemy while carrying one would loose an arrow instead of walking, which
+   * is unplayable on a touch device that moves by tapping a direction.
+   */
+  weaponActive: boolean;
   inventory: Item[];
   /** Spending money for the post-boss merchant. Carries across floors. */
   coins: number;

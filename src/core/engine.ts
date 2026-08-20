@@ -53,6 +53,7 @@ export type GameAction =
   | { type: 'EQUIP_WEAPON' }
   | { type: 'DECLINE_WEAPON' }
   | { type: 'PICK_UP_WEAPON' }
+  | { type: 'TOGGLE_WEAPON' }
   | { type: 'INSPECT_TILE'; x: number; y: number };
 
 export interface DispatchResult {
@@ -98,6 +99,8 @@ function consumesTurn(action: GameAction): boolean {
     action.type !== 'EQUIP_WEAPON' &&
     action.type !== 'DECLINE_WEAPON' &&
     action.type !== 'PICK_UP_WEAPON' &&
+    // Sheathing or drawing a bow is a stance change, not an act in the world.
+    action.type !== 'TOGGLE_WEAPON' &&
     // Trading is free. Charging a turn would let the dungeon shift the arena
     // apart while the player reads a price list.
     action.type !== 'BUY_ITEM'
@@ -376,9 +379,12 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
   }
 
   // Ranged attack: if holding a ranged weapon and no adjacent enemy, scan
-  // the direction for enemies in line of sight within range.
+  // the direction for enemies in line of sight within range. Gated on
+  // `weaponActive` so the bow can be sheathed to walk normally — without it,
+  // every direction press while carrying one fires instead of moving, which is
+  // unplayable on a touch device that moves by tapping a direction.
   const weapon = state.player.weapon;
-  if (weapon?.range && !occupant) {
+  if (weapon?.range && !occupant && state.player.weaponActive) {
     const hit = rangedAttack(state, rng, weapon.range, dx, dy, events);
     if (hit) return true;
   }
@@ -1274,6 +1280,9 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
       if (underfoot) state.pendingWeaponOffer = underfoot;
       break;
     }
+    case 'TOGGLE_WEAPON':
+      state.player.weaponActive = !state.player.weaponActive;
+      break;
     case 'INSPECT_TILE': {
       const { x, y } = action;
       const inBounds = x >= 0 && x < state.floorMap.width && y >= 0 && y < state.floorMap.height;

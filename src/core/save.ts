@@ -122,9 +122,14 @@ function decodeChecked(raw: unknown): GameState | null {
   // A run saved before levels existed carries no level/xp. Filling them in at the
   // deserialization boundary — rather than bumping SAVE_VERSION and throwing the
   // run away — resumes it at level 1, which is exactly what it was playing at.
-  const player = saved.state.player as Player & { level?: number; xp?: number };
+  const player = saved.state.player as Player & { level?: number; xp?: number; weaponActive?: boolean };
   player.level ??= 1;
   player.xp ??= 0;
+
+  // A run saved before the bow toggle existed carries no aim/sheathe flag.
+  // Same boundary fix as level/xp above: resume aimed, which is what every run
+  // before this flag existed was implicitly playing at.
+  player.weaponActive ??= true;
 
   // A run saved before escalating pressure existed carries no per-floor counter.
   // Same boundary fix as level/xp above: resume at zero pressure rather than throw

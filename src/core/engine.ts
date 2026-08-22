@@ -458,6 +458,9 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         drops.splice(index, 1);
         const old = state.player.weapon;
         state.player.weapon = drop.item;
+        if (state.player.weapon?.range) {
+          state.player.weaponActive = false;
+        }
         if (old) {
           drops.push({ item: old, position: target });
           events.push(`You pick up the ${drop.item.name}, dropping the ${old.name}.`);
@@ -563,6 +566,9 @@ function equipOfferedWeapon(state: GameState, events: string[]): void {
   drops.splice(index, 1);
   const previous = player.weapon;
   player.weapon = offered;
+  if (player.weapon?.range) {
+    player.weaponActive = false;
+  }
   state.declinedWeaponIds = state.declinedWeaponIds.filter(id => id !== offered.id);
   if (previous) {
     drops.push({ item: previous, position: { ...player.position } });

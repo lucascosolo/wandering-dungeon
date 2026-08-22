@@ -156,6 +156,12 @@ export interface Item {
    * and never enters the inventory, so it can never be "used" as a consumable.
    */
   value?: number;
+  /**
+   * How many of this stack the slot represents. Absent means 1: a run saved
+   * before stacking existed carries no count, and one unstacked item is what it
+   * was already playing with.
+   */
+  count?: number;
 }
 
 export interface ShopOffer {

@@ -131,6 +131,13 @@ function decodeChecked(raw: unknown): GameState | null {
   // before this flag existed was implicitly playing at.
   player.weaponActive ??= true;
 
+  // A run saved before stacking existed carries no count on any item. Same
+  // boundary fix as above: each slot resumes as a stack of one, which is what
+  // it already was.
+  player.inventory.forEach(item => {
+    item.count ??= 1;
+  });
+
   // A run saved before escalating pressure existed carries no per-floor counter.
   // Same boundary fix as level/xp above: resume at zero pressure rather than throw
   // the run away. Reading `turnCount` instead would be wrong — it never resets, so

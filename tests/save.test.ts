@@ -153,6 +153,18 @@ describe('Run persistence', () => {
     expect(restored.player.xp).toBe(0);
   });
 
+  it('resumes a run saved before item stacking existed with every slot a stack of one', () => {
+    const state = playedRun('save-pre-stacking', 5);
+    const saved = structuredClone(encodeRun(state));
+    saved.state.player.inventory.forEach(item => {
+      delete (item as Partial<GameState['player']['inventory'][number]>).count;
+    });
+
+    const restored = decodeRun(saved)!;
+
+    expect(restored.player.inventory.every(item => item.count === 1)).toBe(true);
+  });
+
   it('brings the merchant back with the same stock, standing on the same tile', () => {
     const state = playedRun('save-shop', 5);
     state.shop = createShop(new SeededRNG('save-shop-stock'), 2, 15, { x: 7, y: 4 });

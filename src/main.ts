@@ -13,7 +13,6 @@ import { loadKeybinds } from './ui/keybinds';
 import { clearRun, loadRun, saveRun } from './core/save';
 import { RunConfig } from './core/runConfig';
 import {
-  healthPotions,
   hotbarItems,
   mountUI,
   renderHotbar,
@@ -442,7 +441,7 @@ function travelTo(target: Position): void {
 
 function usePotion(): void {
   if (state.player.hp >= state.player.maxHp) return;
-  const potion = healthPotions(state)[0];
+  const potion = state.player.inventory.find(item => item.type === 'health_potion');
   if (potion) useItem(potion.id);
 }
 

@@ -722,6 +722,11 @@ html, body {
   color: var(--text-dim);
 }
 
+.hotbar-slot__count {
+  font-size: 0.65rem;
+  color: var(--accent-cyan);
+}
+
 .log-line--combat { color: #ff9db1; }
 .log-line--shift { color: var(--accent-purple); }
 .log-line--warning { color: var(--warning-red); }
@@ -781,6 +786,12 @@ html, body {
 @keyframes pulse-bow-sheathed {
   0%, 100% { box-shadow: 0 0 6px rgba(255, 179, 77, 0.2); }
   50% { box-shadow: 0 0 24px rgba(255, 179, 77, 0.6), 0 0 50px rgba(255, 179, 77, 0.2); }
+}
+
+/* Bow icon sits above the label in the flex-column button */
+.bow-toggle__icon {
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .sheet {
@@ -857,6 +868,7 @@ html, body {
 
 .item-row__name { font-weight: 600; font-size: 0.85rem; }
 .item-row__desc { font-size: 0.7rem; color: var(--text-muted); }
+.item-row__count { font-size: 0.7rem; color: var(--accent-cyan); }
 
 .modal {
   position: absolute;

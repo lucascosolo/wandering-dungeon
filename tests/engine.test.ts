@@ -171,6 +171,50 @@ describe('Turn Engine & Items', () => {
     expect(state.stasisTurnsRemaining).toBe(4);
   });
 
+  it('using an unstacked item removes its slot', () => {
+    const state = createMockGameState();
+    dispatchAction(state, { type: 'USE_ITEM', itemId: 'stasis_1' });
+    expect(state.player.inventory.some(item => item.id === 'stasis_1')).toBe(false);
+  });
+
+  it('using a stacked item decrements the count and keeps the slot until it empties', () => {
+    const state = createMockGameState();
+    const flask = state.player.inventory.find(item => item.id === 'stasis_1')!;
+    flask.count = 2;
+
+    dispatchAction(state, { type: 'USE_ITEM', itemId: 'stasis_1' });
+    expect(state.player.inventory.find(item => item.id === 'stasis_1')?.count).toBe(1);
+
+    dispatchAction(state, { type: 'WAIT' }); // let the first flask's effect lapse before drinking another
+    dispatchAction(state, { type: 'USE_ITEM', itemId: 'stasis_1' });
+    expect(state.player.inventory.some(item => item.id === 'stasis_1')).toBe(false);
+  });
+
+  it('picking up a consumable already carried stacks it onto the existing slot', () => {
+    const state = createMockGameState();
+    const carried = state.player.inventory.length;
+    const step = walkableStep(state);
+    state.floorMap.drops = [
+      {
+        item: {
+          id: 'floor_potion',
+          type: 'health_potion',
+          name: 'Health Potion',
+          description: 'Restores 30 HP.',
+          category: 'consumable',
+        },
+        position: { x: step.x, y: step.y },
+      },
+    ];
+
+    dispatchAction(state, { type: 'MOVE', dx: step.dx, dy: step.dy });
+
+    expect(state.player.inventory).toHaveLength(carried);
+    const potion = state.player.inventory.find(item => item.type === 'health_potion')!;
+    expect(potion.id).toBe('health_1'); // the carried slot stacks, the dropped one never joins the array
+    expect(potion.count).toBe(2);
+  });
+
   it('moving into an adjacent enemy attacks it instead of moving', () => {
     const state = createMockGameState();
     const { x, y } = state.player.position;
@@ -942,12 +986,15 @@ describe('Shop', () => {
     const state = atBossDeath('shop-buy');
     const offer = state.shop!.stock[0];
     state.player.coins = offer.price + 5;
-    const carried = state.player.inventory.length;
+    // Counts items, not slots: a purchase that matches something already carried
+    // stacks onto it instead of opening a new slot.
+    const carried = state.player.inventory.reduce((sum, item) => sum + (item.count ?? 1), 0);
 
     dispatchAction(state, { type: 'BUY_ITEM', offerId: offer.id });
 
     expect(state.player.coins).toBe(5);
-    expect(state.player.inventory).toHaveLength(carried + 1);
+    const held = state.player.inventory.reduce((sum, item) => sum + (item.count ?? 1), 0);
+    expect(held).toBe(carried + 1);
     expect(state.shop!.stock[0].sold).toBe(true);
   });
 

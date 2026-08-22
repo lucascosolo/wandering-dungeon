@@ -109,8 +109,11 @@ export function useItem(state: GameState, itemId: string, rng: SeededRNG): strin
       break;
   }
 
-  // Remove consumed item from inventory
-  state.player.inventory.splice(itemIndex, 1);
+  // Reduce stack count, remove the slot once it is empty.
+  item.count = (item.count ?? 1) - 1;
+  if (item.count <= 0) {
+    state.player.inventory.splice(itemIndex, 1);
+  }
 
   return events;
 }

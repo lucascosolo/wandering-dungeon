@@ -266,6 +266,22 @@ function coinBonus(state: GameState): number {
   return armorMagnitude(state.player.armor, 'prospecting');
 }
 
+/**
+ * Add an item to the inventory, stacking it onto an existing slot of the same
+ * type and category rather than opening a new one. Armor and weapons never
+ * reach here — they are equipped directly or routed through pendingArmorOffer
+ * / pendingWeaponOffer — so this only ever stacks consumables.
+ */
+function addToInventory(state: GameState, item: Item): void {
+  const existing = state.player.inventory.find(i => i.type === item.type && i.category === item.category);
+  if (existing) {
+    existing.count = (existing.count ?? 1) + 1;
+  } else {
+    item.count = 1;
+    state.player.inventory.push(item);
+  }
+}
+
 function openChestContents(state: GameState, chest: Chest, events: string[]): void {
   const { contents } = chest;
   if (contents.category === 'currency') {
@@ -282,7 +298,7 @@ function openChestContents(state: GameState, chest: Chest, events: string[]): vo
     events.push(`The chest contains ${contents.name} — you equip it.`);
   } else {
     // Consumable: add to inventory
-    state.player.inventory.push(contents);
+    addToInventory(state, contents);
     events.push(`The chest contains a ${contents.name}.`);
   }
 }
@@ -478,7 +494,7 @@ function playerMove(state: GameState, rng: SeededRNG, dx: number, dy: number, ev
         events.push(`You pocket ${picked} coins.`);
       } else {
         drops.splice(index, 1);
-        state.player.inventory.push(drop.item);
+        addToInventory(state, drop.item);
         state.lastPickupName = drop.item.name;
         state.lastPickupPosition = { ...target };
         events.push(`You pick up a ${drop.item.name}.`);
@@ -671,7 +687,7 @@ function buyFromShop(state: GameState, offerId: string, events: string[]): void 
   const offer = shop.stock.find(entry => entry.id === offerId)!;
   offer.sold = true;
   state.player.coins -= offer.price;
-  state.player.inventory.push(result.item);
+  addToInventory(state, result.item);
 }
 
 function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): void {
@@ -690,7 +706,7 @@ function awardBossDefeats(state: GameState, rng: SeededRNG, events: string[]): v
     state.floorMap.entrance;
   state.shop = createShop(rng, region.index, state.floorMap.level, stall);
   const reward = createItem('hourglass_shard', `boss_reward_${state.floorMap.level}`);
-  state.player.inventory.push(reward);
+  addToInventory(state, reward);
   state.lastBossDefeat = {
     floor: state.floorMap.level,
     regionName: region.name,

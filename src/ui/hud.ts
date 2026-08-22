@@ -18,10 +18,14 @@ export const HOTBAR_SIZE = 4;
  * Healing is too important to hunt for among situational items, so potions get
  * their own always-visible readout and key and are kept out of the hotbar —
  * which also leaves all four slots for the items a player actually has to
- * choose between.
+ * choose between. Sums stack counts rather than slots: potions stack, so a
+ * single slot can represent more than one potion.
  */
-export function healthPotions(state: GameState): Item[] {
-  return state.player.inventory.filter(item => item.type === 'health_potion');
+export function healthPotions(state: GameState): { count: number } {
+  const count = state.player.inventory
+    .filter(item => item.type === 'health_potion')
+    .reduce((sum, item) => sum + (item.count ?? 1), 0);
+  return { count };
 }
 
 /**
@@ -285,7 +289,7 @@ export function updateHud(ui: HudElements, state: GameState): void {
   // spend it on rather than opening the shop itself.
   ui.coinChip.classList.toggle('coin-chip--merchant', state.shop !== null);
 
-  const potions = healthPotions(state).length;
+  const potions = healthPotions(state).count;
   ui.potionCount.textContent = String(potions);
   // Stays visible at zero so the option is known before it is needed, and
   // disabled at full HP so a scarce potion cannot be poured away for nothing.
@@ -448,7 +452,9 @@ export function renderLog(ui: HudElements, state: GameState): void {
  */
 export function renderHotbar(ui: HudElements, state: GameState): void {
   const slots = hotbarItems(state);
-  const signature = slots.map(item => item.id).join('|');
+  // Includes count, not just id: a slot's stack can grow or shrink without its
+  // id changing, and the badge below needs to follow that.
+  const signature = slots.map(item => `${item.id}:${item.count ?? 1}`).join('|');
   if (ui.hotbar.dataset.slots === signature) return;
   ui.hotbar.dataset.slots = signature;
 
@@ -458,6 +464,7 @@ export function renderHotbar(ui: HudElements, state: GameState): void {
       <button class="hotbar-slot" data-item-id="${item.id}" type="button" title="${escapeHtml(item.description)}">
         <span class="hotbar-slot__key">${i + 1}</span>
         <span class="hotbar-slot__name">${escapeHtml(item.name)}</span>
+        ${item.count && item.count > 1 ? `<span class="hotbar-slot__count">×${item.count}</span>` : ''}
       </button>`
     )
     .join('');
@@ -475,6 +482,7 @@ export function renderInventory(ui: HudElements, state: GameState): void {
       <button class="item-row" data-item-id="${item.id}" type="button">
         <span class="item-row__name">${escapeHtml(itemTitle(item))}</span>
         <span class="item-row__desc">${escapeHtml(itemDetail(item))}</span>
+        ${item.count && item.count > 1 ? `<span class="item-row__count">×${item.count}</span>` : ''}
       </button>`
           )
           .join('');

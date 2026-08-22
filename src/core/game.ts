@@ -181,7 +181,7 @@ const LOOT_POOL: ItemType[] = [
 const WEAPON_POOL: WeaponType[] = ['war_axe', 'longbow'];
 
 export function createItem(type: ItemType, id: string): Item {
-  return { id, ...ITEM_TABLE[type] };
+  return { id, count: 1, ...ITEM_TABLE[type] };
 }
 
 /**

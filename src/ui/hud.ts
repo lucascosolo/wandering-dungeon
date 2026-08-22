@@ -153,7 +153,7 @@ export function mountUI(
 
     <div class="thumb-action-bar">
       <button class="action-btn" id="btn-wait" type="button">Wait<small>space</small></button>
-      <button class="action-btn hidden" id="btn-bow-toggle" type="button"><span id="bow-toggle-label">Aim</span><small>b</small></button>
+      <button class="action-btn hidden" id="btn-bow-toggle" type="button"><span class="bow-toggle__icon">🏹</span><span id="bow-toggle-label">Aim</span><small>b</small></button>
       <button class="action-btn" id="btn-ability" type="button"><span id="ability-label">Shield</span><small>q</small></button>
       <button class="action-btn" id="btn-inventory" type="button">Items<small>i</small></button>
       <button class="action-btn action-btn--warning" id="btn-descend" type="button">Descend<small>&gt;</small></button>
@@ -340,11 +340,12 @@ export function updateHud(ui: HudElements, state: GameState): void {
   // sitting there disabled.
   const hasRangedWeapon = Boolean(player.weapon?.range);
   ui.bowToggleBtn.classList.toggle('hidden', !hasRangedWeapon);
-  ui.bowToggleLabel.textContent = player.weaponActive ? 'Aim' : 'Sheath';
+  ui.bowToggleLabel.textContent = player.weaponActive ? 'Bow' : 'Bow';
   ui.bowToggleBtn.classList.toggle('action-btn--active', hasRangedWeapon && player.weaponActive);
+  ui.bowToggleBtn.classList.toggle('bow-toggle--sheathed', hasRangedWeapon && !player.weaponActive);
   ui.bowToggleBtn.title = player.weaponActive
-    ? 'Aiming: a direction press fires. Tap to sheathe and walk instead.'
-    : 'Sheathed: a direction press walks. Tap to aim and fire instead.';
+    ? 'Aiming: a direction press fires an arrow. Tap to sheathe and walk.'
+    : 'Sheathed: a direction press walks. Tap to aim and fire arrows.';
 }
 
 function turnsLabel(turns: number): string {

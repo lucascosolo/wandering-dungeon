@@ -767,6 +767,22 @@ html, body {
   box-shadow: 0 0 12px var(--accent-cyan-glow);
 }
 
+/* Bow toggle: when sheathed (just picked up), draw attention — the player
+   needs to know they can't move until they tap this. Three pulses of amber
+   glow on first appearance, then a steady amber border after. */
+.action-btn.bow-toggle--sheathed {
+  background: rgba(255, 179, 77, 0.15);
+  border-color: #ffb74d;
+  color: #ffb74d;
+  animation: pulse-bow-sheathed 1.5s ease-in-out 3;
+  box-shadow: 0 0 10px rgba(255, 179, 77, 0.25);
+}
+
+@keyframes pulse-bow-sheathed {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 179, 77, 0.2); }
+  50% { box-shadow: 0 0 24px rgba(255, 179, 77, 0.6), 0 0 50px rgba(255, 179, 77, 0.2); }
+}
+
 .sheet {
   position: absolute;
   left: 50%;

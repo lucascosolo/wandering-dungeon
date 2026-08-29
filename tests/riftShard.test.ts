@@ -3,6 +3,7 @@ import { createItem } from '../src/core/game';
 import { applyRiftShard } from '../src/core/items/itemEffects';
 import { dispatchAction } from '../src/core/engine';
 import { createMockGameState, createMockEnemy } from './helpers';
+import { hotbarItems } from '../src/ui/hud';
 
 describe('Rift Shard', () => {
   it('is a registered item type with the displacement category', () => {
@@ -150,5 +151,36 @@ describe('Rift Shard — guaranteed emergency grant', () => {
     dispatchAction(state, { type: 'WAIT' });
 
     expect(state.player.inventory.some(i => i.type === 'rift_shard')).toBe(false);
+  });
+});
+
+describe('Rift Shard — hotbar visibility', () => {
+  it('is always sorted into the visible hotbar, even with 4 other items ahead of it', () => {
+    const state = createMockGameState('rift-hotbar-priority');
+    state.player.inventory = [
+      createItem('stasis_flask', 'a'),
+      createItem('hourglass_shard', 'b'),
+      createItem('haste_sigil', 'c'),
+      createItem('rewind_scroll', 'd'),
+      createItem('rift_shard', 'e'),
+    ];
+
+    const slots = hotbarItems(state);
+
+    expect(slots).toHaveLength(4);
+    expect(slots[0].type).toBe('rift_shard');
+  });
+
+  it('behaves normally with no Rift Shard held', () => {
+    const state = createMockGameState('rift-hotbar-no-shard');
+    state.player.inventory = [
+      createItem('stasis_flask', 'a'),
+      createItem('hourglass_shard', 'b'),
+    ];
+
+    const slots = hotbarItems(state);
+
+    expect(slots).toHaveLength(2);
+    expect(slots.some(item => item.type === 'rift_shard')).toBe(false);
   });
 });

@@ -34,9 +34,10 @@ export function healthPotions(state: GameState): { count: number } {
  * moment one of them learned about a filter the other did not.
  */
 export function hotbarItems(state: GameState): Item[] {
-  return state.player.inventory
-    .filter(item => item.type !== 'health_potion')
-    .slice(0, HOTBAR_SIZE);
+  const usable = state.player.inventory.filter(item => item.type !== 'health_potion');
+  const priority = usable.filter(item => item.type === 'rift_shard');
+  const rest = usable.filter(item => item.type !== 'rift_shard');
+  return [...priority, ...rest].slice(0, HOTBAR_SIZE);
 }
 
 export interface HudElements {
@@ -461,7 +462,7 @@ export function renderHotbar(ui: HudElements, state: GameState): void {
   ui.hotbar.innerHTML = slots
     .map(
       (item, i) => `
-      <button class="hotbar-slot" data-item-id="${item.id}" type="button" title="${escapeHtml(item.description)}">
+      <button class="hotbar-slot${item.type === 'rift_shard' ? ' hotbar-slot--rift-ready' : ''}" data-item-id="${item.id}" type="button" title="${escapeHtml(item.description)}">
         <span class="hotbar-slot__key">${i + 1}</span>
         <span class="hotbar-slot__name">${escapeHtml(item.name)}</span>
         ${item.count && item.count > 1 ? `<span class="hotbar-slot__count">×${item.count}</span>` : ''}

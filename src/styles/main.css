@@ -727,6 +727,17 @@ html, body {
   color: var(--accent-cyan);
 }
 
+/* Rift Shard: the player's escape from a Pursuer-blocked exit. Same
+   treatment as the bow-toggle-sheathed cue — missing this one can be
+   fatal, so it pulses on first appearance and keeps a steady glow. */
+.hotbar-slot.hotbar-slot--rift-ready {
+  background: rgba(255, 179, 77, 0.15);
+  border-color: #ffb74d;
+  color: #ffb74d;
+  animation: pulse-bow-sheathed 1.5s ease-in-out 3;
+  box-shadow: 0 0 10px rgba(255, 179, 77, 0.25);
+}
+
 .log-line--combat { color: #ff9db1; }
 .log-line--shift { color: var(--accent-purple); }
 .log-line--warning { color: var(--warning-red); }

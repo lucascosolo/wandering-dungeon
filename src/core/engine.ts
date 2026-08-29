@@ -362,11 +362,20 @@ function enemyAttack(state: GameState, rng: SeededRNG, attacker: Enemy, events: 
  * a shove with nowhere to go is a shove that fails, not one that teleports past
  * the obstacle or tunnels into it.
  *
+ * A boss stands its ground: it only ever attacks once already adjacent, so a
+ * shove that lands the instant it hits would repel it every single exchange,
+ * denying the player a second swing forever and turning a defensive perk into
+ * a wall between them and the one enemy they most need to land melee hits on.
+ * Regular enemies don't have that problem — chasing one back down is a real
+ * cost paid for the free hit bulwark bought, not an unwinnable stalemate.
+ *
  * An enemy only ever attacks from an orthogonally adjacent tile, so the two axes
  * give a cardinal direction and the target can never be pushed onto the player.
  * Moving an entity cannot start another attack, so this cannot recurse.
  */
 function knockBack(state: GameState, target: Enemy, tiles: number): boolean {
+  if (target.isBoss) return false;
+
   const dx = Math.sign(target.position.x - state.player.position.x);
   const dy = Math.sign(target.position.y - state.player.position.y);
   if (dx === 0 && dy === 0) return false;

@@ -285,6 +285,20 @@ describe('Armor modifiers — knockback', () => {
     expect(enemy.position.x).toBeGreaterThan(player.x);
   });
 
+  it('does not shove a boss, so melee can still land a second hit', () => {
+    const state = createMockGameState('shove-vs-boss');
+    clearArea(state, 3);
+    state.player.armor = modifiedArmor('bulwark', 2);
+    const enemy = attackerEastOfPlayer(state);
+    enemy.isBoss = true;
+    const from = { ...enemy.position };
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(enemy.position).toEqual(from);
+    expect(state.armorReactions.some(r => r.kind === 'bulwark')).toBe(false);
+  });
+
   it('does not shove a corpse when thorns got there first', () => {
     const state = createMockGameState('shove-vs-thorns');
     clearArea(state, 3);

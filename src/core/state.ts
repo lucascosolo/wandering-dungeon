@@ -106,6 +106,7 @@ export type ItemType =
   | 'hourglass_shard'
   | 'haste_sigil'
   | 'rewind_scroll'
+  | 'rift_shard'
   | 'health_potion'
   | 'coin_cache'
   | ArmorType
@@ -138,7 +139,7 @@ export interface Item {
   type: ItemType;
   name: string;
   description: string;
-  category: 'stabilization' | 'destabilization' | 'consumable' | 'armor' | 'currency' | 'weapon';
+  category: 'stabilization' | 'destabilization' | 'displacement' | 'consumable' | 'armor' | 'currency' | 'weapon';
   /** Flat damage soaked per hit. Armor only — see damagePlayer. */
   defense?: number;
   /** Bonus damage on melee attacks. Weapon only. */

@@ -98,6 +98,12 @@ const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
     description: 'Restores the dungeon geometry from before the last shift.',
     category: 'stabilization',
   },
+  rift_shard: {
+    type: 'rift_shard',
+    name: 'Rift Shard',
+    description: 'Blinks you up to 5 tiles down the path to the stairs, past anything standing on it — or away from danger if no path exists.',
+    category: 'displacement',
+  },
   health_potion: {
     type: 'health_potion',
     name: 'Health Potion',
@@ -176,6 +182,7 @@ const LOOT_POOL: ItemType[] = [
   'hourglass_shard',
   'haste_sigil',
   'rewind_scroll',
+  'rift_shard',
 ];
 
 const WEAPON_POOL: WeaponType[] = ['war_axe', 'longbow'];

@@ -4,7 +4,7 @@
   "target": "/srv/wandering-dungeon",
   "branch": "main",
   "unit": "wandering-dungeon",
-  "build": "npm run build",
+  "build": "BUILD_ID=$(git rev-parse --short HEAD) docker compose up -d --build",
   "healthcheck": "curl -fsS http://127.0.0.1:8420/ -o /dev/null",
   "hostPorts": [8420]
 }

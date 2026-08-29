@@ -40,7 +40,66 @@ export function applyRiftShard(state: GameState): string[] {
   return applyRiftShardFallback(state);
 }
 
+const CARDINAL_STEPS: [number, number][] = [
+  [0, -1],
+  [0, 1],
+  [-1, 0],
+  [1, 0],
+];
+
+/** Every walkable tile reachable from `origin` within `radius` steps. */
+function reachableWithin(state: GameState, origin: Position, radius: number): Position[] {
+  const seen = new Set<string>([`${origin.x},${origin.y}`]);
+  let frontier: Position[] = [origin];
+  const out: Position[] = [];
+
+  for (let step = 0; step < radius; step++) {
+    const next: Position[] = [];
+    for (const pos of frontier) {
+      for (const [dx, dy] of CARDINAL_STEPS) {
+        const candidate = { x: pos.x + dx, y: pos.y + dy };
+        const key = `${candidate.x},${candidate.y}`;
+        if (seen.has(key) || !isWalkableTile(state, candidate)) continue;
+        seen.add(key);
+        out.push(candidate);
+        next.push(candidate);
+      }
+    }
+    frontier = next;
+  }
+
+  return out;
+}
+
+/**
+ * No path to the exit exists (or every step of it is occupied) — blink
+ * instead to the reachable tile that puts the most distance between the
+ * player and the Pursuer, so the shard never fizzles with no effect.
+ */
 function applyRiftShardFallback(state: GameState): string[] {
+  const { player } = state;
+  const pursuer = state.entities.find(e => e.enemyType === 'pursuer' && e.hp > 0);
+  const candidates = reachableWithin(state, player.position, RIFT_SHARD_RANGE).filter(
+    pos => !entityAt(state, pos)
+  );
+
+  let best: Position | null = null;
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    const score = pursuer
+      ? manhattan(candidate, pursuer.position)
+      : manhattan(candidate, player.position);
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+
+  if (best) {
+    player.position = best;
+    return ['You crack the dungeon open and blink away through the fracture.'];
+  }
+
   return ['The Rift Shard crumbles uselessly — there is nowhere to go.'];
 }
 

@@ -50,3 +50,43 @@ describe('Rift Shard — jump along the exit path', () => {
     expect(state.player.position).toEqual({ x: startX + 4, y });
   });
 });
+
+describe('Rift Shard — fallback when no exit path exists', () => {
+  it('blinks to the reachable tile that maximizes distance from the Pursuer', () => {
+    const state = createMockGameState('rift-fallback');
+    const { width, height, tiles } = state.floorMap;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
+    }
+    const y = state.player.position.y;
+    const startX = state.player.position.x;
+    const corridor = [0, 1, 2, 3].map(i => startX + i).filter(x => x < width);
+    for (const x of corridor) tiles[y][x].type = 'floor';
+    // A different row than the corridor, so it's still 'wall' from the fill above —
+    // guarantees findPath has no route to it regardless of column.
+    state.floorMap.exit = { x: 0, y: (y + 1) % height };
+    state.entities = [createMockEnemy({ x: corridor[1], y }, 'pursuer')];
+
+    const events = applyRiftShard(state);
+
+    expect(state.player.position).toEqual({ x: corridor[corridor.length - 1], y });
+    expect(events[0]).not.toMatch(/crumbles/i);
+  });
+
+  it('reports no effect when truly nowhere to go', () => {
+    const state = createMockGameState('rift-nowhere');
+    const { width, height, tiles } = state.floorMap;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
+    }
+    const y = state.player.position.y;
+    const x = state.player.position.x;
+    tiles[y][x].type = 'floor';
+    state.floorMap.exit = { x, y: (y + 1) % height };
+
+    const events = applyRiftShard(state);
+
+    expect(state.player.position).toEqual({ x, y });
+    expect(events[0]).toMatch(/crumbles/i);
+  });
+});

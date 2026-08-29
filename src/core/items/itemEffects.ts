@@ -1,6 +1,48 @@
-import { GameState } from '../state';
+import { GameState, Position, manhattan, samePosition } from '../state';
 import { SeededRNG } from '../rng';
 import { executeShift, restorePreShiftSnapshot, shiftInterval } from '../shift/shiftSystem';
+import { findPath } from '../map/pathfinding';
+
+const RIFT_SHARD_RANGE = 5;
+
+function isWalkableTile(state: GameState, pos: Position): boolean {
+  const { floorMap } = state;
+  if (pos.x < 0 || pos.x >= floorMap.width || pos.y < 0 || pos.y >= floorMap.height) return false;
+  const type = floorMap.tiles[pos.y][pos.x].type;
+  return type === 'floor' || type === 'door' || type === 'stairs_down';
+}
+
+function entityAt(state: GameState, pos: Position) {
+  return state.entities.find(e => e.hp > 0 && samePosition(e.position, pos));
+}
+
+/**
+ * Apply Rift Shard: blink up to RIFT_SHARD_RANGE tiles along the shortest path
+ * to the stairs, landing past any enemy standing on it — a teleport isn't
+ * blocked by an occupied tile the way a normal step is. If the exact target
+ * tile is occupied, land on the nearest open tile short of it instead of
+ * refusing outright.
+ */
+export function applyRiftShard(state: GameState): string[] {
+  const { player, floorMap } = state;
+
+  const path = findPath(floorMap, player.position, floorMap.exit);
+  if (path && path.length > 1) {
+    const targetIndex = Math.min(RIFT_SHARD_RANGE, path.length - 1);
+    for (let i = targetIndex; i >= 1; i--) {
+      const candidate = path[i];
+      if (entityAt(state, candidate)) continue;
+      player.position = { x: candidate.x, y: candidate.y };
+      return [`You crack the dungeon open and blink ${i} tiles down the path to the stairs.`];
+    }
+  }
+
+  return applyRiftShardFallback(state);
+}
+
+function applyRiftShardFallback(state: GameState): string[] {
+  return ['The Rift Shard crumbles uselessly — there is nowhere to go.'];
+}
 
 /**
  * Apply Stasis Flask: pause shift countdown for 6 turns.
@@ -100,6 +142,9 @@ export function useItem(state: GameState, itemId: string, rng: SeededRNG): strin
       break;
     case 'rewind_scroll':
       events = applyRewindScroll(state);
+      break;
+    case 'rift_shard':
+      events = applyRiftShard(state);
       break;
     case 'health_potion':
       events = applyHealthPotion(state);

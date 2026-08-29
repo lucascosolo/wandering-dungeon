@@ -27,7 +27,7 @@ import {
 } from './shift/shiftSystem';
 import { useItem } from './items/itemEffects';
 import { computeFOV } from './map/fow';
-import { findPath } from './map/pathfinding';
+import { findPath, hasValidPath } from './map/pathfinding';
 import {
   buildFloor,
   coinsPerKill,
@@ -1116,6 +1116,29 @@ function wakePursuer(state: GameState, events: string[]): void {
 }
 
 /**
+ * The true last resort: the exit is sealed and the Pursuer has caught up in
+ * the same moment, with no Rift Shard in hand to answer it. Silently grants
+ * one free charge so this specific combination is never unwinnable by loot
+ * luck — checked once per turn, and self-limiting: it only fires while the
+ * player holds zero charges, so it cannot re-grant while still cornered.
+ */
+function grantEmergencyRiftShard(state: GameState, events: string[]): void {
+  const pursuer = state.entities.find(e => e.enemyType === 'pursuer' && e.hp > 0);
+  if (!pursuer) return;
+  if (manhattan(pursuer.position, state.player.position) !== 1) return;
+
+  const held = state.player.inventory
+    .filter(i => i.type === 'rift_shard')
+    .reduce((sum, i) => sum + (i.count ?? 1), 0);
+  if (held > 0) return;
+
+  if (hasValidPath(state.floorMap, state.player.position, state.floorMap.exit)) return;
+
+  addToInventory(state, createItem('rift_shard', `rift_shard_emergency_${state.turnCount}`));
+  events.push('The dungeon offers you one way out.');
+}
+
+/**
  * Advance the world clock by one turn: expire buffs, tick the shift countdown,
  * telegraph an imminent shift, and execute a shift when the countdown expires.
  */
@@ -1320,6 +1343,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     // the floor, so it has to run before the corpses are swept.
     settleDeaths(state, rng, events);
     enemyTurns(state, rng, events);
+    grantEmergencyRiftShard(state, events);
     advanceClock(state, rng, events);
     settleDeaths(state, rng, events);
   }

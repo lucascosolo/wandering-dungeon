@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createItem } from '../src/core/game';
 import { applyRiftShard } from '../src/core/items/itemEffects';
+import { dispatchAction } from '../src/core/engine';
 import { createMockGameState, createMockEnemy } from './helpers';
 
 describe('Rift Shard', () => {
@@ -88,5 +89,66 @@ describe('Rift Shard — fallback when no exit path exists', () => {
 
     expect(state.player.position).toEqual({ x, y });
     expect(events[0]).toMatch(/crumbles/i);
+  });
+});
+
+describe('Rift Shard — guaranteed emergency grant', () => {
+  it('grants a free Rift Shard exactly once when the exit is sealed and the Pursuer is adjacent', () => {
+    const state = createMockGameState('rift-emergency');
+    const { width, height, tiles } = state.floorMap;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
+    }
+    const py = state.player.position.y;
+    const px = state.player.position.x;
+    tiles[py][px].type = 'floor';
+    state.floorMap.exit = { x: px, y: (py + 1) % height };
+    state.entities = [createMockEnemy({ x: px + 1, y: py }, 'pursuer')];
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    const shards = state.player.inventory.filter(i => i.type === 'rift_shard');
+    expect(shards).toHaveLength(1);
+    expect(shards[0].count ?? 1).toBe(1);
+    expect(state.eventLog.some(e => e.text.includes('one way out'))).toBe(true);
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    const shardsAfter = state.player.inventory.filter(i => i.type === 'rift_shard');
+    expect(shardsAfter).toHaveLength(1);
+    expect(shardsAfter[0].count ?? 1).toBe(1);
+  });
+
+  it('does not grant when a path to the exit exists', () => {
+    const state = createMockGameState('rift-emergency-has-path');
+    const px = state.player.position.x;
+    const py = state.player.position.y;
+    state.entities = [createMockEnemy({ x: px + 1, y: py }, 'pursuer')];
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.inventory.some(i => i.type === 'rift_shard')).toBe(false);
+  });
+
+  it('does not grant when the Pursuer has not yet closed to adjacent', () => {
+    const state = createMockGameState('rift-emergency-not-adjacent');
+    const { width, height, tiles } = state.floorMap;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
+    }
+    const py = state.player.position.y;
+    const px = state.player.position.x;
+    // A sealed pocket, same shape as the Task 3 fallback test, but with the
+    // Pursuer starting 3 tiles off instead of 1 — it closes one step per
+    // turn along this corridor, so after a single WAIT it's at distance 2,
+    // not yet adjacent.
+    const corridor = [0, 1, 2, 3].map(i => px + i).filter(x => x < width);
+    for (const x of corridor) tiles[py][x].type = 'floor';
+    state.floorMap.exit = { x: 0, y: (py + 1) % height };
+    state.entities = [createMockEnemy({ x: corridor[corridor.length - 1], y: py }, 'pursuer')];
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.inventory.some(i => i.type === 'rift_shard')).toBe(false);
   });
 });

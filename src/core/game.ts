@@ -101,7 +101,7 @@ const ITEM_TABLE: Record<ItemType, Omit<Item, 'id'>> = {
   rift_shard: {
     type: 'rift_shard',
     name: 'Rift Shard',
-    description: 'Blinks you up to 5 tiles down the path to the stairs, past anything standing on it — or away from danger if no path exists.',
+    description: 'Blinks you up to 5 tiles down the path to the stairs, past anything standing on it. If the way is sealed, tears through the seal toward the stairs, or away from the Pursuer.',
     category: 'displacement',
   },
   health_potion: {

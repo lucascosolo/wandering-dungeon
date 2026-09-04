@@ -1125,16 +1125,26 @@ function wakePursuer(state: GameState, events: string[]): void {
 }
 
 /**
- * The true last resort: the exit is sealed and the Pursuer has caught up in
- * the same moment, with no Rift Shard in hand to answer it. Silently grants
- * one free charge so this specific combination is never unwinnable by loot
- * luck — checked once per turn, and self-limiting: it only fires while the
- * player holds zero charges, so it cannot re-grant while still cornered.
+ * The true last resort: the exit is sealed and the Pursuer has caught up, with
+ * no Rift Shard in hand to answer it. Silently grants one free charge so this
+ * specific combination is never unwinnable by loot luck. Self-limiting: it only
+ * fires while the player holds zero charges, so it cannot re-grant while still
+ * cornered.
+ *
+ * "Caught up" means it will strike on its next turn: adjacent, standing on real
+ * floor, and not stalled. It phases through walls at distance 1 all the time —
+ * a silhouette inside the wall next to you has not caught you yet, and granting
+ * on that read as the dungeon handing out shards early. Runs after the clock so
+ * a shift that just reopened the exit does not also hand over a shard for a
+ * seal that no longer exists.
  */
 function grantEmergencyRiftShard(state: GameState, events: string[]): void {
+  if (state.isGameOver) return;
   const pursuer = state.entities.find(e => e.enemyType === 'pursuer' && e.hp > 0);
   if (!pursuer) return;
   if (manhattan(pursuer.position, state.player.position) !== 1) return;
+  if (pursuer.staggeredTurns > 0) return;
+  if (!isWalkableAt(state, pursuer.position)) return;
 
   const held = state.player.inventory
     .filter(i => i.type === 'rift_shard')
@@ -1352,9 +1362,9 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
     // the floor, so it has to run before the corpses are swept.
     settleDeaths(state, rng, events);
     enemyTurns(state, rng, events);
-    grantEmergencyRiftShard(state, events);
     advanceClock(state, rng, events);
     settleDeaths(state, rng, events);
+    grantEmergencyRiftShard(state, events);
   }
 
   if (state.player.hp <= 0) {

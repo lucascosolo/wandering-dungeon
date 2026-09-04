@@ -54,8 +54,8 @@ describe('Rift Shard — jump along the exit path', () => {
 });
 
 describe('Rift Shard — fallback when no exit path exists', () => {
-  it('blinks to the reachable tile that maximizes distance from the Pursuer', () => {
-    const state = createMockGameState('rift-fallback');
+  function sealedCorridor(seed: string) {
+    const state = createMockGameState(seed);
     const { width, height, tiles } = state.floorMap;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
@@ -64,14 +64,37 @@ describe('Rift Shard — fallback when no exit path exists', () => {
     const startX = state.player.position.x;
     const corridor = [0, 1, 2, 3].map(i => startX + i).filter(x => x < width);
     for (const x of corridor) tiles[y][x].type = 'floor';
-    // A different row than the corridor, so it's still 'wall' from the fill above —
-    // guarantees findPath has no route to it regardless of column.
-    state.floorMap.exit = { x: 0, y: (y + 1) % height };
+    return { state, y, startX, corridor, width, height };
+  }
+
+  it('tears through the seal to the nearest tile that reconnects with the stairs', () => {
+    const { state, y, startX, corridor, height } = sealedCorridor('rift-fallback-reconnect');
+    // A second corridor two rows down, walled off from the first, holding the exit.
+    const y2 = (y + 2) % height;
+    for (const x of corridor) state.floorMap.tiles[y2][x].type = 'floor';
+    state.floorMap.exit = { x: corridor[corridor.length - 1], y: y2 };
+    state.floorMap.tiles[y2][state.floorMap.exit.x].type = 'stairs_down';
     state.entities = [createMockEnemy({ x: corridor[1], y }, 'pursuer')];
 
     const events = applyRiftShard(state);
 
-    expect(state.player.position).toEqual({ x: corridor[corridor.length - 1], y });
+    expect(state.player.position).toEqual(state.floorMap.exit);
+    expect(events[0]).toMatch(/seal/i);
+    expect(startX).toBe(corridor[0]);
+  });
+
+  it('blinks through walls to the tile that maximizes distance from the Pursuer when nothing in range reconnects', () => {
+    const { state, y, corridor, height } = sealedCorridor('rift-fallback');
+    // Exit rows away and unreachable from anything in range; a lone floor tile
+    // sits behind a wall, 4 steps off in manhattan distance but 0 walkable steps.
+    const yFar = (y + 3) % height;
+    state.floorMap.tiles[yFar][corridor[0]].type = 'floor';
+    state.floorMap.exit = { x: 0, y: (y + 6) % height };
+    state.entities = [createMockEnemy({ x: corridor[1], y }, 'pursuer')];
+
+    const events = applyRiftShard(state);
+
+    expect(state.player.position).toEqual({ x: corridor[0], y: yFar });
     expect(events[0]).not.toMatch(/crumbles/i);
   });
 
@@ -103,6 +126,7 @@ describe('Rift Shard — guaranteed emergency grant', () => {
     const py = state.player.position.y;
     const px = state.player.position.x;
     tiles[py][px].type = 'floor';
+    tiles[py][px + 1].type = 'floor';
     state.floorMap.exit = { x: px, y: (py + 1) % height };
     state.entities = [createMockEnemy({ x: px + 1, y: py }, 'pursuer')];
 
@@ -147,6 +171,43 @@ describe('Rift Shard — guaranteed emergency grant', () => {
     for (const x of corridor) tiles[py][x].type = 'floor';
     state.floorMap.exit = { x: 0, y: (py + 1) % height };
     state.entities = [createMockEnemy({ x: corridor[corridor.length - 1], y: py }, 'pursuer')];
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.player.inventory.some(i => i.type === 'rift_shard')).toBe(false);
+  });
+});
+
+describe('Rift Shard — emergency grant only when truly caught', () => {
+  function sealedPocket(seed: string) {
+    const state = createMockGameState(seed);
+    const { width, height, tiles } = state.floorMap;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) tiles[y][x].type = 'wall';
+    }
+    const py = state.player.position.y;
+    const px = state.player.position.x;
+    tiles[py][px].type = 'floor';
+    state.floorMap.exit = { x: px, y: (py + 1) % height };
+    return { state, px, py };
+  }
+
+  it('does not grant while the Pursuer is adjacent but still inside a wall', () => {
+    const { state, px, py } = sealedPocket('rift-emergency-in-wall');
+    state.entities = [createMockEnemy({ x: px + 1, y: py }, 'pursuer')];
+
+    dispatchAction(state, { type: 'WAIT' });
+
+    expect(state.floorMap.tiles[py][px + 1].type).toBe('wall');
+    expect(state.player.inventory.some(i => i.type === 'rift_shard')).toBe(false);
+  });
+
+  it('does not grant while the adjacent Pursuer is still stalled from phasing', () => {
+    const { state, px, py } = sealedPocket('rift-emergency-staggered');
+    state.floorMap.tiles[py][px + 1].type = 'floor';
+    const pursuer = createMockEnemy({ x: px + 1, y: py }, 'pursuer');
+    pursuer.staggeredTurns = 2;
+    state.entities = [pursuer];
 
     dispatchAction(state, { type: 'WAIT' });
 

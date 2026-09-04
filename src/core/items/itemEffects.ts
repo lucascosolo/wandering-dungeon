@@ -40,48 +40,55 @@ export function applyRiftShard(state: GameState): string[] {
   return applyRiftShardFallback(state);
 }
 
-const CARDINAL_STEPS: [number, number][] = [
-  [0, -1],
-  [0, 1],
-  [-1, 0],
-  [1, 0],
-];
-
-/** Every walkable tile reachable from `origin` within `radius` steps. */
-function reachableWithin(state: GameState, origin: Position, radius: number): Position[] {
-  const seen = new Set<string>([`${origin.x},${origin.y}`]);
-  let frontier: Position[] = [origin];
+/**
+ * Every walkable, unoccupied tile within `radius` (manhattan) of `origin`,
+ * walls or no walls between — a blink is a tear through the geometry, not a
+ * walk, so the seal that cut the exit off is exactly what it is for.
+ */
+function blinkTargets(state: GameState, origin: Position, radius: number): Position[] {
   const out: Position[] = [];
-
-  for (let step = 0; step < radius; step++) {
-    const next: Position[] = [];
-    for (const pos of frontier) {
-      for (const [dx, dy] of CARDINAL_STEPS) {
-        const candidate = { x: pos.x + dx, y: pos.y + dy };
-        const key = `${candidate.x},${candidate.y}`;
-        if (seen.has(key) || !isWalkableTile(state, candidate)) continue;
-        seen.add(key);
-        out.push(candidate);
-        next.push(candidate);
-      }
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+      const candidate = { x: origin.x + dx, y: origin.y + dy };
+      if (!isWalkableTile(state, candidate) || entityAt(state, candidate)) continue;
+      out.push(candidate);
     }
-    frontier = next;
   }
-
   return out;
 }
 
 /**
- * No path to the exit exists (or every step of it is occupied) — blink
- * instead to the reachable tile that puts the most distance between the
- * player and the Pursuer, so the shard never fizzles with no effect.
+ * No walkable path to the exit exists — the way out is sealed. Tear through
+ * the seal: of every tile within range, prefer one on the exit's side of it
+ * (a valid path to the stairs from there), nearest the stairs. If no tile in
+ * range reconnects, blink to the one furthest from the Pursuer instead; it
+ * phases through walls one stalled step at a time, so distance is turns.
+ *
+ * The first shape of this fallback only walked the pocket the player was
+ * sealed inside, so a small pocket meant a one-tile hop with the Pursuer
+ * adjacent again the next turn — which read as the shard doing nothing.
  */
 function applyRiftShardFallback(state: GameState): string[] {
-  const { player } = state;
+  const { player, floorMap } = state;
   const pursuer = state.entities.find(e => e.enemyType === 'pursuer' && e.hp > 0);
-  const candidates = reachableWithin(state, player.position, RIFT_SHARD_RANGE).filter(
-    pos => !entityAt(state, pos)
-  );
+  const candidates = blinkTargets(state, player.position, RIFT_SHARD_RANGE);
+
+  let reconnect: Position | null = null;
+  let reconnectSteps = Infinity;
+  for (const candidate of candidates) {
+    const path = findPath(floorMap, candidate, floorMap.exit);
+    if (!path) continue;
+    if (path.length < reconnectSteps) {
+      reconnectSteps = path.length;
+      reconnect = candidate;
+    }
+  }
+  if (reconnect) {
+    player.position = reconnect;
+    return ['You crack the seal open and blink through — the way to the stairs is clear again.'];
+  }
 
   let best: Position | null = null;
   let bestScore = -1;

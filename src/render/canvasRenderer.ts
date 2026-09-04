@@ -2,7 +2,9 @@ import { Enemy, EnemyType, GameState, Position } from '../core/state';
 import { regionForFloor } from '../core/regions';
 import { isSoldOut } from '../core/shop';
 import { ParticleSystem } from './particles';
+import { AnimationTimeline } from './animation';
 import { currentCosmetic } from '../cosmetics';
+import { isFloorStabilized } from '../core/shift/shiftSystem';
 
 export const TILE_SIZE = 30;
 
@@ -69,12 +71,18 @@ export interface Camera {
  * Player-centred camera, clamped so the view never scrolls past the map edges
  * unless the map is smaller than the viewport (then it is centred).
  */
-export function computeCamera(state: GameState, width: number, height: number): Camera {
+export function computeCamera(
+  state: GameState,
+  width: number,
+  height: number,
+  /** Where the player is being drawn this frame, when that differs from where they stand. */
+  focus: Position = state.player.position
+): Camera {
   const mapPixelW = state.floorMap.width * TILE_SIZE;
   const mapPixelH = state.floorMap.height * TILE_SIZE;
 
-  const centerX = width / 2 - (state.player.position.x + 0.5) * TILE_SIZE;
-  const centerY = height / 2 - (state.player.position.y + 0.5) * TILE_SIZE;
+  const centerX = width / 2 - (focus.x + 0.5) * TILE_SIZE;
+  const centerY = height / 2 - (focus.y + 0.5) * TILE_SIZE;
 
   const offsetX = mapPixelW <= width ? (width - mapPixelW) / 2 : Math.min(0, Math.max(width - mapPixelW, centerX));
   const offsetY = mapPixelH <= height ? (height - mapPixelH) / 2 : Math.min(0, Math.max(height - mapPixelH, centerY));
@@ -119,6 +127,47 @@ function drawGlyph(
 }
 
 /**
+ * The motion layer and the wall-clock it is being drawn at. Absent in tests
+ * and anywhere the board is drawn without a running loop.
+ */
+export interface Motion {
+  anim: AnimationTimeline;
+  now: number;
+}
+
+/**
+ * How hard the floor is leaning on the player right now, 0–1, from the shift
+ * clock alone. Drives everything that pulses while the player is thinking: the
+ * telegraph tiles, the vignette, the tick. Stasis and a stabilized floor are
+ * calm by definition — pressure is a thing the clock does.
+ */
+export function pressureLevel(state: GameState): number {
+  if (isFloorStabilized(state) || state.isStasisActive) return 0;
+  const max = Math.max(1, state.nextShiftCountdownMax);
+  const remaining = Math.max(0, state.shiftCountdown);
+  if (remaining > 3) return 0;
+  return Math.min(1, (4 - remaining) / 4 + (1 - remaining / max) * 0.25);
+}
+
+/**
+ * Whether anything on the board wants to move between turns. The loop draws
+ * every frame only while this is true, so a calm floor still costs nothing to
+ * hold on screen.
+ */
+export function wantsIdleFrames(state: GameState): boolean {
+  if (state.isGameOver) return false;
+  if (pressureLevel(state) > 0) return true;
+  if (state.pendingShift) return true;
+  return state.entities.some(e => e.hp > 0 && e.enemyType === 'pursuer');
+}
+
+/** A slow breath, 0–1, whose rate climbs with `pressure`. */
+function breathe(now: number, pressure: number, phase = 0): number {
+  const hz = 0.7 + pressure * 2.3;
+  return 0.5 + 0.5 * Math.sin(now * 0.001 * hz * Math.PI * 2 + phase);
+}
+
+/**
  * Draw one frame: tiles under fog of war, telegraphed collapse warnings,
  * item drops, enemies, the player, and any live particles.
  */
@@ -133,14 +182,23 @@ export function renderFrame(
    * transform — the background fill has to stay put, or a shake would show bare
    * edges where the world slid off.
    */
-  shake?: { x: number; y: number }
+  shake?: { x: number; y: number },
+  motion?: Motion
 ): void {
   const { floorMap } = state;
-  const camera = computeCamera(state, width, height);
+  const now = motion?.now ?? 0;
+  const drawnPlayer = motion
+    ? motion.anim.positionOf(state.player.id, state.player.position)
+    : state.player.position;
+  const camera = computeCamera(state, width, height, drawnPlayer);
   const offsetX = camera.offsetX + (shake?.x ?? 0);
   const offsetY = camera.offsetY + (shake?.y ?? 0);
   const region = regionForFloor(floorMap.level);
   const hasHingeStress = region.index === 0;
+  const pressure = pressureLevel(state);
+  // The telegraphs breathe faster as the clock runs down; a still warning is a
+  // warning the eye has already filed away.
+  const telegraphPulse = motion ? 0.6 + 0.4 * breathe(now, pressure) : 1;
 
   ctx.fillStyle = '#0f0f15';
   ctx.fillRect(0, 0, width, height);
@@ -187,15 +245,18 @@ export function renderFrame(
 
       // Collapse telegraph — only meaningful where the player can see it.
       if (visible && tile.isTelegraphedCollapse) {
+        ctx.globalAlpha = telegraphPulse;
         ctx.fillStyle = COLOR_TELEGRAPH;
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
         ctx.strokeStyle = '#ff0055';
         ctx.lineWidth = 2;
         ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+        ctx.globalAlpha = visible ? 1 : 0.35;
       }
 
       // Room-slide / corridor-reconnect telegraph — a softer violet warning.
       if (visible && tile.isTelegraphedShift) {
+        ctx.globalAlpha = telegraphPulse;
         ctx.fillStyle = COLOR_TELEGRAPH_SHIFT;
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
         ctx.strokeStyle = '#9d4edd';
@@ -203,6 +264,7 @@ export function renderFrame(
         ctx.setLineDash([4, 3]);
         ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
         ctx.setLineDash([]);
+        ctx.globalAlpha = visible ? 1 : 0.35;
       }
 
       ctx.globalAlpha = 1;
@@ -315,8 +377,9 @@ export function renderFrame(
     const hunting = enemy.enemyType === 'pursuer';
     if (!seen && !hunting) continue;
 
-    const px = x * TILE_SIZE + offsetX;
-    const py = y * TILE_SIZE + offsetY;
+    const drawn = motion ? motion.anim.positionOf(enemy.id, enemy.position) : enemy.position;
+    const px = drawn.x * TILE_SIZE + offsetX;
+    const py = drawn.y * TILE_SIZE + offsetY;
     const style = ENEMY_STYLES[enemy.enemyType];
 
     if (enemy.bossTarget) {
@@ -350,10 +413,15 @@ export function renderFrame(
     if (hunting) {
       // A closed ring instead of a health bar. It has no health to report, and a
       // bar pinned at full for a whole floor reads as a bug rather than a rule.
+      // The ring breathes and the glyph flickers: a hunter that never moves
+      // between turns reads as a marker, and this is the one thing on the board
+      // that is coming for you whether you act or not.
+      const beat = motion ? breathe(now, 0.4, 1.3) : 1;
+      ctx.globalAlpha *= 0.55 + 0.45 * beat;
       ctx.strokeStyle = style.color;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.42, 0, Math.PI * 2);
+      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * (0.36 + 0.08 * beat), 0, Math.PI * 2);
       ctx.stroke();
     } else {
       // HP pip under the glyph.
@@ -366,8 +434,8 @@ export function renderFrame(
     ctx.globalAlpha = 1;
   }
 
-  const ppx = state.player.position.x * TILE_SIZE + offsetX;
-  const ppy = state.player.position.y * TILE_SIZE + offsetY;
+  const ppx = drawnPlayer.x * TILE_SIZE + offsetX;
+  const ppy = drawnPlayer.y * TILE_SIZE + offsetY;
   if (state.player.shieldHp > 0) {
     ctx.strokeStyle = '#9d4edd';
     ctx.lineWidth = 2;
@@ -381,4 +449,72 @@ export function renderFrame(
   drawGlyph(ctx, skin.glyph, skin.color, ppx, ppy);
 
   particles?.draw(ctx, TILE_SIZE, offsetX, offsetY);
+
+  if (motion) {
+    drawFloaters(ctx, motion.anim, offsetX, offsetY);
+    drawPressureVignette(ctx, width, height, pressure, now);
+  }
+}
+
+/**
+ * Damage figures and short verdicts drifting up off the tile they happened on.
+ * Drawn last, over everything, with a dark outline so a number is legible on a
+ * lit floor and in the dark alike.
+ */
+function drawFloaters(
+  ctx: CanvasRenderingContext2D,
+  anim: AnimationTimeline,
+  offsetX: number,
+  offsetY: number
+): void {
+  const frames = anim.floaterFrames();
+  if (frames.length === 0) return;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  for (const f of frames) {
+    // Pops in slightly large and settles, so the landing has an impact frame.
+    const pop = f.progress < 0.12 ? 1.35 - (f.progress / 0.12) * 0.35 : 1;
+    const size = Math.round(13 * f.scale * pop);
+    ctx.font = `bold ${size}px ui-monospace, monospace`;
+    ctx.globalAlpha = Math.max(0, f.alpha);
+    const x = (f.x + 0.5) * TILE_SIZE + offsetX;
+    const y = (f.y + 0.2 - f.rise) * TILE_SIZE + offsetY;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.strokeText(f.text, x, y);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, x, y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = GLYPH_FONT;
+}
+
+/**
+ * The edges of the viewport close in, red, as the shift clock runs out —
+ * breathing faster the closer it gets. Pressure that lives only in a number in
+ * the corner of the HUD is pressure the player can choose not to look at.
+ */
+function drawPressureVignette(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  pressure: number,
+  now: number
+): void {
+  if (pressure <= 0) return;
+  const strength = pressure * (0.35 + 0.65 * breathe(now, pressure));
+  const radius = Math.hypot(width, height) / 2;
+  const gradient = ctx.createRadialGradient(
+    width / 2,
+    height / 2,
+    radius * (0.55 - 0.15 * pressure),
+    width / 2,
+    height / 2,
+    radius
+  );
+  gradient.addColorStop(0, 'rgba(255, 0, 85, 0)');
+  gradient.addColorStop(1, `rgba(255, 0, 85, ${(0.18 + 0.32 * pressure) * strength})`);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
 }

@@ -1,4 +1,4 @@
-import { GameState } from './state';
+import { GameState, Position } from './state';
 import { DIFFICULTIES } from './runConfig';
 
 /**
@@ -14,7 +14,9 @@ export function damagePlayer(
   state: GameState,
   amount: number,
   events: string[],
-  source: string = 'the dungeon'
+  source: string = 'the dungeon',
+  /** Where the blow came from, when the source stands somewhere. */
+  from: Position | null = null
 ): void {
   const { player } = state;
   state.lastDamageSource = source;
@@ -53,4 +55,16 @@ export function damagePlayer(
     player.hp = Math.max(0, player.hp - remaining);
     events.push(`You take ${remaining} damage.`);
   }
+
+  // Recorded even when armor and shield ate all of it: a blow that landed and
+  // cost nothing is still a blow, and the shell wants to show the block.
+  state.combatHits.push({
+    target: 'player',
+    targetId: player.id,
+    amount: remaining,
+    x: player.position.x,
+    y: player.position.y,
+    from,
+    lethal: player.hp <= 0,
+  });
 }

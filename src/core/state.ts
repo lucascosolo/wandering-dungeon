@@ -256,6 +256,26 @@ export interface ArmorReaction {
   y: number;
 }
 
+/**
+ * One blow that landed during the turn just dispatched: who took it, how much
+ * HP it actually cost after armor and shield, the tile it landed on, and where
+ * it came from when the source has a position. The log line already says all
+ * of this in prose; the shell needs it as numbers to float a damage figure on
+ * the struck tile, lunge the attacker, and shake the camera away from the hit.
+ * Same one-turn discipline as `ArmorReaction`.
+ */
+export interface CombatHit {
+  target: 'player' | 'enemy';
+  /** The struck entity's id — `player.id` for the player. */
+  targetId: string;
+  amount: number;
+  x: number;
+  y: number;
+  from: Position | null;
+  /** True when this blow took the target to zero. */
+  lethal: boolean;
+}
+
 export type EnemyType =
   | 'crawler'
   | 'sentinel'
@@ -396,6 +416,8 @@ export interface GameState {
    * shell to spark on the map. Same discipline as the two notices above.
    */
   armorReactions: ArmorReaction[];
+  /** Every blow that landed this dispatch, for the shell's feedback. */
+  combatHits: CombatHit[];
   /** Tiles whose type changed in the last shift — the renderer flashes these. */
   lastShiftChanges: Position[];
   /** The tile of the last enemy killed on this turn, for a kill flash. Cleared at dispatch top. */

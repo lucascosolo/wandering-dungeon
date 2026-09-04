@@ -3,8 +3,10 @@ import { declinedArmorUnderfoot, declinedWeaponUnderfoot, dispatchAction, GameAc
 import { FloorMap, GameState, Position, samePosition } from './core/state';
 import type { HudElements } from './ui/hud';
 import { findPath } from './core/map/pathfinding';
-import { computeCamera, renderFrame, TILE_SIZE } from './render/canvasRenderer';
+import { computeCamera, pressureLevel, renderFrame, TILE_SIZE, wantsIdleFrames } from './render/canvasRenderer';
 import { ParticleSystem } from './render/particles';
+import { AnimationTimeline, HIT_STOP_MS, KILL_STOP_MS } from './render/animation';
+import { loadSoundSetting, playSfx, playTick, unlockAudio } from './audio/sfx';
 import { attachControls } from './ui/controls';
 import { blocksGameInput, dismissTarget, ModalSnapshot } from './ui/modalGate';
 import { showTitleScreen } from './ui/titleScreen';
@@ -38,6 +40,14 @@ import { registerServiceWorker } from './pwa/serviceWorker';
 import { showUpdatePrompt } from './ui/updatePrompt';
 
 const particles = new ParticleSystem();
+const anim = new AnimationTimeline();
+/**
+ * Read once: the preference is a system setting, and a player who flips it
+ * mid-run gets it on the next load, which is how every other app treats it.
+ */
+const reducedMotion =
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+anim.reducedMotion = reducedMotion;
 
 /**
  * Assigned by `bootGameShell` on the first run and reused by every run after.
@@ -95,28 +105,44 @@ function reactToEvents(events: string[], struck: { x: number; y: number } | null
   const { x, y } = state.player.position;
 
   for (const text of events) {
-    if (text.startsWith('You hit')) {
-      const at = struck ?? { x, y };
-      particles.burst(at.x, at.y, '#00f0ff', 8);
-    } else if (text.startsWith('You pick up')) {
+    if (text.startsWith('You pick up')) {
       // Walking over a `*` used to produce nothing at all — the item simply
       // appeared in the hotbar, which is a place the player is not looking while
       // they walk. The colours are the ones the map drew the glyph in.
       particles.burst(x, y, '#ffd166', 10);
+      playSfx('pickup');
     } else if (text.startsWith('You pocket')) {
       particles.burst(x, y, '#f7b32b', 10);
-    } else if (text.includes('damage')) {
-      particles.burst(x, y, '#ff0055', 10);
-    } else if (text.toLowerCase().includes('shift')) {
+      playSfx('coin');
+    } else if (text.startsWith('You crack')) {
+      particles.burst(x, y, '#c77dff', 18);
+      playSfx('blink');
+    } else if (text.startsWith('You drink') || text.startsWith('You quaff')) {
+      playSfx('potion');
+    } else if (text.startsWith('Reality trembles')) {
+      playSfx('telegraph');
+    } else if (text.toLowerCase().includes('shift') && state.lastShiftTurn !== state.turnCount) {
       particles.burst(x, y, '#9d4edd', 16);
     }
   }
+
+  // The swing that missed nothing but still landed on stone: a bump into a wall
+  // is not a lunge, but a swing at an enemy is, whether or not it drew blood.
+  if (struck && state.combatHits.length === 0) {
+    const target = state.entities.find(e => e.hp > 0 && samePosition(e.position, struck));
+    if (target) anim.lunge(state.player.id, struck.x - x, struck.y - y);
+  }
+
+  reactToHits();
 
   // The floor rearranging itself is the loudest thing that happens in this game
   // and read as the quietest. Keyed off the turn the shift executed rather than
   // off the log text, which cannot tell an execution from its telegraph.
   if (state.lastShiftTurn === state.turnCount) {
-    shakeMagnitude = SHIFT_SHAKE_PIXELS;
+    particles.burst(x, y, '#9d4edd', 24);
+    startShake(SHIFT_SHAKE_PIXELS, 1, 0.6);
+    anim.hitStop(KILL_STOP_MS);
+    playSfx('shift');
   }
 
   // A reactive modifier fires on a tile, not in the log, so it sparks there —
@@ -133,12 +159,83 @@ function reactToEvents(events: string[], struck: { x: number; y: number } | null
   }
 }
 
+/**
+ * Every blow the engine recorded this turn, turned into weight: the attacker
+ * lunges, the struck tile sparks and floats its number, the frame freezes for
+ * an instant, and a hit on the player kicks the camera away from where it
+ * came from. Scaled by the damage so a scratch and a haymaker do not look alike.
+ */
+function reactToHits(): void {
+  const { player } = state;
+  let stop = 0;
+  let loudest: 'hit' | 'hurt' | 'block' | 'kill' | 'death' | null = null;
+  const rank = { block: 1, hit: 2, hurt: 3, kill: 4, death: 5 };
+
+  for (const hit of state.combatHits) {
+    const heavy = Math.min(1, hit.amount / Math.max(1, player.maxHp * 0.25));
+    const scale = 1 + heavy * 0.8;
+
+    if (hit.target === 'enemy') {
+      anim.lunge(player.id, hit.x - player.position.x, hit.y - player.position.y);
+      particles.burst(hit.x, hit.y, hit.lethal ? '#ffffff' : '#00f0ff', hit.lethal ? 22 : 8 + Math.round(heavy * 8));
+      anim.float(hit.x, hit.y, `-${hit.amount}`, hit.lethal ? '#ffffff' : '#9df5ff', hit.lethal ? scale + 0.3 : scale);
+      stop = Math.max(stop, hit.lethal ? KILL_STOP_MS : HIT_STOP_MS);
+      const sound = hit.lethal ? 'kill' : 'hit';
+      if (!loudest || rank[sound] > rank[loudest]) loudest = sound;
+    } else {
+      if (hit.from) {
+        const attacker = state.entities.find(e => e.hp > 0 && samePosition(e.position, hit.from!));
+        if (attacker) anim.lunge(attacker.id, hit.x - hit.from.x, hit.y - hit.from.y);
+      }
+      const blocked = hit.amount === 0;
+      particles.burst(hit.x, hit.y, blocked ? '#8fd9c0' : '#ff0055', blocked ? 6 : 10 + Math.round(heavy * 10));
+      anim.float(hit.x, hit.y, blocked ? 'BLOCK' : `-${hit.amount}`, blocked ? '#8fd9c0' : '#ff4d6d', blocked ? 0.9 : scale);
+      if (!blocked) {
+        // Kicked *away* from the blow, and harder the more it took.
+        const dx = hit.from ? hit.x - hit.from.x : 0;
+        const dy = hit.from ? hit.y - hit.from.y : 1;
+        startShake(3 + heavy * 9, dx, dy);
+        stop = Math.max(stop, hit.lethal ? KILL_STOP_MS * 2 : HIT_STOP_MS + heavy * 40);
+      }
+      const sound = hit.lethal ? 'death' : blocked ? 'block' : 'hurt';
+      if (!loudest || rank[sound] > rank[loudest]) loudest = sound;
+    }
+  }
+
+  if (stop > 0) anim.hitStop(stop);
+  if (loudest) playSfx(loudest);
+}
+
+/** Where everything stood before a dispatch, so what moved can slide there. */
+function snapshotPositions(): Map<string, Position> {
+  const before = new Map<string, Position>();
+  before.set(state.player.id, { ...state.player.position });
+  for (const enemy of state.entities) before.set(enemy.id, { ...enemy.position });
+  return before;
+}
+
+function tweenMoves(before: Map<string, Position>): void {
+  const from = before.get(state.player.id);
+  if (from && !samePosition(from, state.player.position)) {
+    anim.moveFrom(state.player.id, from);
+    playSfx('step');
+  }
+  for (const enemy of state.entities) {
+    if (enemy.hp <= 0) continue;
+    const was = before.get(enemy.id);
+    if (was && !samePosition(was, enemy.position)) anim.moveFrom(enemy.id, was);
+  }
+}
+
 function act(action: GameAction): void {
   if (state.isGameOver) return;
   // Any action the player takes themselves abandons the walk they were on.
   if (!isTravelStep) stopTravel();
 
   const from = { ...state.player.position };
+  const before = snapshotPositions();
+  const levelBefore = state.floorMap.level;
+  const turnBefore = state.turnCount;
 
   recorder.beginTurn(state, action);
 
@@ -163,12 +260,26 @@ function act(action: GameAction): void {
 
   recorder.endTurn(state, events);
 
+  if (state.floorMap.level !== levelBefore) {
+    // A new floor is a new board: nothing from the old one should slide across it.
+    anim.clear();
+    particles.clear();
+    playSfx('stairs');
+  } else {
+    tweenMoves(before);
+  }
+
   // A MOVE that left the player standing still was a melee swing into that tile.
   const struck =
     action.type === 'MOVE' && samePosition(state.player.position, from)
       ? { x: from.x + action.dx, y: from.y + action.dy }
       : null;
   reactToEvents(events, struck);
+  // The clock is audible: one click per turn spent, climbing as the shift nears.
+  if (state.turnCount !== turnBefore && !state.isGameOver) {
+    const pressure = pressureLevel(state);
+    if (pressure > 0 || state.turnCount % 2 === 0) playTick(pressure);
+  }
   dirty = true;
 
   updateHud(ui, state);
@@ -516,6 +627,8 @@ function enterRun(next: GameState): void {
   runConfig = next.config;
   recorder = new RunRecorder(state);
   particles.clear();
+  anim.clear();
+  shakeMagnitude = 0;
   dirty = true;
   ui.modal.classList.add('hidden');
   ui.armorModal.classList.add('hidden');
@@ -659,8 +772,24 @@ function loop(now: number): void {
  * is that there are none.
  */
 let shakeMagnitude = 0;
+/** Unit direction the shake is thrown along; the camera oscillates on this axis. */
+let shakeDirX = 1;
+let shakeDirY = 0.6;
 const SHIFT_SHAKE_PIXELS = 6;
 const SHAKE_DECAY_PER_FRAME = 0.14;
+
+/**
+ * Kick the camera `magnitude` pixels along `(dx, dy)`. A shake already running
+ * is only ever made bigger, never cut short by a smaller one arriving after it.
+ */
+function startShake(magnitude: number, dx: number, dy: number): void {
+  if (reducedMotion) return;
+  if (magnitude < shakeMagnitude) return;
+  const len = Math.hypot(dx, dy) || 1;
+  shakeMagnitude = magnitude;
+  shakeDirX = dx / len;
+  shakeDirY = dy / len;
+}
 
 function renderTick(now: number): void {
   const dt = Math.min(3, (now - lastFrame) / 16.67);
@@ -671,11 +800,23 @@ function renderTick(now: number): void {
     dirty = true;
   }
 
+  anim.update(now);
+  if (anim.active) dirty = true;
+
+  // Under pressure the board is alive between turns, so it is drawn every frame.
+  // Reduced motion keeps the still board: the pulses are exactly what it asks not
+  // to see.
+  if (!reducedMotion && wantsIdleFrames(state)) dirty = true;
+
   let shake: { x: number; y: number } | undefined;
   if (shakeMagnitude > 0.15) {
+    // Mostly along the hit's axis, with a little across it so it reads as a
+    // jolt rather than a slide.
+    const along = Math.sin(now * 0.11) * shakeMagnitude;
+    const across = Math.cos(now * 0.17) * shakeMagnitude * 0.35;
     shake = {
-      x: Math.sin(now * 0.09) * shakeMagnitude,
-      y: Math.cos(now * 0.13) * shakeMagnitude,
+      x: shakeDirX * along - shakeDirY * across,
+      y: shakeDirY * along + shakeDirX * across,
     };
     shakeMagnitude *= Math.max(0, 1 - SHAKE_DECAY_PER_FRAME * dt);
     dirty = true;
@@ -687,7 +828,7 @@ function renderTick(now: number): void {
   }
 
   if (dirty) {
-    renderFrame(ctx, state, viewWidth, viewHeight, particles, shake);
+    renderFrame(ctx, state, viewWidth, viewHeight, particles, shake, { anim, now });
     dirty = false;
   }
 }
@@ -716,6 +857,11 @@ registerServiceWorker(activate => showUpdatePrompt(activate));
 async function boot(): Promise<void> {
   await loadKeybinds();
   await loadCosmetic();
+  await loadSoundSetting();
+  // Every browser gates audio behind a gesture; the first tap or key anywhere
+  // opens it, and the calls after that are no-ops.
+  window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+  window.addEventListener('keydown', unlockAudio, { capture: true });
   const saved = await loadRun();
 
   showTitleScreen({

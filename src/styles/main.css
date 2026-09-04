@@ -402,11 +402,33 @@ html, body {
   border: 1px solid var(--border-glow);
 }
 
+.shift-pill--warn {
+  color: #ffb347;
+  background: rgba(255, 179, 71, 0.12);
+  border-color: #ffb347;
+  animation: pulse-danger 1.4s ease-in-out infinite;
+}
+
 .shift-pill--danger {
   color: var(--warning-red);
   background: var(--warning-red-glow);
   border-color: var(--warning-red);
-  animation: pulse-danger 0.9s ease-in-out infinite;
+  animation: pulse-danger 0.7s ease-in-out infinite;
+}
+
+/* The last turn: the beat becomes a throb, and the pill swells with it. */
+.shift-pill--critical {
+  animation: pulse-critical 0.42s ease-in-out infinite;
+  box-shadow: 0 0 12px var(--warning-red-glow);
+}
+
+@keyframes pulse-critical {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shift-pill--warn, .shift-pill--danger, .shift-pill--critical { animation: none; }
 }
 
 .shift-pill--stable {
@@ -1383,6 +1405,12 @@ html, body {
 }
 
 .settings__hint--left { text-align: left; }
+
+.settings__toggle { width: 100%; }
+.settings__toggle--on {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
 
 .cosmetics {
   display: flex;

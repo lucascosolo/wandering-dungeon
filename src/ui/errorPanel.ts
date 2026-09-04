@@ -1,5 +1,6 @@
 import { clearRun } from '../core/save';
 import { clearCosmetic } from '../cosmetics';
+import { clearSoundSetting } from '../audio/sfx';
 import { clearKeybinds } from './keybinds';
 
 /**
@@ -31,6 +32,7 @@ async function resetSave(): Promise<void> {
   await clearRun();
   await clearKeybinds();
   await clearCosmetic();
+  await clearSoundSetting();
   window.location.reload();
 }
 

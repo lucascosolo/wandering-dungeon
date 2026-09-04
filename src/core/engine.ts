@@ -246,6 +246,15 @@ function damageEnemy(state: GameState, target: Enemy, dealt: number, events: str
   if (isUnkillable(target)) return;
 
   target.hp = Math.max(0, target.hp - dealt);
+  state.combatHits.push({
+    target: 'enemy',
+    targetId: target.id,
+    amount: dealt,
+    x: target.position.x,
+    y: target.position.y,
+    from: { ...state.player.position },
+    lethal: target.hp <= 0,
+  });
   if (target.hp > 0) return;
 
   // Only the player ever damages an enemy, so a kill here is always theirs. Paid
@@ -329,7 +338,7 @@ function playerAttack(state: GameState, rng: SeededRNG, target: Enemy, events: s
 function enemyAttack(state: GameState, rng: SeededRNG, attacker: Enemy, events: string[]): void {
   const dealt = Math.max(1, attacker.attackPower + rng.randomInt(-2, 2));
   events.push(`${attacker.name} strikes you.`);
-  damagePlayer(state, dealt, events, attacker.name);
+  damagePlayer(state, dealt, events, attacker.name, attacker.position);
 
   if (state.player.hp <= 0) return;
 
@@ -853,7 +862,7 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
       dist <= 8
     ) {
       const damage = enemy.attackPower + rng.randomInt(1, 3);
-      damagePlayer(state, damage, events, enemy.name);
+      damagePlayer(state, damage, events, enemy.name, enemy.position);
       events.push(`${enemy.name} snaps the shifting halls toward you.`);
       enemy.bossCooldown = 3;
       continue;
@@ -863,7 +872,7 @@ function enemyTurns(state: GameState, rng: SeededRNG, events: string[]): void {
     if (mark && enemy.bossTarget) {
       const within = manhattan(state.player.position, enemy.bossTarget) <= mark.radius;
       if (mark.inverted ? !within : within) {
-        damagePlayer(state, mark.damage, events, enemy.name);
+        damagePlayer(state, mark.damage, events, enemy.name, enemy.position);
         events.push(mark.caught(enemy.name));
       } else {
         events.push(mark.spared(enemy.name));
@@ -1273,6 +1282,7 @@ export function dispatchAction(state: GameState, action: GameAction): DispatchRe
   state.lastLevelUp = null;
   state.lastBossDefeat = null;
   state.armorReactions = [];
+  state.combatHits = [];
   state.shopOpened = false;
   state.lastKillPosition = null;
   state.lastPickupName = null;

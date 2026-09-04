@@ -9,6 +9,7 @@ import {
   resetKeybinds,
 } from './keybinds';
 import { COSMETICS, currentCosmetic, selectCosmetic } from '../cosmetics';
+import { setSoundEnabled, soundEnabled, playSfx, unlockAudio } from '../audio/sfx';
 
 /**
  * Mounted on `document.body` like the title screen, for the same reason —
@@ -59,6 +60,17 @@ export function showSettingsScreen(onBack: () => void): void {
               </div>`
               ).join('')}
             </div>
+          </section>
+
+          <section class="panel__section">
+            <span class="setup__label">Sound</span>
+            <p class="settings__hint settings__hint--left">
+              Every sound is synthesised on the spot — nothing downloads.
+            </p>
+            <button class="title-btn settings__toggle ${soundEnabled() ? 'settings__toggle--on' : ''}"
+                    id="btn-sound" type="button">
+              Sound effects: ${soundEnabled() ? 'ON' : 'OFF'}
+            </button>
           </section>
 
           <section class="panel__section">
@@ -115,6 +127,15 @@ export function showSettingsScreen(onBack: () => void): void {
         render();
       })
     );
+    screen.querySelector('#btn-sound')!.addEventListener('click', () => {
+      setSoundEnabled(!soundEnabled());
+      // A toggle that turns sound on should be heard doing it.
+      if (soundEnabled()) {
+        unlockAudio();
+        playSfx('pickup');
+      }
+      render();
+    });
     screen.querySelector('#btn-reset-keys')!.addEventListener('click', () => {
       resetKeybinds();
       capturing = null;

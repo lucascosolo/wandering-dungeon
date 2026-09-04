@@ -173,6 +173,7 @@ function decodeChecked(raw: unknown): GameState | null {
   // so a save made before it existed decodes as armor with no modifier, which is
   // exactly what that run was playing.
   saved.state.armorReactions = [];
+  saved.state.combatHits = [];
 
   return saved.state;
 }

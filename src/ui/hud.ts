@@ -276,8 +276,16 @@ export function updateHud(ui: HudElements, state: GameState): void {
     ui.shiftPill.className = 'shift-pill shift-pill--stasis';
   } else {
     ui.shiftPill.textContent = `SHIFT IN ${state.shiftCountdown}`;
+    // Three tiers, not one: the pill beats faster and swells as the number
+    // falls, so the last two turns are felt without reading the digit.
     ui.shiftPill.className =
-      state.shiftCountdown <= 2 ? 'shift-pill shift-pill--danger' : 'shift-pill';
+      state.shiftCountdown <= 1
+        ? 'shift-pill shift-pill--danger shift-pill--critical'
+        : state.shiftCountdown <= 2
+          ? 'shift-pill shift-pill--danger'
+          : state.shiftCountdown <= 3
+            ? 'shift-pill shift-pill--warn'
+            : 'shift-pill';
   }
 
   ui.hpFill.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;

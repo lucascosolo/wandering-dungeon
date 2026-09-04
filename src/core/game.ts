@@ -551,6 +551,7 @@ export function createNewGame(seed: string, config: RunConfig): GameState {
     lastLevelUp: null,
     lastBossDefeat: null,
     armorReactions: [],
+    combatHits: [],
     lastShiftChanges: [],
     lastShiftTurn: -999,
     lastKillPosition: null,
